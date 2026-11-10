@@ -330,7 +330,12 @@ def style_operations(
         SetDocumentStyle(
             kind="set_document_style",
             operation_id=operation_id(),
-            style=AppliedStyle(template_id=template.template_id, revision=template.revision),
+            # Cut from a voice's timing: the draft is not cut by the style again on a re-voice.
+            style=AppliedStyle(
+                template_id=template.template_id,
+                revision=template.revision,
+                voiced=sentence_ends is not None,
+            ),
         )
     )
     return operations

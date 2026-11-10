@@ -596,3 +596,19 @@ def test_a_styled_narration_places_the_card_lines() -> None:
     )
     cards = [c for c in styled.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"]
     assert [c.heading for c in cards] == ["Kok bisa ya?"]
+
+
+def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
+    # Final review (operator, 2026-11-10): the style cuts once, from its first voice; a re-voice
+    # only retimes, so shots the operator changed afterwards stay as they left them.
+    from tests.domain.test_timeline_operations import op
+    from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    a = BUILT_IN_STYLES["style_a"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=a)
+    shot = next(c for c in first.clips if c.clip_id.startswith("clip_style_main"))
+    edited = apply_edit_operations(first, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.3)])
+    again = narrate_document(edited, VOICES, [], PRESET, ROLES, style=a)
+    kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
+    assert kept is not None and kept.dim == 0.3

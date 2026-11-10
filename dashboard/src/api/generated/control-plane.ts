@@ -1975,6 +1975,8 @@ export interface components {
             revision: number;
             /** Template Id */
             template_id: string;
+            /** Voiced */
+            voiced?: boolean;
         };
         /** AppliedStyleResult */
         AppliedStyleResult: {

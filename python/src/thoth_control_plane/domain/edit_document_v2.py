@@ -363,6 +363,8 @@ class AppliedStyle(StrictModel):
 
     template_id: OpaqueId
     revision: Annotated[int, Field(gt=0)]
+    #: The style's cuts came from a voice: later re-voices only retime, keeping hand edits.
+    voiced: bool = Field(default_factory=lambda: False, exclude_if=lambda voiced: not voiced)
 
 
 class EditDocumentV2(StrictModel):

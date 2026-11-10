@@ -332,7 +332,9 @@ def narrate_document(
         ],
     )
     narrated_document = EditDocumentV2.model_validate(payload)
-    if style is None:
+    applied = narrated_document.style
+    # The style cuts once, from the first voice after it was applied (operator, 2026-11-10).
+    if style is None or (applied is not None and applied.voiced):
         return narrated_document
     # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
     ends = {
