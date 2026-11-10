@@ -39,6 +39,8 @@ export function StyleControl({
   const [asking, setAsking] = useState<StyleSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const keptKey = (document.style?.kept ?? []).join(",");
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const applyButton = useRef<HTMLButtonElement>(null);
   const { listStyles } = client;
   // Read once per project: the parent passes a new client object on every render.
@@ -82,8 +84,11 @@ export function StyleControl({
       .finally(() => setBusy(false));
   };
 
+  const keptNote = keptKey && dismissed !== keptKey;
+  // The header is one row: the confirmation and the notes float under the control (e2e, 2026-11-10).
+  const floating = "absolute left-0 top-full z-50 mt-2 w-80 rounded-md border border-hairline bg-surface p-2 text-xs text-muted-ink shadow-lg";
   return (
-    <div className="flex flex-col gap-2">
+    <div className="relative flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="text-xs text-muted-ink">
           {t("studio.style.label")}
@@ -113,7 +118,7 @@ export function StyleControl({
           role="alertdialog"
           aria-labelledby={`${id}-title`}
           aria-describedby={`${id}-rebuild ${id}-script`}
-          className="flex flex-col gap-2 rounded-md bg-surface p-2 text-xs text-muted-ink"
+          className={`${floating} flex flex-col gap-2`}
           onKeyDown={(event) => {
             if (event.key === "Escape") setAsking(null);
           }}
@@ -139,18 +144,28 @@ export function StyleControl({
           </div>
         </div>
       ) : null}
-      {message ? (
-        <p role="status" className="text-xs text-muted-ink">
-          {message}
-        </p>
-      ) : null}
-      {/* A re-voice only stretches a beat that holds hand edits (operator, 2026-11-10). */}
-      {document.style?.kept?.length ? (
-        <p className="text-xs text-muted-ink">
-          {t("studio.style.kept", {
-            beats: document.style.kept.map((beat) => t(`studio.story.beat.${beat}` as never)).join(", "),
-          })}
-        </p>
+      {!asking && (message || keptNote) ? (
+        <div className={`${floating} flex flex-col gap-2`}>
+          {message ? <p role="status">{message}</p> : null}
+          {/* A re-voice only stretches a beat that holds hand edits (operator, 2026-11-10). */}
+          {keptNote ? (
+            <p>
+              {t("studio.style.kept", {
+                beats: (document.style?.kept ?? []).map((beat) => t(`studio.story.beat.${beat}` as never)).join(", "),
+              })}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="self-end rounded-md border border-hairline px-3 py-1 text-[13px] text-ink"
+            onClick={() => {
+              setMessage(null);
+              setDismissed(keptKey);
+            }}
+          >
+            {t("studio.style.dismiss")}
+          </button>
+        </div>
       ) : null}
     </div>
   );

@@ -93,8 +93,9 @@ test('1440: the Style control asks before applying, and Cancel changes nothing',
   // Style templates (spec 2026-11-10): looked at only; the read scope never applies a style.
   await browser.setViewport({ width: 1440, height: 900 });
   await app.open(DRAFT);
-  const before = await browser.evaluate(() => document.body.innerText.match(/Saved revision \d+/)?.[0] ?? '');
   await expect(screen.getByRole('option', 'Style A')).toHaveCount(1);
+  // Read once the draft has loaded: right after open, the revision is not on the page yet.
+  const before = await browser.evaluate(() => document.body.innerText.match(/Saved revision \d+/)?.[0] ?? '');
   await screen.getByLabel('Style').selectOption('Style A');
   await expect(screen.getByText('Apply Style A?')).toBeVisible();
   await expect(screen.getByText(/replaces every edit you made by hand/)).toBeVisible();

@@ -125,3 +125,11 @@ test("no note while the style re-cut every changed beat", async () => {
   await screen.findByRole("option", { name: "Style B" });
   expect(screen.queryByText(/kept your edits/)).toBeNull();
 });
+
+test("a note floats over the studio until it is dismissed", async () => {
+  // e2e on stage1, 2026-11-10: the header is one row, so notes open in a panel that can be closed.
+  mount({ ...upgradedTextDocument(), style: { template_id: "style_b", revision: 1, voiced: true, kept: ["main"] } } as EditDocumentV2);
+  await screen.findByText(/Main kept your edits/);
+  fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+  expect(screen.queryByText(/Main kept your edits/)).toBeNull();
+});
