@@ -244,3 +244,22 @@ def test_a_short_main_video_holds_its_last_frame_under_the_style() -> None:
     starts = [s.source_from_frame for s in shots]
     assert starts == sorted(starts)  # never back to an earlier frame
     assert shots[-1].hold_after_source
+
+
+# Operator, 2026-11-10: before a paid re-voice, the beats that will only stretch are named.
+def test_no_beat_is_edited_right_after_a_styled_write() -> None:
+    from thoth_control_plane.domain.style_apply import edited_beats
+
+    written = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=B)
+    assert edited_beats(written, ROLES) == []
+
+
+def test_a_hand_edit_marks_its_beat_as_edited() -> None:
+    from thoth_control_plane.domain.style_apply import edited_beats
+
+    written = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=B)
+    beats = clip_beats(written, ROLES)
+    shot = next(c for c in full_frame_shots(written) if beats[c.clip_id] == "main")
+    edited = apply_edit_operations(written, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.2)])
+    assert edited_beats(edited, ROLES) == ["main"]
+    assert edited_beats(draft(), ROLES) == []  # no style: nothing to compare

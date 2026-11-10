@@ -2990,6 +2990,8 @@ export interface components {
         NarrationState: {
             /** Document Id */
             document_id: string;
+            /** Edited Beats */
+            edited_beats?: ("hook" | "main" | "evidence" | "reactions" | "footage" | "outro")[];
             estimate?: components["schemas"]["VoiceEstimate"] | null;
             /** Failure Code */
             failure_code?: string | null;

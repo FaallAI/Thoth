@@ -3555,6 +3555,21 @@
             "title": "Document Id",
             "type": "string"
           },
+          "edited_beats": {
+            "items": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ],
+              "type": "string"
+            },
+            "title": "Edited Beats",
+            "type": "array"
+          },
           "estimate": {
             "anyOf": [
               {

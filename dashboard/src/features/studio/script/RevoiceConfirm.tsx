@@ -24,10 +24,19 @@ export function RevoiceConfirm({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, plural } = useLocale();
   const { characters, usd } = revoiceCost(state, beats);
+  // A styled beat with hand edits only stretches: said before the voice is paid for (2026-11-10).
+  const kept = beats.filter((beat) => (state.edited_beats ?? []).includes(beat));
   return (
     <div className="flex flex-col gap-2 rounded-md bg-surface p-2 text-xs text-muted-ink">
+      {kept.length ? (
+        <p>
+          {plural("studio.narration.revoiceKept", kept.length, {
+            beats: kept.map((beat) => t(`studio.story.beat.${beat}` as never)).join(", "),
+          })}
+        </p>
+      ) : null}
       <p>
         {t("studio.narration.revoiceCost", {
           count: beats.length,

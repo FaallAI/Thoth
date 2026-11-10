@@ -118,6 +118,9 @@ class NarrationState(StrictModel):
     unsupported: dict[BeatId, list[str]] = Field(default_factory=dict)
     stale_beats: list[BeatId] = Field(default_factory=list)
     failure_code: str | None = None
+    #: A styled draft's beats with hand edits since the last write: a re-voice only stretches
+    #: them. Computed on read, never stored (operator, 2026-11-10).
+    edited_beats: list[BeatId] = Field(default_factory=list)
 
 
 def estimate_voice(

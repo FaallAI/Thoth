@@ -27,7 +27,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     TimelineVideoClip,
 )
 from thoth_control_plane.domain.move_presets import MovePreset, move_preset
-from thoth_control_plane.domain.narration import BeatId
+from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.studio_layout import full_frame_fill
 from thoth_control_plane.domain.style_cuts import ShotSource, plan_shots
@@ -376,3 +376,19 @@ def beat_fingerprints(
         beat: hashlib.sha256(json.dumps(clips, sort_keys=True).encode()).hexdigest()[:32]
         for beat, clips in grouped.items()
     }
+
+
+def edited_beats(
+    document: EditDocumentV2, roles_by_item: Mapping[str, str] | None = None
+) -> list[BeatId]:
+    """Beats whose shots changed since the last narration write: a re-voice only stretches
+    them, which the operator sees before paying for it (operator, 2026-11-10)."""
+    style = document.style
+    if style is None or not style.voiced or not style.cuts:
+        return []
+    now = beat_fingerprints(document, roles_by_item)
+    return [
+        beat
+        for beat in BEAT_ORDER
+        if (beat in now or beat in style.cuts) and now.get(beat) != style.cuts.get(beat)
+    ]

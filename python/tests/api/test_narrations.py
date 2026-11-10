@@ -499,3 +499,13 @@ async def test_recreating_a_finished_narration_is_its_own_action() -> None:
     assert (plain.status_code, code(plain)) == (409, "narration_exists")
     assert again.status_code == 202 and gateway.started == ["narration/edoc_abc123/2"]
     assert (busy.status_code, code(busy)) == (409, "narration_in_progress")
+
+
+async def test_a_narration_read_names_no_edited_beat_on_an_unstyled_draft() -> None:
+    # Operator, 2026-11-10: the read carries the beats a re-voice would only stretch.
+    store = Store()
+    async with build(store, Gateway()) as api:
+        await api.post(f"{DOC}/narration", headers=AUTH)
+        read = await api.get(f"{DOC}/narration", headers=AUTH)
+    assert read.status_code == 200
+    assert read.json()["edited_beats"] == []

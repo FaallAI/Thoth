@@ -98,7 +98,7 @@ async def restart_narration(
 async def read_narration(
     project_id: str, document_id: str, _: Caller, service: Service
 ) -> NarrationState:
-    return await _answer(service.get(project_id, document_id))
+    return await _answer(service.view(project_id, document_id))
 
 
 @router.get(f"{DOCUMENT}/preview", response_model=EditDocumentV2)

@@ -6,6 +6,7 @@ narration's stored state, and refuses before anything is spent.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 from uuid import uuid4
@@ -26,7 +27,10 @@ from thoth_control_plane.domain.narration import (
     NarrationStepInput,
     StoredPreset,
 )
+from thoth_control_plane.domain.style_apply import edited_beats
 from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+logger = logging.getLogger(__name__)
 
 
 class NarrationRefused(Exception):
@@ -97,6 +101,21 @@ class NarrationService:
         if state is None:
             raise NarrationNotFound()
         return state
+
+    async def view(self, project_id: str, document_id: str) -> NarrationState:
+        """The narration as read by the Studio: a finished one on a styled draft also names the
+        beats a re-voice would only stretch, before it is paid for (operator, 2026-11-10)."""
+        state = await self.get(project_id, document_id)
+        if state.status != "completed":
+            return state
+        try:
+            document = await self._documents.get_latest(project_id, document_id)
+            roles = await self._roles(project_id, document_id) if self._roles else {}
+            edited = edited_beats(document, roles) if isinstance(document, EditDocumentV2) else []
+        except Exception as error:  # the read still answers; only the note is missing
+            logger.warning("narration read could not compare the style's cuts: %s", error)
+            return state
+        return state.model_copy(update={"edited_beats": edited})
 
     async def preview(self, project_id: str, document_id: str) -> EditDocumentV2:
         """The cut preview (spec 2026-11-10, 6): a styled draft as its waiting script will cut
