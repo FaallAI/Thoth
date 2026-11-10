@@ -425,6 +425,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               client={client}
               projectId={projectId}
               stageId={splitStageKey(state.selectedStageId).stageId}
+              variant={splitStageKey(state.selectedStageId).variant}
               savedTemplateId={serverBinding?.template_id ?? null}
               savedTemplateRevision={serverBinding?.template_revision ?? null}
               savedBindingRevision={serverBinding?.revision ?? null}

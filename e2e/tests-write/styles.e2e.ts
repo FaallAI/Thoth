@@ -49,12 +49,13 @@ test('styles: Style A rebuilds a draft and one Undo restores it', async (fixture
   await expect.poll(async () => (await saved(browser)).style ?? null, { timeout: 10000 }).toBeNull();
 });
 
-test('styles: Style B gives kinetic captions and dimmed shots', async (fixtures: Fixtures) => {
+test('styles: Style B is recorded and a second style replaces the first', async (fixtures: Fixtures) => {
+  // A blank draft has no Story beats, so this proves the record and the switch, not the shots;
+  // the shots are proved by the domain tests and judged on a real narrated draft.
   const { browser, screen } = fixtures;
   await draftWithVideo(fixtures);
   await applyStyle(screen, 'Style B');
-  const document = await saved(browser);
-  expect(document.style?.template_id).toBe('style_b');
-  const captions = document.clips.filter((clip: any) => clip.kind === 'caption');
-  expect(captions.every((clip: any) => clip.style_slot === 'kinetic')).toBe(true);
+  expect((await saved(browser)).style?.template_id).toBe('style_b');
+  await applyStyle(screen, 'Style A');
+  expect((await saved(browser)).style?.template_id).toBe('style_a');
 });

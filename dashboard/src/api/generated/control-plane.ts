@@ -8767,7 +8767,9 @@ export interface operations {
     };
     get_prompt_starter_api_v1_prompt_stages__stage_id__starter_get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string | null;
+            };
             header?: {
                 Authorization?: string | null;
             };

@@ -360,7 +360,7 @@ export type ControlPlaneClient = {
   ) => Promise<PromptBindingSaveResult>;
   getResolvedPrompt: (projectId: string, stageId: string, variant?: string) => Promise<ResolvedPromptDraft>;
   listPromptProviders: () => Promise<PromptProvider[]>;
-  getPromptStarter: (stageId: string) => Promise<PromptStarter>;
+  getPromptStarter: (stageId: string, variant?: string) => Promise<PromptStarter>;
   getPromptPreference: (
     projectId: string,
     stageId: string,
@@ -853,9 +853,9 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/resolved/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
       ),
     listPromptProviders: () => request<PromptProvider[]>("/api/v1/prompt-providers"),
-    getPromptStarter: (stageId) =>
+    getPromptStarter: (stageId, variant) =>
       request<PromptStarter>(
-        `/api/v1/prompt-stages/${encodeURIComponent(stageId)}/starter`,
+        `/api/v1/prompt-stages/${encodeURIComponent(stageId)}/starter${variantQuery(variant)}`,
       ),
     getPromptPreference: (projectId, stageId) =>
       request<PromptModelPreference | null>(

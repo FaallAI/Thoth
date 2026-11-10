@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from thoth_control_plane.api.dependencies import current_actor
@@ -103,9 +103,10 @@ async def get_prompt_starter(
     stage_id: str,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[PromptProposalService, Depends(get_prompt_proposal_service)],
+    variant: Annotated[str | None, Query(max_length=128, pattern=r"^[A-Za-z0-9_-]*$")] = None,
 ) -> PromptStarterDefinition:
     try:
-        starter = service.get_starter(stage_id)
+        starter = service.get_starter(stage_id, variant)
     except PromptStageNotRegistered as error:
         raise _http_error(error) from error
     if starter is None:

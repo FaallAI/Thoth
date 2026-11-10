@@ -77,3 +77,39 @@ test("the control is disabled while a narration runs", async () => {
   mount(upgradedTextDocument(), { disabled: true });
   expect(((await screen.findByLabelText("Style")) as HTMLSelectElement).disabled).toBe(true);
 });
+
+// Final review (2026-11-10).
+test("the style list is read once, not on every render", async () => {
+  const listStyles = mock(async () => STYLES);
+  const applyStyle = mock(async () => {
+    throw new Error("unused");
+  });
+  const view = (key: number) => (
+    <StyleControl
+      key="one"
+      client={{ listStyles, applyStyle }}
+      projectId="project_001"
+      documentId="edoc_1"
+      document={{ ...upgradedTextDocument(), revision: key }}
+      disabled={false}
+      onApplied={() => {}}
+    />
+  );
+  const { rerender } = render(view(1));
+  await screen.findByRole("option", { name: "Style A" });
+  rerender(view(2));
+  rerender(view(3));
+  expect(listStyles.mock.calls.length).toBe(1);
+});
+
+test("the confirmation takes focus, says what it asks, and Escape cancels", async () => {
+  const { applied } = mount();
+  fireEvent.change(await screen.findByLabelText("Style"), { target: { value: "style_a" } });
+  const dialog = screen.getByRole("alertdialog");
+  expect(globalThis.document.activeElement).toBe(screen.getByRole("button", { name: "Apply style" }));
+  const described = dialog.getAttribute("aria-describedby") ?? "";
+  expect(described.split(" ").filter(Boolean).length).toBe(2);
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(applied).toEqual([]);
+});

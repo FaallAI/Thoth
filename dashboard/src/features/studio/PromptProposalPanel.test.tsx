@@ -1009,3 +1009,13 @@ test("retry button in stage load banner is disabled when offline and issues no c
   await user.click(retryButton);
   expect((api.listPromptProviders as ReturnType<typeof mock>).mock.calls.length).toBe(1);
 });
+
+test("a style's script stage starts from that style's starter", async () => {
+  // Final review (2026-11-10): the starter of style_script depends on the style template.
+  const { PromptProposalPanel } = await import("./PromptProposalPanel");
+  const user = userEvent.setup();
+  const api = client();
+  render(<PromptProposalPanel {...panelProps({ client: api, hasBinding: false, stageId: "style_script", variant: "style_b" })} />);
+  await user.click(await screen.findByRole("button", { name: "Use starter" }));
+  expect((api.getPromptStarter as ReturnType<typeof mock>).mock.calls[0]).toEqual(["style_script", "style_b"]);
+});

@@ -607,3 +607,19 @@ async def test_openapi_requires_idempotency_key_for_proposal_creation() -> None:
     ]
     assert len(header_params) == 1
     assert header_params[0]["required"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_style_script_starter_is_its_template_starter() -> None:
+    # Final review (2026-11-10): a style's script stage starts from the style's own starter.
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    client, _, _ = await seeded_app()
+    async with client:
+        styled = await client.get(
+            "/api/v1/prompt-stages/style_script/starter?variant=style_b", headers=AUTH_HEADERS
+        )
+        bare = await client.get("/api/v1/prompt-stages/style_script/starter", headers=AUTH_HEADERS)
+    assert styled.status_code == 200
+    assert styled.json()["body"] == BUILT_IN_STYLES["style_b"].narration.starter
+    assert bare.status_code == 404

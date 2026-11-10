@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { AppliedStyleResult, EditDocumentV2, StyleSummary } from "@/api/control-plane";
 import type { MessageKey } from "@/lib/i18n";
@@ -39,16 +39,23 @@ export function StyleControl({
   const [asking, setAsking] = useState<StyleSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const applyButton = useRef<HTMLButtonElement>(null);
+  const { listStyles } = client;
+  // Read once per project: the parent passes a new client object on every render.
   useEffect(() => {
     let live = true;
-    void client.listStyles(projectId).then(
+    void listStyles(projectId).then(
       (listed) => live && setStyles(listed),
       () => live && setStyles([]),
     );
     return () => {
       live = false;
     };
-  }, [client, projectId]);
+  }, [listStyles, projectId]);
+  // The confirmation takes focus, so a keyboard or screen reader user knows it opened.
+  useEffect(() => {
+    if (asking) applyButton.current?.focus();
+  }, [asking]);
 
   const current = document.style?.template_id ?? "";
   const apply = (style: StyleSummary) => {
@@ -102,14 +109,23 @@ export function StyleControl({
         </select>
       </div>
       {asking ? (
-        <div role="alertdialog" aria-labelledby={`${id}-title`} className="flex flex-col gap-2 rounded-md bg-surface p-2 text-xs text-muted-ink">
+        <div
+          role="alertdialog"
+          aria-labelledby={`${id}-title`}
+          aria-describedby={`${id}-rebuild ${id}-script`}
+          className="flex flex-col gap-2 rounded-md bg-surface p-2 text-xs text-muted-ink"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setAsking(null);
+          }}
+        >
           <p id={`${id}-title`} className="font-medium text-ink">
             {t("studio.style.confirmTitle", { name: asking.name })}
           </p>
-          <p>{t("studio.style.confirmRebuild")}</p>
-          <p>{t("studio.style.confirmScript")}</p>
+          <p id={`${id}-rebuild`}>{t("studio.style.confirmRebuild")}</p>
+          <p id={`${id}-script`}>{t("studio.style.confirmScript")}</p>
           <div className="flex gap-2">
             <button
+              ref={applyButton}
               type="button"
               className="rounded-md bg-copper px-3 py-1 text-[13px] text-bg disabled:opacity-40"
               disabled={busy}
