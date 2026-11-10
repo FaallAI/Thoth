@@ -531,6 +531,54 @@
         "title": "AppliedStyle",
         "type": "object"
       },
+      "AppliedStyleResult": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditDocumentV1"
+              },
+              {
+                "$ref": "#/components/schemas/EditDocumentV2"
+              }
+            ],
+            "title": "Document"
+          },
+          "narration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NarrationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "narration_refused": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narration Refused"
+          },
+          "previous_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Previous Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document",
+          "previous_revision"
+        ],
+        "title": "AppliedStyleResult",
+        "type": "object"
+      },
       "ApplyPromptProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -559,6 +607,27 @@
           "source_binding_revision"
         ],
         "title": "ApplyPromptProposalRequest",
+        "type": "object"
+      },
+      "ApplyStyleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "base_revision"
+        ],
+        "title": "ApplyStyleRequest",
         "type": "object"
       },
       "ApprovalRequest": {
@@ -8982,6 +9051,34 @@
         "title": "StylePreset",
         "type": "object"
       },
+      "StyleSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "name",
+          "revision"
+        ],
+        "title": "StyleSummary",
+        "type": "object"
+      },
       "TemplateRef": {
         "additionalProperties": false,
         "properties": {
@@ -13556,6 +13653,182 @@
         "summary": "Create Review Decision"
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style": {
+      "post": {
+        "operationId": "apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyStyleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedStyleResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Style"
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style/undo": {
+      "post": {
+        "operationId": "undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV2"
+                    }
+                  ],
+                  "title": "Response Undo Style Api V1 Projects  Project Id  Edit Documents  Document Id  Style Undo Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Undo Style"
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/upgrade-timeline": {
       "post": {
         "description": "Upgrade one document to schema version 2 under a caller-supplied replay key.",
@@ -16343,6 +16616,65 @@
           }
         },
         "summary": "List Studio Import Drafts"
+      }
+    },
+    "/api/v1/projects/{project_id}/styles": {
+      "get": {
+        "operationId": "list_styles_api_v1_projects__project_id__styles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StyleSummary"
+                  },
+                  "title": "Response List Styles Api V1 Projects  Project Id  Styles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Styles"
       }
     },
     "/api/v1/projects/{project_id}/workflows": {

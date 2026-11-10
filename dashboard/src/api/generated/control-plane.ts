@@ -530,6 +530,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Style */
+        post: operations["apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Style */
+        post: operations["undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/upgrade-timeline": {
         parameters: {
             query?: never;
@@ -1112,6 +1146,23 @@ export interface paths {
          * @description The newest drafts made from one source, for Resume.
          */
         get: operations["list_studio_import_drafts_api_v1_projects__project_id__studio_imports__source_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/styles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Styles */
+        get: operations["list_styles_api_v1_projects__project_id__styles_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1901,6 +1952,16 @@ export interface components {
             /** Template Id */
             template_id: string;
         };
+        /** AppliedStyleResult */
+        AppliedStyleResult: {
+            /** Document */
+            document: components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+            narration?: components["schemas"]["NarrationState"] | null;
+            /** Narration Refused */
+            narration_refused?: string | null;
+            /** Previous Revision */
+            previous_revision: number;
+        };
         /** ApplyPromptProposalRequest */
         ApplyPromptProposalRequest: {
             /**
@@ -1912,6 +1973,13 @@ export interface components {
             source_binding_revision: number;
             /** Source Template Revision */
             source_template_revision: number;
+        };
+        /** ApplyStyleRequest */
+        ApplyStyleRequest: {
+            /** Base Revision */
+            base_revision: number;
+            /** Template Id */
+            template_id: string;
         };
         /** ApprovalRequest */
         ApprovalRequest: {
@@ -4773,6 +4841,15 @@ export interface components {
             /** Preset Id */
             preset_id: string;
         };
+        /** StyleSummary */
+        StyleSummary: {
+            /** Name */
+            name: string;
+            /** Revision */
+            revision: number;
+            /** Template Id */
+            template_id: string;
+        };
         /** TemplateRef */
         TemplateRef: {
             /**
@@ -6869,6 +6946,100 @@ export interface operations {
             };
         };
     };
+    apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyStyleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppliedStyleResult"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upgrade_edit_document_timeline_api_v1_projects__project_id__edit_documents__document_id__upgrade_timeline_post: {
         parameters: {
             query?: never;
@@ -8268,6 +8439,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioDraftList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_styles_api_v1_projects__project_id__styles_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StyleSummary"][];
                 };
             };
             /** @description Validation Error */

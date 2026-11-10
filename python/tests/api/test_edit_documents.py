@@ -34,9 +34,36 @@ PAYLOAD = {
 class MemoryEditDocumentRepository:
     def __init__(self) -> None:
         self.documents: dict[tuple[str, str], EditDocument] = {}
+        #: Every revision written, so a restore has something to go back to.
+        self.history: dict[tuple[str, str, int], EditDocument] = {}
+
+    def _keep(self, document: EditDocument) -> None:
+        self.documents[(document.project_id, document.document_id)] = document
+        self.history[(document.project_id, document.document_id, document.revision)] = document
 
     async def insert_revision(self, document: EditDocument) -> None:
-        self.documents[(document.project_id, document.document_id)] = document
+        self._keep(document)
+
+    async def get_revision(
+        self, *, project_id: str, document_id: str, revision: int
+    ) -> EditDocument | None:
+        key = (project_id, document_id, revision)
+        latest = self.documents.get(key[:2])
+        if key not in self.history and latest is not None and latest.revision == revision:
+            return latest
+        return self.history.get(key)
+
+    async def write_derived_revision(
+        self, project_id: str, document_id: str, base_revision: int, document: EditDocument
+    ) -> EditDocument:
+        latest = await self.get_latest(project_id=project_id, document_id=document_id)
+        if latest is None:
+            raise EditDocumentNotFound()
+        if latest.revision != base_revision:
+            raise EditDocumentRevisionConflict(latest)
+        result = document.model_copy(update={"revision": latest.revision + 1})
+        self._keep(result)
+        return result
 
     async def get_latest(self, *, project_id: str, document_id: str) -> EditDocument | None:
         return self.documents.get((project_id, document_id))
@@ -77,7 +104,8 @@ class MemoryEditDocumentRepository:
             raise EditDocumentRevisionConflict(latest)
         updated = apply_edit_operations(latest, operations)
         result = updated.model_copy(update={"revision": latest.revision + 1})
-        self.documents[(project_id, document_id)] = result
+        self.history.setdefault((project_id, document_id, latest.revision), latest)
+        self._keep(result)
         return result
 
 
