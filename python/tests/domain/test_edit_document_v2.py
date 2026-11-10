@@ -354,3 +354,92 @@ def test_markers_must_sit_inside_the_canvas_and_have_unique_ids() -> None:
     payload["markers"] = [{"marker_id": "m", "frame": 1}, {"marker_id": "m", "frame": 2}]
     with pytest.raises(ValidationError, match="duplicate marker IDs"):
         EditDocumentV2.model_validate(payload)
+
+
+# Studio effects layer (spec 2026-11-09).
+
+
+def _with_main(**fields: Any) -> dict[str, Any]:
+    payload = document_v2_payload()
+    clip_by_id(payload, "clip_main").update(fields)
+    return payload
+
+
+def test_a_clip_without_effects_dumps_as_before() -> None:
+    dumped = EditDocumentV2.model_validate(document_v2_payload()).model_dump()
+    clip = next(c for c in dumped["clips"] if c["clip_id"] == "clip_main")
+    assert {"moves", "background", "dim"}.isdisjoint(clip)
+    assert clip["emphasis"] == {"highlight": False, "arrow": False}
+
+
+def test_effects_round_trip() -> None:
+    payload = _with_main(
+        moves=[{"frame": 0, "scale": 1.0}, {"frame": 30, "scale": 1.35, "ease": "hold"}],
+        background="blur_fill",
+        dim=0.5,
+        emphasis={
+            "highlight": False,
+            "arrow": False,
+            "marks": [
+                {
+                    "kind": "box",
+                    "x": 0.1,
+                    "y": 0.2,
+                    "w": 0.3,
+                    "h": 0.1,
+                    "from_frame": 0,
+                    "to_frame": 60,
+                }
+            ],
+        },
+    )
+    document = EditDocumentV2.model_validate(payload)
+    assert EditDocumentV2.model_validate(document.model_dump()) == document
+    clip = clip_by_id(document.model_dump(), "clip_main")
+    assert clip["background"] == "blur_fill" and clip["dim"] == 0.5
+    assert clip["moves"][1] == {"frame": 30, "scale": 1.35, "x": 0.0, "y": 0.0, "ease": "hold"}
+
+
+@pytest.mark.parametrize("frames", [[0, 0], [0, 300]])
+def test_moves_must_increase_and_stay_inside_the_clip(frames: list[int]) -> None:
+    payload = _with_main(moves=[{"frame": frame} for frame in frames])
+    with pytest.raises(ValidationError, match="moves must be increasing and inside the clip"):
+        EditDocumentV2.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "mark",
+    [
+        {"kind": "box", "x": 0.1, "y": 0.1, "w": 0.0, "h": 0.2, "from_frame": 0, "to_frame": 10},
+        {"kind": "box", "x": 0.8, "y": 0.1, "w": 0.3, "h": 0.2, "from_frame": 0, "to_frame": 10},
+    ],
+)
+def test_a_box_needs_a_size_and_stays_inside(mark: dict[str, Any]) -> None:
+    payload = _with_main(emphasis={"highlight": False, "arrow": False, "marks": [mark]})
+    with pytest.raises(ValidationError):
+        EditDocumentV2.model_validate(payload)
+
+
+def test_an_arrow_needs_no_size() -> None:
+    arrow = {"kind": "arrow", "x": 0.5, "y": 0.5, "side": "left", "from_frame": 0, "to_frame": 10}
+    payload = _with_main(emphasis={"highlight": False, "arrow": False, "marks": [arrow]})
+    assert EditDocumentV2.model_validate(payload)
+
+
+def test_a_mark_window_must_end_after_it_starts() -> None:
+    mark = {"kind": "arrow", "x": 0.5, "y": 0.5, "from_frame": 10, "to_frame": 10}
+    payload = _with_main(emphasis={"highlight": False, "arrow": False, "marks": [mark]})
+    with pytest.raises(ValidationError, match="a mark must end after it starts"):
+        EditDocumentV2.model_validate(payload)
+
+
+def test_dim_is_bounded() -> None:
+    with pytest.raises(ValidationError):
+        EditDocumentV2.model_validate(_with_main(dim=0.81))
+
+
+@pytest.mark.parametrize("style", ["boxed", "kinetic"])
+def test_new_caption_styles_validate(style: str) -> None:
+    payload = document_with_every_clip_kind()
+    clip_by_id(payload, "clip_caption")["style_slot"] = style
+    assert EditDocumentV2.model_validate(payload)

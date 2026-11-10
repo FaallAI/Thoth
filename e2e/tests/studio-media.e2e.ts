@@ -44,7 +44,7 @@ test('1440 Story: Play moves the clock and the media loads', async ({ app, brows
   await openWithLocalMedia(app, browser);
   await expect(screen.getByText('Post card · @kabinet_rakyat', { visible: true })).toBeVisible();
   await screen.getByRole('button', 'Play video').tap();
-  await expect(screen.getByText(/^0:0[1-9] \/ 0:34/)).toBeVisible({ timeout: 15000 });
+  await expect(screen.getByText(/^0:0[1-9](\.\d)? \/ 0:34/)).toBeVisible({ timeout: 15000 });
   await expect(screen.getByTestId('preview-unavailable')).toHaveCount(0);
   await app.screenshot('story-playing-1440');
 });
@@ -87,7 +87,8 @@ test('1440 Timeline: Preview plays the chosen narration', async ({ app, browser,
   await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
   await screen.getByRole('button', 'Preview Narration · Main').tap();
   await screen.getByRole('button', 'Play video').tap();
-  await expect(screen.getByText(/^0:0[1-9] \/ 0:34/)).toBeVisible({ timeout: 15000 });
+  // The player bar and the Timeline both show the clock; read the Timeline's.
+  await expect(screen.getByRole('region', 'Timeline').getByText(/^0:0[1-9](\.\d)? \/ 0:34/)).toBeVisible({ timeout: 15000 });
   await expect(screen.getByTestId('preview-unavailable')).toHaveCount(0);
   await app.screenshot('timeline-playing-1440');
 });
@@ -96,7 +97,7 @@ test('1440 Story: a narrated caption sits low on the canvas, clear of the platfo
   await browser.setViewport({ width: 1440, height: 900 });
   await openWithLocalMedia(app, browser);
   await screen.getByRole('button', 'Play video').tap();
-  await expect(screen.getByText(/^0:0[2-9] \/ 0:34/)).toBeVisible({ timeout: 15000 });
+  await expect(screen.getByText(/^0:0[2-9](\.\d)? \/ 0:34/)).toBeVisible({ timeout: 15000 });
   await browser.keyboard.press('Space');
   const place = await browser.evaluate(() => {
     const canvas = document.querySelector('.__remotion-player')!.getBoundingClientRect();

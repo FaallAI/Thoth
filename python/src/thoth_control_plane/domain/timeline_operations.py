@@ -16,17 +16,22 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field
 
+from thoth_control_plane.domain.clip_moves import shift_moves, split_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     TRACK_CLIP_KINDS,
     AssetRef,
+    Background,
     CaptionCue,
     CaptionStyle,
     Crop,
+    Dim,
     EditDocumentV2,
     Emphasis,
     FadeFrames,
     FitMode,
+    Mark,
     Motion,
+    MoveKeyframes,
     PlaybackSpeed,
     Position,
     StoryRole,
@@ -88,6 +93,8 @@ class AddClipFromAsset(StrictModel):
     fit: FitMode | None = None
     position: Position | None = None
     source_role: StoryRole | None = None
+    #: Blur-fill for full-frame media of another shape (spec 2026-11-09, 3.8).
+    background: Background | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ReorderScene(StrictModel):
@@ -209,7 +216,7 @@ class SetTextPlace(StrictModel):
     kind: Literal["set_text_place"]
     operation_id: OpaqueId
     clip_id: OpaqueId
-    style_slot: Literal["title_top", "title", "title_lower"]
+    style_slot: Literal["title_top", "title", "title_lower", "card"]
 
 
 class SetClipPosition(StrictModel):
@@ -232,6 +239,36 @@ class SetClipEmphasis(StrictModel):
     clip_id: OpaqueId
     highlight: bool
     arrow: bool
+
+
+class SetClipMoves(StrictModel):
+    """The whole keyframe list: a preset, a removed keyframe and a clear are each one step."""
+
+    kind: Literal["set_clip_moves"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    moves: MoveKeyframes
+
+
+class SetClipBackground(StrictModel):
+    kind: Literal["set_clip_background"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    background: Background
+
+
+class SetClipDim(StrictModel):
+    kind: Literal["set_clip_dim"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    dim: Dim
+
+
+class SetClipMarks(StrictModel):
+    kind: Literal["set_clip_marks"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    marks: Annotated[list[Mark], Field(max_length=12)]
 
 
 class ReplaceClipAsset(StrictModel):
@@ -383,6 +420,10 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipPosition
     | SetClipMotion
     | SetClipEmphasis
+    | SetClipMoves
+    | SetClipBackground
+    | SetClipDim
+    | SetClipMarks
     | ReplaceClipAsset
     | AddTextClip
     | DuplicateClip
@@ -463,9 +504,29 @@ def apply_timeline_operation(
         case SetClipMotion():
             _unlocked_video_clip(document, operation.clip_id).motion = operation.motion
         case SetClipEmphasis():
-            _unlocked_video_clip(document, operation.clip_id).emphasis = Emphasis(
-                highlight=operation.highlight, arrow=operation.arrow
+            clip = _unlocked_video_clip(document, operation.clip_id)
+            # The two whole-clip switches leave the clip's marks as they are (spec 2026-11-09).
+            clip.emphasis = Emphasis(
+                highlight=operation.highlight, arrow=operation.arrow, marks=clip.emphasis.marks
             )
+        case SetClipMoves():
+            clip = _unlocked_video_clip(document, operation.clip_id)
+            frames = [move.frame for move in operation.moves]
+            # Refused, not fitted: the person asked for these frames (fitting is for later edits).
+            if frames and (frames != sorted(set(frames)) or frames[-1] >= clip.duration_in_frames):
+                raise ValueError("moves must be increasing and inside the clip")
+            clip.moves = list(operation.moves)
+        case SetClipBackground():
+            clip = _unlocked_video_clip(document, operation.clip_id)
+            clip.background = operation.background
+            if operation.background == "blur_fill":
+                # A covering picture leaves no room to see the blur (spec 2026-11-09, 3.2).
+                clip.fit = "contain"
+        case SetClipDim():
+            _unlocked_video_clip(document, operation.clip_id).dim = operation.dim
+        case SetClipMarks():
+            clip = _unlocked_video_clip(document, operation.clip_id)
+            clip.emphasis = clip.emphasis.model_copy(update={"marks": list(operation.marks)})
         case ReplaceClipAsset():
             _replace_clip_asset(document, operation, resolved_assets)
         case AddTextClip():
@@ -696,7 +757,9 @@ def _add_clip_from_asset(
     if asset.kind == "audio":
         clip = TimelineAudioClip(kind="audio", **fields)
     else:
-        layout = {"fit": operation.fit} if operation.fit is not None else {}
+        layout: dict[str, object] = {"fit": operation.fit} if operation.fit is not None else {}
+        if operation.background is not None:
+            layout["background"] = operation.background
         clip = TimelineVideoClip(kind="video", position=operation.position, **layout, **fields)
     clip.source_role = operation.source_role
     document.clips.append(clip)
@@ -742,6 +805,8 @@ def _replace_clip_asset(
     clip.crop = None
     clip.blur_regions = []
     clip.blur_enabled = False
+    # Marks point at the old medium's content, so they go with it (spec 2026-11-09, 3.4).
+    clip.emphasis = clip.emphasis.model_copy(update={"marks": []})
     clip.ownership = "user_edited"
 
 
@@ -817,6 +882,9 @@ def _trim_clip_start(document: EditDocumentV2, operation: TrimClipStart) -> None
         if source_from_frame + moved < 0:
             raise ValueError("trim cannot start before the source")
         clip.source_from_frame = source_from_frame + moved
+    if isinstance(clip, TimelineVideoClip):
+        # Moves are relative to the start: the picture at the new start stays as it was.
+        clip.moves = shift_moves(clip.moves, delta)
     clip.from_frame = operation.from_frame
     clip.duration_in_frames = end_frame - operation.from_frame
 
@@ -857,6 +925,8 @@ def _split_clip(document: EditDocumentV2, operation: SplitClip) -> None:
         # The cut sits between the two parts: neither fades there.
         clip.fade_out_frames = 0
         right.fade_in_frames = 0
+    if isinstance(clip, TimelineVideoClip) and isinstance(right, TimelineVideoClip):
+        clip.moves, right.moves = split_moves(clip.moves, left_duration)
     document.clips.append(right)
 
 

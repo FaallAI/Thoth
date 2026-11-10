@@ -1157,3 +1157,62 @@ test("the editor and the renderer share one speed helper", async () => {
   const composition = await import("@thoth/remotion-composition");
   expect(speedPercent).toBe(composition.speedPercent);
 });
+
+// Studio effects layer (spec 2026-11-09): the client applies the effect operations as the server does.
+const effect = (kind: string, fields: Record<string, unknown>) =>
+  ({ kind, operation_id: `op_${kind}`, clip_id: "clip_main", ...fields }) as unknown as EditDocumentOperation;
+const mainOf = (document: EditDocumentV2) => document.clips!.find((clip) => clip.clip_id === "clip_main")! as Extract<
+  NonNullable<EditDocumentV2["clips"]>[number],
+  { kind: "video" }
+>;
+const BOX = { kind: "box", x: 0.2, y: 0.2, w: 0.3, h: 0.2, from_frame: 0, to_frame: 60, side: "top", color: "accent" };
+
+test("blur-fill also sets the fit to contain", () => {
+  const next = applyTimelineOperation(documentV2(), effect("set_clip_background", { background: "blur_fill" }), {});
+  expect([mainOf(next).background, mainOf(next).fit]).toEqual(["blur_fill", "contain"]);
+});
+
+test("moves outside the clip are refused", () => {
+  const moves = [{ frame: 0, scale: 1, x: 0, y: 0, ease: "linear" }, { frame: 900, scale: 1.2, x: 0, y: 0, ease: "linear" }];
+  expect(() => applyTimelineOperation(documentV2(), effect("set_clip_moves", { moves }), {})).toThrow(
+    "moves must be increasing and inside the clip",
+  );
+});
+
+test("dim, moves and marks are applied", () => {
+  let next = applyTimelineOperation(documentV2(), effect("set_clip_dim", { dim: 0.4 }), {});
+  next = applyTimelineOperation(next, effect("set_clip_marks", { marks: [BOX] }), {});
+  next = applyTimelineOperation(next, effect("set_clip_emphasis", { highlight: true, arrow: false }), {});
+  expect(mainOf(next).dim).toBe(0.4);
+  expect(mainOf(next).emphasis?.marks).toHaveLength(1);
+  expect(mainOf(next).emphasis?.highlight).toBe(true);
+});
+
+test("effect operations refuse a locked clip", () => {
+  const locked = applyTimelineOperation(documentV2(), effect("set_clip_locked", { locked: true }), {});
+  expect(() => applyTimelineOperation(locked, effect("set_clip_dim", { dim: 0.4 }), {})).toThrow("locked");
+});
+
+test("a text clip can become a card", () => {
+  const document = documentV2();
+  document.clips!.push({
+    kind: "text", clip_id: "clip_text", track_id: "track_overlay", from_frame: 0, duration_in_frames: 30,
+    ownership: "ai_managed", hidden: false, locked: false, heading: "Siapa yang merintahin?", body: "", style_slot: "title",
+  } as never);
+  document.tracks.push({
+    track_id: "track_overlay", kind: "overlay", label: "Overlay", order: 9, clip_ids: ["clip_text"],
+    hidden: false, muted: false, locked: false,
+  } as never);
+  const next = applyTimelineOperation(document, { kind: "set_text_place", operation_id: "op_card", clip_id: "clip_text", style_slot: "card" } as never, {});
+  expect(next.clips!.find((clip) => clip.clip_id === "clip_text")!).toMatchObject({ style_slot: "card" });
+});
+
+test("a trim start keeps the move value on the client", () => {
+  const document = documentV2();
+  mainOf(document).moves = [
+    { frame: 0, scale: 1, x: 0, y: 0, ease: "linear" },
+    { frame: 30, scale: 1.3, x: 0, y: 0, ease: "linear" },
+  ];
+  const next = applyTimelineOperation(document, { kind: "trim_clip_start", operation_id: "op_trim", clip_id: "clip_main", from_frame: 15 } as never, {});
+  expect(mainOf(next).moves!.map((move) => [move.frame, Number(move.scale.toFixed(6))])).toEqual([[0, 1.15], [15, 1.3]]);
+});

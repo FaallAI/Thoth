@@ -6,10 +6,12 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
+from thoth_control_plane.domain.clip_moves import fit_moves, stretch_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     AssetRef,
     EditDocument,
     EditDocumentV2,
+    TimelineVideoClip,
 )
 from thoth_control_plane.domain.edit_documents import BodyText, Frame, Ownership
 from thoth_control_plane.domain.models import OpaqueId, StrictModel
@@ -92,6 +94,7 @@ def apply_edit_operations(
             # An edit that shortens a clip (trim, scene length, new media) keeps its fades inside,
             # and one that shortens the document keeps its markers on it (Tier 3a).
             fit_fades(result)
+            fit_moves(result)
             fit_markers(result)
 
     return type(result).model_validate(result.model_dump())
@@ -137,6 +140,11 @@ def _set_scene_duration(document: EditDocument, operation: SetSceneDuration) -> 
         scene.start_frame = start_frame
         clip = _find_clip(document, scene.clip_ids[0])
         setattr(clip, start_field, start_frame)
+        if isinstance(clip, TimelineVideoClip):
+            # A scene's own clip is retimed with it, so its moves stretch (spec 2026-11-09).
+            clip.moves = stretch_moves(
+                clip.moves, clip.duration_in_frames, scene.duration_in_frames
+            )
         clip.duration_in_frames = scene.duration_in_frames
         start_frame += scene.duration_in_frames
     if isinstance(document, EditDocumentV2):

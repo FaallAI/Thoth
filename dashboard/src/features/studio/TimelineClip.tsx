@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
-import { Lock } from "lucide-react";
+import { Lock, Sparkles } from "lucide-react";
 
 import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
@@ -280,6 +280,12 @@ export function TimelineClip({
         {glance ? <GlanceLayer clip={clip} glance={glance} widthPx={framesToPixels(clip.duration_in_frames, zoom)} fps={fps} /> : null}
         {locked ? <Lock aria-hidden="true" size={11} className="relative mt-0.5 shrink-0 text-faint" /> : null}
         <span className="relative truncate rounded bg-well/70 px-1" title={text}>{text}</span>
+        {clip.kind === "video" && ((clip.moves?.length ?? 0) > 0 || (clip.emphasis?.marks?.length ?? 0) > 0) ? (
+          // Moves and marks are invisible on a lane, so the clip says it has them (spec 2026-11-09).
+          <span role="img" aria-label={t("studio.timeline.hasEffects")} className="relative shrink-0 text-copper">
+            <Sparkles aria-hidden="true" size={11} />
+          </span>
+        ) : null}
       </button>
       {!readOnly && !locked && onVolume && clip.kind === "audio" ? (
         <VolumeLine volume={clip.volume ?? 1} label={t("studio.timeline.volumeOf", { clip: name })} onVolume={onVolume} />

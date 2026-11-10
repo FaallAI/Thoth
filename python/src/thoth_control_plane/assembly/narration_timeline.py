@@ -17,6 +17,7 @@ from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from thoth_control_plane.domain.clip_moves import stretch_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     AssetRef,
     CaptionCue,
@@ -443,6 +444,8 @@ def _retime(
         )
         update["hold_after_source"] = remaining is not None and length > remaining
         update["volume_keyframes"] = []
+        # A push-in across the clip stays across the clip in its new window (spec 2026-11-09).
+        update["moves"] = stretch_moves(clip.moves, clip.duration_in_frames, length)
         # Video fades (Tier 2) stay inside a clip the new window shortened, as fit_fades keeps them.
         fade_in = min(clip.fade_in_frames, length)
         update.update(

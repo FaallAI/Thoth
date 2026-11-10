@@ -19,7 +19,7 @@ type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 
 // Lane selection is drawn as well as edited, so it lives with the composition
 // the renderer shares; editing callers keep importing it from here.
-import { speedPercent, visibleLanes } from "@thoth/remotion-composition";
+import { fitMoveList, shiftMoves, speedPercent, splitMoves, stretchMoves, visibleLanes } from "@thoth/remotion-composition";
 
 export { speedPercent, visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
 
@@ -56,6 +56,8 @@ export const CAPTION_STYLE_LABELS: Record<
 > = {
   caption_default: "Standard",
   source: "Source quote",
+  boxed: "Boxed",
+  kinetic: "Kinetic",
   word_highlight: "Word highlight",
 };
 
@@ -413,12 +415,38 @@ export function applyTimelineOperation(
     case "set_clip_motion":
       unlockedVideoClip(next, operation.clip_id).motion = operation.motion;
       break;
-    case "set_clip_emphasis":
-      unlockedVideoClip(next, operation.clip_id).emphasis = {
-        highlight: operation.highlight,
-        arrow: operation.arrow,
-      };
+    case "set_clip_emphasis": {
+      const clip = unlockedVideoClip(next, operation.clip_id);
+      // The two whole-clip switches leave the clip's marks as they are (spec 2026-11-09).
+      const marks = clip.emphasis?.marks;
+      clip.emphasis = { highlight: operation.highlight, arrow: operation.arrow, ...(marks?.length ? { marks } : {}) };
       break;
+    }
+    case "set_clip_moves": {
+      const clip = unlockedVideoClip(next, operation.clip_id);
+      const frames = operation.moves.map((move) => move.frame);
+      const increasing = frames.every((frame, index) => index === 0 || frame > frames[index - 1]!);
+      if (frames.length > 0 && (!increasing || frames.at(-1)! >= clip.duration_in_frames)) {
+        throw new Error("moves must be increasing and inside the clip");
+      }
+      clip.moves = operation.moves.map((move) => ({ ...move }));
+      break;
+    }
+    case "set_clip_background": {
+      const clip = unlockedVideoClip(next, operation.clip_id);
+      clip.background = operation.background;
+      // A covering picture leaves no room to see the blur (spec 2026-11-09, 3.2).
+      if (operation.background === "blur_fill") clip.fit = "contain";
+      break;
+    }
+    case "set_clip_dim":
+      unlockedVideoClip(next, operation.clip_id).dim = operation.dim;
+      break;
+    case "set_clip_marks": {
+      const clip = unlockedVideoClip(next, operation.clip_id);
+      clip.emphasis = { highlight: false, arrow: false, ...clip.emphasis, marks: operation.marks.map((mark) => ({ ...mark })) };
+      break;
+    }
     case "replace_clip_asset":
       replaceClipAsset(next, operation, resolvedAssets);
       break;
@@ -528,8 +556,24 @@ export function applyTimelineOperation(
       throw new Error("operation is not a timeline operation");
   }
   fitFades(next);
+  fitMoves(next);
   fitMarkers(next);
   return next;
+}
+
+/** Keep every clip's moves inside it after an edit that shortened it (as the server does). */
+export function fitMoves(document: EditDocumentV2): void {
+  for (const clip of document.clips ?? []) {
+    if (clip.kind !== "video" || !clip.moves?.length) continue;
+    // Only moves that must change are written, so an untouched clip stays as it was.
+    if (clip.moves.at(-1)!.frame >= clip.duration_in_frames) clip.moves = fitMoveList(clip.moves, clip.duration_in_frames);
+  }
+}
+
+/** A clip retimed to a new length keeps its moves across it (scene resize, spec 2026-11-09). */
+export function stretchClipMoves<T extends { kind: string; duration_in_frames: number }>(clip: T, duration: number): void {
+  const video = clip as unknown as { kind: string; moves?: Parameters<typeof stretchMoves>[0] };
+  if (video.kind === "video" && video.moves?.length) video.moves = stretchMoves(video.moves, clip.duration_in_frames, duration);
 }
 
 function markerOf(document: EditDocumentV2, markerId: string) {
@@ -672,6 +716,7 @@ function addClipFromAsset(
           motion: "none" as const,
           hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
+          ...(operation.background ? { background: operation.background } : {}),
         },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];
@@ -718,6 +763,8 @@ function replaceClipAsset(
   clip.crop = null;
   clip.blur_regions = [];
   clip.blur_enabled = false;
+  // Marks point at the old medium's content, so they go with it (spec 2026-11-09, 3.4).
+  if (clip.emphasis?.marks?.length) clip.emphasis = { ...clip.emphasis, marks: [] };
   clip.ownership = "user_edited";
 }
 
@@ -919,6 +966,8 @@ function trimClipStart(
     if (clip.source_from_frame + moved < 0) throw new Error("trim cannot start before the source");
     clip.source_from_frame += moved;
   }
+  // Moves are relative to the start: the picture at the new start stays as it was.
+  if (clip.kind === "video" && clip.moves?.length) clip.moves = shiftMoves(clip.moves, delta);
   clip.from_frame = operation.from_frame;
   clip.duration_in_frames = endFrame - operation.from_frame;
 }
@@ -962,5 +1011,8 @@ function splitClip(
   entry.clip_ids = [...ids, right.clip_id];
   clip.clip_id = operation.left_clip_id;
   clip.duration_in_frames = leftDuration;
+  if (clip.kind === "video" && right.kind === "video" && clip.moves?.length) {
+    [clip.moves, right.moves] = splitMoves(clip.moves, leftDuration);
+  }
   document.clips = [...(document.clips ?? []), right];
 }

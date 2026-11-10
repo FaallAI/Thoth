@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from thoth_control_plane.domain.edit_document_v2 import AssetRef
 from thoth_control_plane.domain.studio_imports import SourceBlurRegion
 from thoth_control_plane.domain.studio_layout import (
     CARD_CENTER_Y,
     CARD_GAP,
     card_position,
     clip_regions,
+    full_frame_fill,
     post_card_slot,
     profile_slot,
     reaction_beat,
@@ -135,3 +137,28 @@ def test_a_tall_card_starts_below_the_platform_header() -> None:
     # Short cards keep the card line.
     assert card_position(1080, 360, CANVAS).y == pytest.approx(CARD_CENTER_Y - 0.5)
     assert card_position(1080, 520, CANVAS).y == pytest.approx(CARD_CENTER_Y - 0.5)
+
+
+# Studio effects layer (spec 2026-11-09, 3.8): full-frame media of another shape sits on blur-fill.
+def _asset(width: int | None, height: int | None) -> AssetRef:
+    return AssetRef.model_validate(
+        {
+            "asset_id": "asset_one",
+            "project_id": "project_001",
+            "kind": "video",
+            "width": width,
+            "height": height,
+            "has_audio": True,
+            "validation_state": "ready",
+        }
+    )
+
+
+@pytest.mark.parametrize("size", [(1920, 1080), (1080, 1350), (1080, 1080)])
+def test_media_of_another_shape_gets_blur_fill(size: tuple[int, int]) -> None:
+    assert full_frame_fill(_asset(*size)) == ("contain", "blur_fill")
+
+
+@pytest.mark.parametrize("size", [(1080, 1920), (720, 1280), (None, None)])
+def test_vertical_or_unknown_media_keeps_its_fit(size: tuple[int | None, int | None]) -> None:
+    assert full_frame_fill(_asset(*size)) is None

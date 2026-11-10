@@ -1,4 +1,5 @@
-import { useEffect, useState, type Dispatch, type KeyboardEvent } from "react";
+import { BEAT_MOVE_PRESETS, movePreset } from "../move_presets";
+import { useEffect, useId, useState, type Dispatch, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowUp, Plus, TriangleAlert, X } from "lucide-react";
 import { headingFitChars } from "@thoth/remotion-composition";
 
@@ -58,15 +59,106 @@ const ALTERNATIVE: Partial<Record<string, string>> = { profile_page: "profile_ca
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 const CARD_BEATS = new Set(["evidence", "reactions"]);
 const PRESETS: PositionPreset[] = ["top", "middle", "lower"];
-const HEADING_SLOT = { top: "title_top", middle: "title", lower: "title_lower" } as const;
+const HEADING_SLOT = { top: "title_top", middle: "title", lower: "title_lower", card: "card" } as const;
+type HeadingPlace = keyof typeof HEADING_SLOT;
+/** Style B's narrator card joins the three places (spec 2026-11-09, 3.6). */
+const HEADING_PLACES: HeadingPlace[] = ["top", "middle", "lower", "card"];
 /** Any older slot draws mid-frame, so it reads as Middle. */
-const headingPreset = (slot: string): PositionPreset => (slot === "title_top" ? "top" : slot === "title_lower" ? "lower" : "middle");
+const headingPreset = (slot: string): HeadingPlace =>
+  slot === "title_top" ? "top" : slot === "title_lower" ? "lower" : slot === "card" ? "card" : "middle";
 const MOTIONS: Motion[] = ["none", "slow_zoom", "pan"];
 const section = "flex flex-col gap-2 border-t border-hairline pt-3";
 const heading = "text-xs font-medium tracking-wide text-muted-ink uppercase";
 const choice =
   "rounded-md border border-hairline px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:border-copper aria-[pressed=true]:text-ink focus-visible:outline-2 focus-visible:outline-copper";
 const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper";
+
+type VideoOf = Extract<Clip, { kind: "video" }>;
+const newOperationId = () => `op_${crypto.randomUUID()}`;
+
+/**
+ * Background, Dim and the moves that need no playhead, for every card of a beat at once (spec
+ * 2026-11-09, 3.7). Marks are a Timeline tool; the beat names the cards that have them.
+ */
+function BeatEffects({
+  clips,
+  fps,
+  commit,
+  label,
+}: {
+  clips: VideoOf[];
+  fps: number;
+  commit: (operations: EditDocumentOperation[]) => unknown;
+  label: (clip: Clip) => string;
+}) {
+  const { t } = useLocale();
+  const dimId = useId();
+  const stored = Math.round((clips[0]?.dim ?? 0) * 100);
+  const [dim, setDim] = useState(stored);
+  useEffect(() => setDim(stored), [stored]);
+  const each = (make: (clip: VideoOf) => EditDocumentOperation) => commit(clips.map(make));
+  const commitDim = () => {
+    if (dim !== stored) each((clip) => ({ kind: "set_clip_dim", operation_id: newOperationId(), clip_id: clip.clip_id, dim: dim / 100 }));
+  };
+  const marked = clips.filter((clip) => (clip.emphasis?.marks?.length ?? 0) > 0);
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("studio.effects.background")}>
+        {(["none", "blur_fill"] as const).map((background) => (
+          <button
+            key={background}
+            type="button"
+            className={choice}
+            aria-pressed={clips.every((clip) => (clip.background ?? "none") === background)}
+            onClick={() =>
+              each((clip) => ({ kind: "set_clip_background", operation_id: newOperationId(), clip_id: clip.clip_id, background }))
+            }
+          >
+            {t(`studio.effects.background.${background}`)}
+          </button>
+        ))}
+      </div>
+      <label htmlFor={dimId} className="flex items-center justify-between gap-2 text-xs text-muted-ink">
+        {t("studio.effects.dim")}
+        <input
+          id={dimId}
+          type="range"
+          min={0}
+          max={80}
+          step={5}
+          value={dim}
+          aria-valuetext={`${dim}%`}
+          onChange={(event) => setDim(Number(event.target.value))}
+          onPointerUp={commitDim}
+          onKeyUp={commitDim}
+          onBlur={commitDim}
+        />
+      </label>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("studio.effects.moves")}>
+        {BEAT_MOVE_PRESETS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className={choice}
+            onClick={() =>
+              each((clip) => ({
+                kind: "set_clip_moves",
+                operation_id: newOperationId(),
+                clip_id: clip.clip_id,
+                moves: movePreset(kind, clip.duration_in_frames, fps),
+              }))
+            }
+          >
+            {t(`studio.effects.preset.${kind}`)}
+          </button>
+        ))}
+      </div>
+      {marked.length ? (
+        <p className="text-xs text-muted-ink">{t("studio.story.timelineMarks", { names: marked.map(label).join(", ") })}</p>
+      ) : null}
+    </>
+  );
+}
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
 export function BeatInspector({
@@ -412,7 +504,7 @@ export function BeatInspector({
         <section role="group" aria-label={t("studio.inspector.headingPlace")} className={section}>
           <h3 className={heading}>{t("studio.inspector.headingPlace")}</h3>
           <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((preset) => (
+            {HEADING_PLACES.map((preset) => (
               <button
                 key={preset}
                 type="button"
@@ -460,13 +552,22 @@ export function BeatInspector({
                 key={motion}
                 type="button"
                 className={choice}
-                aria-pressed={moving.every((clip) => motionOf(clip) === motion)}
-                onClick={() => commit(setMotion(moving.map((clip) => clip.clip_id), motion))}
+                // Moves play over Motion, so a Motion choice replaces them and none reads as chosen meanwhile.
+                aria-pressed={moving.every((clip) => motionOf(clip) === motion && !(clip as VideoOf).moves?.length)}
+                onClick={() =>
+                  commit([
+                    ...setMotion(moving.map((clip) => clip.clip_id), motion),
+                    ...moving
+                      .filter((clip) => (clip as VideoOf).moves?.length)
+                      .map((clip): EditDocumentOperation => ({ kind: "set_clip_moves", operation_id: newOperationId(), clip_id: clip.clip_id, moves: [] })),
+                  ])
+                }
               >
                 {t(`studio.inspector.motion.${motion}`)}
               </button>
             ))}
           </div>
+          <BeatEffects clips={moving as VideoOf[]} fps={fps} commit={commit} label={label} />
         </section>
       ) : null}
       {cards.length ? (

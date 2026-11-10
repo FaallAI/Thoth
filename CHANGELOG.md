@@ -2,6 +2,105 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-10 - Studio effects layer
+
+Branch `feat/studio-effects-layer` from master `4971b458` (PR #126 merged; PR #125 merged as `ff4d1004` before it).
+- **Spec:** `docs/superpowers/specs/2026-11-09-studio-effects-layer-design.md`, approved by the operator on 2026-11-09.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-effects-layer.md`.
+- **Execution:** done natively, task by task, then one fresh review of the whole branch and one fix pass.
+
+**What changed.** The edit document and Studio gain the effects that Style A (IsseiNugroho) and Style B (WinNews) need:
+- **Moves:** scale and position keyframes per video clip, with Linear, Ease out, Ease in-out and Hold. They stay in place through trims, splits, scene resizes and narration retiming. Python and TypeScript run the same JSON cases.
+- **Blur-fill:** a blurred copy of the clip's own media covers the canvas behind it. Choosing it also sets the fit to Contain.
+- **Dim:** a black layer over the clip, from 0 to 80%.
+- **Marks:** up to 12 boxes and arrows per clip, in two colours. Their windows are in source frames, so they follow speed and trims, and a replaced asset clears them.
+- **Two caption styles:** `kinetic` (a group of up to four words at a time, mid-frame) and `boxed` (small subtitles on a solid box).
+- **A `card` text place:** a white card with a dark heading.
+- **Studio:** the Timeline Inspector has an Effects section with Background, Dim, five move presets (Punch in at playhead, Push in, Pan across, Scroll down, Pull out), a keyframe list, and Marks with time fields in clip time. A clip with moves or marks shows a "Has effects" badge.
+- **Story:** each beat offers Background, Dim and the four presets that need no playhead, and names the cards that have marks. Headings gain the Card place.
+- **New auto-drafts:** full-frame media more than 0.02 away from 9:16 sits on blur-fill.
+
+Every new field has a default and is left out of the stored document when unused, so a rollback stays safe for drafts that do not use the effects. A draft that uses one will not load on older images.
+
+**Render time.** The 60 s draft has 30 clips alternating a still and a movie. It was rendered locally in the F1 image with fixture media.
+- **First measurement:** 32.4 s without blur-fill and 163.9 s with it on every clip, so +406%, over the spec's 25% limit.
+- **Bisecting the cost:** stills alone cost 34.6 s and movies alone 160.6 s. A smaller copy, a frozen second video and a single decoder did not help. The cost was a CSS blur over a layer that changes every frame.
+- **The fix:** a movie's blur-fill now draws the clip's own decoded frames (`onVideoFrame`) into an eighth-size canvas, blurs them there, and scales the canvas up. A still keeps a CSS blur on its eighth-size copy.
+- **After the fix:** 31.6 s and 29.1 s without, 35.8 s and 35.0 s with, so +16.6%.
+- **After the review's fix pass:** 30.8 s and 27.7 s without, 33.3 s and 33.5 s with, so +14.2%.
+
+**Release capsule and golden set.** `effects-v1` draws every effect over 120 frames.
+- **What it shows:**
+  - a dimmed still with a pan, a box and an arrow, over a bright movie, so Dim visibly veils the still's picture only;
+  - kinetic captions, clear of the fixture title, which now sits at the top;
+  - a 640x360 movie on `contain` with blur-fill, a box on its letterboxed picture, and a punch-in held at 135% at frame 90;
+  - boxed captions;
+  - the card.
+- **Promoted on the operator's word ("ya setuju", 2026-11-10), after they looked at the six frames:** set `sha256-2694f28c9ceb86f6e17ee08b582684037d5d2baef5b6a2916e7fbbc591588786`, from `run_fbeac0be736f4b68`.
+- **A first set was withdrawn:** `sha256-39756b01…`, from `run_87440284dc7f2a4f`, was promoted before the operator had seen it. It was withdrawn because it showed neither the punch-in at full size nor dim's scope, and because its kinetic captions overlapped the title.
+- **How it was drawn:** by a fresh F1 image with no network, and promoted from inside it. All 12 files are byte-identical to the frames judged.
+- **Frames judged:**
+  - 20: the dimmed still over the bright movie, the box and kinetic captions;
+  - 90: the punch-in at 135%, on its blur-fill, with the box;
+  - all six, by the operator.
+- **Carried forward:** kinetic captions sit mid-frame, where a Middle heading also sits. A draft with both would overlap.
+- **CI:** `effects-v1` joins the golden loop in `container-image.yml`, and the container contract test expects it. An image built with the new goldens verified `pass` for all three capsules on a fresh artifact root.
+
+**Found on the way.** Three `studio-media` read-only checks failed on stage1 too, so they were stale before this branch, not broken by it.
+- **Two expected the old clock:** they looked for `0:0X / 0:34`, but since PR #126 the clock shows tenths. They now accept them.
+- **One matched both clocks:** the narration preview check matched the player bar's clock as well as the Timeline's, so it now reads the Timeline's.
+
+**Final review, by a fresh reviewer: 0 Critical, 5 Important, 12 Minor.** Three Minors were re-graded Important by their effect. Each fix was made test-first:
+- **Marks on media of another shape:** marks landed off their content on `cover` or cropped media of another shape. They now project through crop and fit exactly as blur regions do.
+- **Dim:** it veiled the whole canvas. It now veils only the clip's own picture, or the whole canvas when the clip has blur-fill.
+- **Story and moves:** Story could add moves but not remove them. A Motion choice now replaces the cards' moves, and no Motion reads as chosen while moves play.
+- **Punch in combined with other moves:** it jumped. It now starts from the current move value and holds to the clip end.
+- **Mark times after a split or trim:** they showed negative times. They now show the clip's own range.
+- **Blur-fill canvas edges:** the canvas clears each frame and draws 18 px past every edge, so no earlier frame or transparent edge shows.
+- **Blur-fill in a paused preview:** the clip's video now remounts when its background changes, so the background appears.
+- **A fixed mark window** now clears its error message.
+
+**Deferred minors:**
+- The preview's HTML5 fallback shows no movie blur-fill.
+- Punch in with the playhead outside the clip gives no notice.
+- Add box and Add arrow stay enabled at 12 marks.
+- Kinetic groups can hold 5 words, or 1 word mid-cue.
+- Presets on a 1-frame clip are refused.
+- The keyframe list shows no x or y.
+- Background back to None keeps fit Contain.
+- Story's Dim shows the first card's value.
+
+**Added on the operator's word (2026-11-10):** the Timeline Inspector gives a text clip a Heading position select (Top, Middle, Lower third, Card), as Story does, per spec 3.7.
+
+**Verification.**
+- **Python:** `make test` gives 4768 passed and 224 skipped. `make test-postgres` gives 204 passed. Lint is clean.
+- **Dashboard:** 1975 tests pass, plus 45 in the e2e package. `tsc -b` and the build are clean.
+- **Renderer and composition:** 262 tests pass. The container contract test gives 56 passed, and actionlint is clean on the workflow.
+- **Read-only e2e against a local dev server of this branch, at 1440:** 41 checks across `studio-shell-v2`, `studio-audit-fixes`, `studio-media` and `studio-menus`, including the new Effects check. All pass after the clock fixes.
+- **Screenshot judged at 1440x900:** the Effects section sits under Fade out, in the same style as the Clip section.
+- **CI on PR #127 at `e4353c9a`:** the push run and the PR run pass, the golden loop with `effects-v1` included.
+
+**Deployed to stage1 on 2026-11-10,** from the branch's CI images of `e4353c9a`, detached:
+- **Images:** `thoth@sha256:a318189e6aaf…`, `thoth-remotion-renderer@sha256:e3dbf3f0ce47…` and `thoth-web@sha256:afcf4f912766…`.
+- **Rollback pins:** `pins-4e73ec36.env`.
+- **Checks:** no workflow was running, `make deploy` exited 0, and every service is healthy.
+- **Read-only e2e on stage1 at w1440:** 41/41.
+- **Write e2e on stage1 at rw1440, in the throwaway project, with the one-day write token minted 2026-11-09:** `effects.e2e.ts` passes 3/3 (blur-fill and dim, Push in, Add box).
+- **What stays behind:** the project's drafts went from 477 to 480. The three new blank drafts stay in the throwaway project, and the operator's drafts are untouched.
+
+**Next steps** (each its own gate):
+- the operator tries it on stage1;
+- merge PR #127, its own gate.
+
+After that comes the planner slice of roadmap item 6.
+
+**Carried forward:**
+- a Story scene resize of a sped-up clip can be refused by the server;
+- the rights to Style B's news clips;
+- defamation safeguards (claims shown with their sources at approval, and terms and a takedown path before public sign-up);
+- editor-eye's music and SFX labels, text size, and font identification;
+- the understand-anything graph is stale since `ccddab63` and needs `/understand --full`.
+
 ## 2026-11-09 - Studio full-width timeline
 
 Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), PR #126, stacked on #125.

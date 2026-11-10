@@ -1330,6 +1330,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 selectedClipId={state.selectedClipId}
                 selectedTrackId={state.selectedTrackId}
                 rail={railInspector}
+                playheadFrame={state.playheadFrame}
                 onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
               />
             ) : (

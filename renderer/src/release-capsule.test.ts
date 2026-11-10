@@ -598,3 +598,35 @@ describe("the Story mode release capsule", () => {
     expect(capsule.goldens?.frames.map((entry) => entry.frame)).toEqual([...capsule.frames]);
   });
 });
+
+describe("the effects release capsule", () => {
+  test("effects-v1 loads, validates its assets and uses every effect", async () => {
+    const capsule = await loadReleaseCapsule("effects-v1");
+    type Clip = {
+      kind: string;
+      background?: string;
+      dim?: number;
+      moves?: unknown[];
+      style_slot?: string;
+      emphasis?: { marks?: { kind: string }[] };
+    };
+    const clips = capsule.document.clips as Clip[];
+
+    expect(capsule.template_id).toBe("vertical_text_story");
+    expect([...capsule.frames]).toEqual([0, 20, 40, 60, 90, 119]);
+    expect(clips.some((clip) => clip.background === "blur_fill")).toBe(true);
+    expect(clips.some((clip) => (clip.dim ?? 0) > 0)).toBe(true);
+    expect(clips.filter((clip) => (clip.moves?.length ?? 0) > 0).length).toBeGreaterThanOrEqual(2);
+    expect(new Set(clips.flatMap((clip) => clip.emphasis?.marks ?? []).map((mark) => mark.kind))).toEqual(
+      new Set(["box", "arrow"]),
+    );
+    expect(new Set(clips.filter((clip) => clip.kind === "caption").map((clip) => clip.style_slot))).toEqual(
+      new Set(["kinetic", "boxed"]),
+    );
+    expect(clips.some((clip) => clip.kind === "text" && clip.style_slot === "card")).toBe(true);
+    // Approved by the operator on 2026-11-10 and promoted from run_fbeac0be736f4b68.
+    const manifest = JSON.parse(readFileSync(join(capsule.directory, "golden-manifest.json"), "utf8"));
+    expect(capsule.goldens?.golden_set).toBe(manifest.golden_set);
+    expect(capsule.goldens?.frames.map((entry) => entry.frame)).toEqual([...capsule.frames]);
+  });
+});

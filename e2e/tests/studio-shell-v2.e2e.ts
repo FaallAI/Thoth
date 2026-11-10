@@ -75,6 +75,20 @@ test('430 Timeline: menu-only lanes with a how-to note and Inspect', async ({ ap
   await expect(screen.getByRole('button', 'Inspect')).toBeVisible();
 });
 
+test('1440 Timeline: a video clip shows the Effects section', async ({ app, browser, screen }) => {
+  // Studio effects layer (spec 2026-11-09): the controls are looked at, never used here.
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await screen.getByRole('button', 'Timeline').tap();
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await expect(screen.getByLabel('Background')).toBeVisible();
+  await expect(screen.getByLabel('Dim')).toBeVisible();
+  for (const name of ['Moves', 'Marks']) await expect(screen.getByRole('group', name)).toBeVisible();
+  for (const name of ['Punch in at playhead', 'Push in', 'Add box', 'Add arrow']) {
+    await expect(screen.getByRole('button', name)).toBeVisible();
+  }
+});
+
 test('1440 Timeline: a video clip shows its filmstrip and narration its waveform', async ({ app, browser, screen }) => {
   // Tier 3b: the glance is a GET, so the read scope sees it; the first look may build it.
   await browser.setViewport({ width: 1440, height: 900 });

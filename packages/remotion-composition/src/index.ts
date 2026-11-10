@@ -14,6 +14,8 @@ export {
 } from "./AdvancedTimelineComposition";
 export { safePreviewSource } from "./media";
 export { speedPercent } from "./speed";
+// Clip moves, for the composition and for Studio's edits (spec 2026-11-09).
+export { ease, fitMoveList, moveAt, shiftMoves, splitMoves, stretchMoves, type Ease, type Move, type MoveValue } from "./moves";
 // The media box the composition draws, so Story places cards by what is actually visible.
 export { contentBox, emphasisBox } from "./story_effects";
 // One projection for both surfaces: Studio's Player and the parity harness are

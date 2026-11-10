@@ -420,9 +420,144 @@
           "default": false,
           "title": "Highlight",
           "type": "boolean"
+        },
+        "marks": {
+          "items": {
+            "$ref": "#/$defs/Mark"
+          },
+          "maxItems": 12,
+          "title": "Marks",
+          "type": "array"
         }
       },
       "title": "Emphasis",
+      "type": "object"
+    },
+    "Mark": {
+      "additionalProperties": false,
+      "description": "A box or an arrow on part of the picture (spec 2026-11-09, 3.4).\n\nFractions of the media frame and source frames, as blur regions are, so a mark stays on the\ncontent it points at however the clip is trimmed, moved, split or sped up.",
+      "properties": {
+        "color": {
+          "default": "accent",
+          "enum": [
+            "accent",
+            "alert"
+          ],
+          "title": "Color",
+          "type": "string"
+        },
+        "from_frame": {
+          "minimum": 0,
+          "title": "From Frame",
+          "type": "integer"
+        },
+        "h": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "H",
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "box",
+            "arrow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "side": {
+          "default": "top",
+          "enum": [
+            "top",
+            "bottom",
+            "left",
+            "right"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "to_frame": {
+          "exclusiveMinimum": 0,
+          "title": "To Frame",
+          "type": "integer"
+        },
+        "w": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "x",
+        "y",
+        "from_frame",
+        "to_frame"
+      ],
+      "title": "Mark",
+      "type": "object"
+    },
+    "MoveKeyframe": {
+      "additionalProperties": false,
+      "description": "Scale and place at one frame relative to the clip's start, stacked on its position.",
+      "properties": {
+        "ease": {
+          "default": "ease_in_out",
+          "enum": [
+            "linear",
+            "ease_out",
+            "ease_in_out",
+            "hold"
+          ],
+          "title": "Ease",
+          "type": "string"
+        },
+        "frame": {
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        },
+        "scale": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "maximum": 4,
+          "title": "Scale",
+          "type": "number"
+        },
+        "x": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame"
+      ],
+      "title": "MoveKeyframe",
       "type": "object"
     },
     "OverlayParameters": {
@@ -1148,6 +1283,14 @@
           "title": "Asset Id",
           "type": "string"
         },
+        "background": {
+          "enum": [
+            "none",
+            "blur_fill"
+          ],
+          "title": "Background",
+          "type": "string"
+        },
         "blur_enabled": {
           "default": false,
           "title": "Blur Enabled",
@@ -1175,6 +1318,12 @@
               "type": "null"
             }
           ]
+        },
+        "dim": {
+          "maximum": 0.8,
+          "minimum": 0,
+          "title": "Dim",
+          "type": "number"
         },
         "duration_in_frames": {
           "exclusiveMinimum": 0,
@@ -1242,6 +1391,14 @@
           ],
           "title": "Motion",
           "type": "string"
+        },
+        "moves": {
+          "items": {
+            "$ref": "#/$defs/MoveKeyframe"
+          },
+          "maxItems": 60,
+          "title": "Moves",
+          "type": "array"
         },
         "ownership": {
           "enum": [

@@ -1777,6 +1777,8 @@ export interface components {
         AddClipFromAsset: {
             /** Asset Id */
             asset_id: string;
+            /** Background */
+            background?: ("none" | "blur_fill") | null;
             /** Clip Id */
             clip_id: string;
             /** Duration In Frames */
@@ -2375,7 +2377,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -2490,6 +2492,8 @@ export interface components {
              * @default false
              */
             highlight: boolean;
+            /** Marks */
+            marks?: components["schemas"]["Mark"][];
         };
         /**
          * EventKind
@@ -2659,6 +2663,50 @@ export interface components {
             start: string;
         };
         /**
+         * Mark
+         * @description A box or an arrow on part of the picture (spec 2026-11-09, 3.4).
+         *
+         *     Fractions of the media frame and source frames, as blur regions are, so a mark stays on the
+         *     content it points at however the clip is trimmed, moved, split or sped up.
+         */
+        Mark: {
+            /**
+             * Color
+             * @default accent
+             * @enum {string}
+             */
+            color: "accent" | "alert";
+            /** From Frame */
+            from_frame: number;
+            /**
+             * H
+             * @default 0
+             */
+            h: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "arrow";
+            /**
+             * Side
+             * @default top
+             * @enum {string}
+             */
+            side: "top" | "bottom" | "left" | "right";
+            /** To Frame */
+            to_frame: number;
+            /**
+             * W
+             * @default 0
+             */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
          * MaterialFigure
          * @description A person or organisation the run named: context for the editor, never media.
          */
@@ -2716,6 +2764,35 @@ export interface components {
             ripple: boolean;
             /** Target Track Id */
             target_track_id: string;
+        };
+        /**
+         * MoveKeyframe
+         * @description Scale and place at one frame relative to the clip's start, stacked on its position.
+         */
+        MoveKeyframe: {
+            /**
+             * Ease
+             * @default ease_in_out
+             * @enum {string}
+             */
+            ease: "linear" | "ease_out" | "ease_in_out" | "hold";
+            /** Frame */
+            frame: number;
+            /**
+             * Scale
+             * @default 1
+             */
+            scale: number;
+            /**
+             * X
+             * @default 0
+             */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
         };
         /** MoveWorkflow */
         MoveWorkflow: {
@@ -3785,7 +3862,24 @@ export interface components {
              * Style Slot
              * @enum {string}
              */
-            style_slot: "caption_default" | "source" | "word_highlight";
+            style_slot: "caption_default" | "source" | "word_highlight" | "boxed" | "kinetic";
+        };
+        /** SetClipBackground */
+        SetClipBackground: {
+            /**
+             * Background
+             * @enum {string}
+             */
+            background: "none" | "blur_fill";
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_background";
+            /** Operation Id */
+            operation_id: string;
         };
         /** SetClipBlur */
         SetClipBlur: {
@@ -3814,6 +3908,20 @@ export interface components {
              * @enum {string}
              */
             kind: "set_clip_crop";
+            /** Operation Id */
+            operation_id: string;
+        };
+        /** SetClipDim */
+        SetClipDim: {
+            /** Clip Id */
+            clip_id: string;
+            /** Dim */
+            dim: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_dim";
             /** Operation Id */
             operation_id: string;
         };
@@ -3897,6 +4005,20 @@ export interface components {
             /** Operation Id */
             operation_id: string;
         };
+        /** SetClipMarks */
+        SetClipMarks: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_marks";
+            /** Marks */
+            marks: components["schemas"]["Mark"][];
+            /** Operation Id */
+            operation_id: string;
+        };
         /** SetClipMotion */
         SetClipMotion: {
             /** Clip Id */
@@ -3911,6 +4033,23 @@ export interface components {
              * @enum {string}
              */
             motion: "none" | "slow_zoom" | "pan";
+            /** Operation Id */
+            operation_id: string;
+        };
+        /**
+         * SetClipMoves
+         * @description The whole keyframe list: a preset, a removed keyframe and a clear are each one step.
+         */
+        SetClipMoves: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_moves";
+            /** Moves */
+            moves: components["schemas"]["MoveKeyframe"][];
             /** Operation Id */
             operation_id: string;
         };
@@ -4026,7 +4165,7 @@ export interface components {
              * Style Slot
              * @enum {string}
              */
-            style_slot: "title_top" | "title" | "title_lower";
+            style_slot: "title_top" | "title" | "title_lower" | "card";
         };
         /** SetTrackLocked */
         SetTrackLocked: {
@@ -4337,7 +4476,7 @@ export interface components {
         /** StoryAssistProposal */
         StoryAssistProposal: {
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
             /** Proposal Id */
             proposal_id: string;
             /** Reason */
@@ -4891,6 +5030,11 @@ export interface components {
             /** Asset Id */
             asset_id: string;
             /**
+             * Background
+             * @enum {string}
+             */
+            background?: "none" | "blur_fill";
+            /**
              * Blur Enabled
              * @default false
              */
@@ -4900,6 +5044,8 @@ export interface components {
             /** Clip Id */
             clip_id: string;
             crop?: components["schemas"]["Crop"] | null;
+            /** Dim */
+            dim?: number;
             /** Duration In Frames */
             duration_in_frames: number;
             emphasis?: components["schemas"]["Emphasis"];
@@ -4947,6 +5093,8 @@ export interface components {
              * @enum {string}
              */
             motion: "none" | "slow_zoom" | "pan";
+            /** Moves */
+            moves?: components["schemas"]["MoveKeyframe"][];
             /**
              * Ownership
              * @enum {string}

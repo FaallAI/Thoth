@@ -4,6 +4,8 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
+import { kineticGroups, markBox, markWindowOpen, sourceFrame, type MarkShape, type MarkView } from "./effects";
+import { moveAt } from "./moves";
 import { speedPercent } from "./speed";
 import { visibleLanes } from "./timeline";
 import { safePreviewSource } from "./media";
@@ -85,6 +87,36 @@ const HEADING_TOP_SAFE = 0.08;
 const HEADING_LOWER_SAFE = 0.3;
 /** The two slots that place a heading; any other draws mid-frame as every older draft does. */
 const HEADING_PLACES = new Set(["title_top", "title_lower"]);
+const TEXT_CARD: CSSProperties = {
+  backgroundColor: "#ffffff",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 80px",
+};
+const TEXT_CARD_HEADING: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+  fontSize: 84,
+  fontWeight: 800,
+  lineHeight: 1.1,
+  textAlign: "center",
+};
+/**
+ * Blur-fill blurs an eighth-size copy and scales it up 8.8 times (cover plus a 10% bleed), which looks
+ * like blur(48px) at full size. A still takes a CSS blur, drawn once; a movie is blurred inside its
+ * canvas, since a CSS blur over a layer that changes every frame made a 60 s render five times slower
+ * (plan 2026-11-09, Task 8).
+ */
+const BLUR_FILL_RADIUS = "blur(6px)";
+const BLUR_FILL_LAYER: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  width: "12.5%",
+  height: "12.5%",
+  transform: "translate(-50%, -50%) scale(8.8)",
+};
+const BLUR_FILL_MEDIA: CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 
 /**
  * About how many characters two lines of a placed heading hold on this canvas.
@@ -192,6 +224,15 @@ const CAPTION_STYLES: Record<string, CSSProperties> = {
   source: { ...CAPTION_BASE, fontSize: 30, color: "#e4e4e7" },
   // Narration's word-timed captions (spec 2026-10-31).
   word_highlight: { ...CAPTION_BASE, fontSize: 40, fontWeight: 700 },
+  // Style A's small subtitles on a solid box, and Style B's big centred words (spec 2026-11-09).
+  boxed: { borderRadius: 4, backgroundColor: "#000000", padding: "6px 14px", textAlign: "center", fontSize: 30 },
+  kinetic: {
+    textAlign: "center",
+    fontSize: 96,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    textShadow: "0 4px 12px rgba(0, 0, 0, 0.85)",
+  },
 };
 
 /** The caption styles a document may name; Studio offers exactly these. */
@@ -259,6 +300,14 @@ function renderClip(
 ): ReactNode {
   switch (clip.kind) {
     case "text":
+      if (clip.style_slot === "card") {
+        // Style B's narrator card: the heading alone, black on white (spec 2026-11-09, 3.6).
+        return (
+          <AbsoluteFill data-testid="text-card" style={TEXT_CARD}>
+            <h1 style={TEXT_CARD_HEADING}>{clip.heading}</h1>
+          </AbsoluteFill>
+        );
+      }
       if (HEADING_PLACES.has(clip.style_slot)) {
         const top = clip.style_slot === "title_top";
         return (
@@ -293,8 +342,13 @@ function renderClip(
     }
     case "caption": {
       const style = trustedStyle(clip.style_slot, CAPTION_STYLES, CAPTION_STYLES.caption_default!);
+      // Kinetic words sit in the middle, a little above it; every other style stays in the low lane.
+      const lane =
+        style.name === "kinetic"
+          ? { ...CAPTION_LANE, justifyContent: "center", paddingBottom: canvas.height * 0.1 }
+          : { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM };
       return (
-        <AbsoluteFill style={{ ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM }}>
+        <AbsoluteFill style={lane}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -306,7 +360,9 @@ function renderClip(
               // cue, and the cue's box would run the canvas's height from the top left.
               layout="none"
             >
-              {style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
+              {style.name === "kinetic" && cue.words && cue.words.length > 0 ? (
+                <KineticCue words={cue.words} style={style.style} />
+              ) : style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
                 <WordHighlightCue words={cue.words} style={style.style} />
               ) : (
                 <p data-testid="caption-cue" data-caption-style={style.name} style={style.style}>
@@ -322,8 +378,8 @@ function renderClip(
       const draw = (motion: MotionState) =>
         videoClip(clip, muted, refs, canvas, sources, motion, onPreviewUnavailable);
       // Only a moving clip reads the frame, so a still clip draws exactly as before Story mode.
-      const drawn =
-        clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
+      const moving = (clip.moves?.length ?? 0) > 0 || (clip.motion && clip.motion !== "none");
+      const drawn = moving ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
       const asset = refs.get(clip.asset_id);
       // Narration's retiming may run a clip past its source: hold that last frame (2026-10-31).
       // At a speed (Tier 3a) the source runs out after fewer or more timeline frames.
@@ -355,6 +411,24 @@ function renderClip(
     default:
       return null;
   }
+}
+
+/** Style B's words, one group at a time: each group stays until the next one starts. */
+function KineticCue({
+  words,
+  style,
+}: {
+  words: NonNullable<Extract<TimelineClip, { kind: "caption" }>["cues"][number]["words"]>;
+  style: CSSProperties;
+}) {
+  const frame = useCurrentFrame();
+  const groups = kineticGroups(words);
+  const shown = groups.filter((group) => group.from <= frame).at(-1) ?? groups[0]!;
+  return (
+    <p data-testid="caption-cue" data-caption-style="kinetic" style={style}>
+      {shown.text}
+    </p>
+  );
 }
 
 /** The spoken word in amber, the rest of the page in white (narration captions, 2026-10-31). */
@@ -424,6 +498,11 @@ export function volumeAt(
 function MovingClip({ clip, draw }: { clip: VideoClip; draw: (motion: MotionState) => ReactNode }) {
   // Inside the clip's sequence, so the motion runs across the clip's own duration.
   const frame = useCurrentFrame();
+  if (clip.moves?.length) {
+    // Keyframed moves replace the preset; they stack on the stored placement (spec 2026-11-09).
+    const value = moveAt(clip.moves, frame);
+    return <>{draw({ scale: value.scale, translateX: value.x, translateY: value.y })}</>;
+  }
   return <>{draw(motionTransform(clip.motion ?? "none", frame, clip.duration_in_frames))}</>;
 }
 
@@ -444,6 +523,11 @@ function videoClip(
   if (!source) return <PreviewUnavailable label="Video preview unavailable" />;
   const crop = clip.crop ?? FULL_CROP;
   const position = clip.position ?? NO_POSITION;
+  // A movie's blur-fill is drawn from the clip's own decoded frames: a second decoder of the same
+  // source made a 60 s render five times slower (plan 2026-11-09, Task 8).
+  const blurTarget: { canvas: HTMLCanvasElement | null } = { canvas: null };
+  const onVideoFrame =
+    clip.background === "blur_fill" ? (image: CanvasImageSource) => drawCover(blurTarget.canvas, image) : undefined;
   const media: CSSProperties = {
     position: "absolute",
     width: percent(1 / span(crop.width)),
@@ -459,7 +543,7 @@ function videoClip(
       style={{
         overflow: "hidden",
         // Offsets are canvas fractions, not pixels, so they project as percentages.
-        transform: `translate(${percent(position.x + motion.translateX)}, ${percent(position.y)}) scale(${position.scale * motion.scale})`,
+        transform: `translate(${percent(position.x + motion.translateX)}, ${percent(position.y + motion.translateY)}) scale(${position.scale * motion.scale})`,
       }}
     >
       {/* A still has no source timeline, so only a movie carries a trim. */}
@@ -484,6 +568,9 @@ function videoClip(
               }
             : {})}
           objectFit={clip.fit}
+          // A paused player draws no new frame for a new callback, so a change of background remounts it.
+          key={clip.background ?? "none"}
+          {...(onVideoFrame ? { onVideoFrame } : {})}
           style={media}
         />
       )}
@@ -520,12 +607,62 @@ function videoClip(
         : null}
     </AbsoluteFill>
   );
+  const content = contentBox(clip.fit, refs.get(clip.asset_id), canvas);
+  // Behind the clip: a blurred copy of the same media covering the canvas, still while the clip moves.
+  const blurFill =
+    clip.background === "blur_fill" ? (
+      <AbsoluteFill data-testid="clip-blur-fill" style={{ overflow: "hidden" }}>
+        <div data-testid="clip-blur-fill-layer" style={BLUR_FILL_LAYER}>
+          {kind === "image" ? (
+            <Img src={source} style={{ ...BLUR_FILL_MEDIA, filter: BLUR_FILL_RADIUS }} />
+          ) : (
+            <canvas
+              ref={(element) => {
+                blurTarget.canvas = element;
+              }}
+              width={Math.max(1, Math.round(canvas.width / 8))}
+              height={Math.max(1, Math.round(canvas.height / 8))}
+              style={BLUR_FILL_MEDIA}
+            />
+          )}
+        </div>
+      </AbsoluteFill>
+    ) : null;
+  // Dim veils the clip's own visible picture; with blur-fill the blurred copy is the clip's too.
+  const veil =
+    clip.background === "blur_fill"
+      ? FULL_VEIL
+      : markBox(WHOLE_PICTURE, { fit: clip.fit, crop, asset: refs.get(clip.asset_id), canvas }, clip.position, motion);
+  const dim =
+    (clip.dim ?? 0) > 0 && veil ? (
+      <AbsoluteFill
+        data-testid="clip-dim"
+        style={{
+          backgroundColor: "#000000",
+          opacity: clip.dim,
+          ...(veil === FULL_VEIL
+            ? {}
+            : { left: percent(veil.left), top: percent(veil.top), width: percent(veil.width), height: percent(veil.height) }),
+        }}
+      />
+    ) : null;
+  const marks = clip.emphasis?.marks?.length ? (
+    <ClipMarks clip={clip} view={{ fit: clip.fit, crop, asset: refs.get(clip.asset_id), canvas }} motion={motion} />
+  ) : null;
   const emphasis = clip.emphasis;
-  if (!emphasis?.highlight && !emphasis?.arrow) return frame;
-  const box = emphasisBox(clip.position, contentBox(clip.fit, refs.get(clip.asset_id), canvas), motion);
+  const layers = (
+    <>
+      {blurFill}
+      {frame}
+      {dim}
+      {marks}
+    </>
+  );
+  if (!emphasis?.highlight && !emphasis?.arrow) return blurFill || dim || marks ? layers : frame;
+  const box = emphasisBox(clip.position, content, motion);
   return (
     <>
-      {frame}
+      {layers}
       {emphasis.highlight ? (
         <div
           data-testid="clip-highlight"
@@ -560,6 +697,82 @@ function videoClip(
           <path d="M48 0h24v70h28L60 120 20 70h28z" />
         </svg>
       ) : null}
+    </>
+  );
+}
+
+const MARK_COLORS: Record<string, string> = { accent: "#ffd23f", alert: "#ff3b30" };
+const MARK_DRAW_FRAMES = 8;
+const MARK_POP_FRAMES = 5;
+const ARROW_TURN: Record<string, string> = {
+  top: "translate(-50%, -100%)",
+  bottom: "translate(-50%, 0) rotate(180deg)",
+  left: "translate(-100%, -50%) rotate(-90deg)",
+  right: "translate(0, -50%) rotate(90deg)",
+};
+
+/** Boxes that draw themselves in and arrows that pop in, stuck to the media (spec 2026-11-09, 3.4). */
+const WHOLE_PICTURE: MarkShape = { kind: "box", x: 0, y: 0, w: 1, h: 1, from_frame: 0, to_frame: 1 };
+const FULL_VEIL = { left: 0, top: 0, width: 1, height: 1 };
+
+function ClipMarks({ clip, view, motion }: { clip: VideoClip; view: MarkView; motion: MotionState }) {
+  const frame = useCurrentFrame();
+  const source = sourceFrame(clip, frame);
+  return (
+    <>
+      {(clip.emphasis?.marks ?? []).map((mark, index) => {
+        const shape = mark as MarkShape & { side?: string; color?: string };
+        if (!markWindowOpen(shape, clip, frame)) return null;
+        const box = markBox(shape, view, clip.position, motion);
+        if (!box) return null;
+        const color = MARK_COLORS[shape.color ?? "accent"] ?? MARK_COLORS.accent!;
+        const since = source - shape.from_frame;
+        if (shape.kind === "box") {
+          const drawn = Math.min(1, since / MARK_DRAW_FRAMES);
+          return (
+            <svg
+              key={index}
+              data-testid="clip-mark"
+              data-mark-kind="box"
+              style={{ position: "absolute", left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height), overflow: "visible" }}
+            >
+              <rect
+                x="0"
+                y="0"
+                width="100%"
+                height="100%"
+                fill="none"
+                stroke={color}
+                strokeWidth={6}
+                pathLength={100}
+                strokeDasharray={100}
+                strokeDashoffset={100 * (1 - drawn)}
+              />
+            </svg>
+          );
+        }
+        const pop = Math.min(1, (since + 1) / MARK_POP_FRAMES);
+        return (
+          <svg
+            key={index}
+            data-testid="clip-mark"
+            data-mark-kind="arrow"
+            width={ARROW_SIZE}
+            height={ARROW_SIZE}
+            viewBox="0 0 120 120"
+            fill={color}
+            style={{
+              position: "absolute",
+              left: percent(box.left),
+              top: percent(box.top),
+              transform: `${ARROW_TURN[shape.side ?? "top"] ?? ARROW_TURN.top} scale(${pop})`,
+              transformOrigin: "center",
+            }}
+          >
+            <path d="M48 0h24v70h28L60 120 20 70h28z" />
+          </svg>
+        );
+      })}
     </>
   );
 }
@@ -601,6 +814,26 @@ function FadingClip({ clip, children }: { clip: Faded; children: ReactNode }) {
       {children}
     </AbsoluteFill>
   );
+}
+
+/** Pixels the blur reaches past the canvas edge: 3 sigma of blur(6px). */
+const BLUR_FILL_BLEED = 18;
+
+/**
+ * Draws a decoded frame over the whole target canvas, cropped to cover it plus the blur's reach, so
+ * the blur's transparent edge falls outside the canvas; the last frame is cleared first.
+ */
+function drawCover(target: HTMLCanvasElement | null, image: CanvasImageSource): void {
+  const context = target?.getContext("2d");
+  if (!target || !context) return;
+  const size = image as { displayWidth?: number; displayHeight?: number; width?: unknown; height?: unknown };
+  const width = Number(size.displayWidth ?? size.width);
+  const height = Number(size.displayHeight ?? size.height);
+  if (!(width > 0 && height > 0)) return;
+  const scale = Math.max((target.width + 2 * BLUR_FILL_BLEED) / width, (target.height + 2 * BLUR_FILL_BLEED) / height);
+  context.clearRect(0, 0, target.width, target.height);
+  context.filter = BLUR_FILL_RADIUS;
+  context.drawImage(image, (target.width - width * scale) / 2, (target.height - height * scale) / 2, width * scale, height * scale);
 }
 
 function resolve(

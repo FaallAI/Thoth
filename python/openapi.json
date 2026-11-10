@@ -179,6 +179,21 @@
             "title": "Asset Id",
             "type": "string"
           },
+          "background": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "blur_fill"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background"
+          },
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",
@@ -1922,14 +1937,18 @@
                   "set_caption_cue_text": "#/components/schemas/SetCaptionCueText",
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
+                  "set_clip_background": "#/components/schemas/SetClipBackground",
                   "set_clip_blur": "#/components/schemas/SetClipBlur",
                   "set_clip_crop": "#/components/schemas/SetClipCrop",
+                  "set_clip_dim": "#/components/schemas/SetClipDim",
                   "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
                   "set_clip_fades": "#/components/schemas/SetClipFades",
                   "set_clip_fit": "#/components/schemas/SetClipFit",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
+                  "set_clip_marks": "#/components/schemas/SetClipMarks",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
+                  "set_clip_moves": "#/components/schemas/SetClipMoves",
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
@@ -2022,6 +2041,18 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipEmphasis"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMoves"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipBackground"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMarks"
                 },
                 {
                   "$ref": "#/components/schemas/ReplaceClipAsset"
@@ -2417,6 +2448,14 @@
             "default": false,
             "title": "Highlight",
             "type": "boolean"
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/Mark"
+            },
+            "maxItems": 12,
+            "title": "Marks",
+            "type": "array"
           }
         },
         "title": "Emphasis",
@@ -2894,6 +2933,85 @@
         "title": "MarginView",
         "type": "object"
       },
+      "Mark": {
+        "additionalProperties": false,
+        "description": "A box or an arrow on part of the picture (spec 2026-11-09, 3.4).\n\nFractions of the media frame and source frames, as blur regions are, so a mark stays on the\ncontent it points at however the clip is trimmed, moved, split or sped up.",
+        "properties": {
+          "color": {
+            "default": "accent",
+            "enum": [
+              "accent",
+              "alert"
+            ],
+            "title": "Color",
+            "type": "string"
+          },
+          "from_frame": {
+            "minimum": 0.0,
+            "title": "From Frame",
+            "type": "integer"
+          },
+          "h": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "H",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "arrow"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "side": {
+            "default": "top",
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "to_frame": {
+            "exclusiveMinimum": 0.0,
+            "title": "To Frame",
+            "type": "integer"
+          },
+          "w": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "x",
+          "y",
+          "from_frame",
+          "to_frame"
+        ],
+        "title": "Mark",
+        "type": "object"
+      },
       "MaterialFigure": {
         "additionalProperties": false,
         "description": "A person or organisation the run named: context for the editor, never media.",
@@ -3066,6 +3184,54 @@
           "from_frame"
         ],
         "title": "MoveClip",
+        "type": "object"
+      },
+      "MoveKeyframe": {
+        "additionalProperties": false,
+        "description": "Scale and place at one frame relative to the clip's start, stacked on its position.",
+        "properties": {
+          "ease": {
+            "default": "ease_in_out",
+            "enum": [
+              "linear",
+              "ease_out",
+              "ease_in_out",
+              "hold"
+            ],
+            "title": "Ease",
+            "type": "string"
+          },
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "scale": {
+            "default": 1.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 4.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "x": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "frame"
+        ],
+        "title": "MoveKeyframe",
         "type": "object"
       },
       "MoveWorkflow": {
@@ -6009,7 +6175,9 @@
             "enum": [
               "caption_default",
               "source",
-              "word_highlight"
+              "word_highlight",
+              "boxed",
+              "kinetic"
             ],
             "title": "Style Slot",
             "type": "string"
@@ -6022,6 +6190,42 @@
           "style_slot"
         ],
         "title": "SetCaptionStyle",
+        "type": "object"
+      },
+      "SetClipBackground": {
+        "additionalProperties": false,
+        "properties": {
+          "background": {
+            "enum": [
+              "none",
+              "blur_fill"
+            ],
+            "title": "Background",
+            "type": "string"
+          },
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_background",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "background"
+        ],
+        "title": "SetClipBackground",
         "type": "object"
       },
       "SetClipBlur": {
@@ -6092,6 +6296,40 @@
           "clip_id"
         ],
         "title": "SetClipCrop",
+        "type": "object"
+      },
+      "SetClipDim": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "dim": {
+            "maximum": 0.8,
+            "minimum": 0.0,
+            "title": "Dim",
+            "type": "number"
+          },
+          "kind": {
+            "const": "set_clip_dim",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "dim"
+        ],
+        "title": "SetClipDim",
         "type": "object"
       },
       "SetClipEmphasis": {
@@ -6274,6 +6512,42 @@
         "title": "SetClipLocked",
         "type": "object"
       },
+      "SetClipMarks": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_marks",
+            "title": "Kind",
+            "type": "string"
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/Mark"
+            },
+            "maxItems": 12,
+            "title": "Marks",
+            "type": "array"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "marks"
+        ],
+        "title": "SetClipMarks",
+        "type": "object"
+      },
       "SetClipMotion": {
         "additionalProperties": false,
         "properties": {
@@ -6309,6 +6583,43 @@
           "motion"
         ],
         "title": "SetClipMotion",
+        "type": "object"
+      },
+      "SetClipMoves": {
+        "additionalProperties": false,
+        "description": "The whole keyframe list: a preset, a removed keyframe and a clear are each one step.",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_moves",
+            "title": "Kind",
+            "type": "string"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/MoveKeyframe"
+            },
+            "maxItems": 60,
+            "title": "Moves",
+            "type": "array"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "moves"
+        ],
+        "title": "SetClipMoves",
         "type": "object"
       },
       "SetClipPosition": {
@@ -6552,7 +6863,8 @@
             "enum": [
               "title_top",
               "title",
-              "title_lower"
+              "title_lower",
+              "card"
             ],
             "title": "Style Slot",
             "type": "string"
@@ -7484,14 +7796,18 @@
                   "set_caption_cue_text": "#/components/schemas/SetCaptionCueText",
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
+                  "set_clip_background": "#/components/schemas/SetClipBackground",
                   "set_clip_blur": "#/components/schemas/SetClipBlur",
                   "set_clip_crop": "#/components/schemas/SetClipCrop",
+                  "set_clip_dim": "#/components/schemas/SetClipDim",
                   "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
                   "set_clip_fades": "#/components/schemas/SetClipFades",
                   "set_clip_fit": "#/components/schemas/SetClipFit",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
+                  "set_clip_marks": "#/components/schemas/SetClipMarks",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
+                  "set_clip_moves": "#/components/schemas/SetClipMoves",
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
@@ -7584,6 +7900,18 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipEmphasis"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMoves"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipBackground"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMarks"
                 },
                 {
                   "$ref": "#/components/schemas/ReplaceClipAsset"
@@ -9271,6 +9599,14 @@
             "title": "Asset Id",
             "type": "string"
           },
+          "background": {
+            "enum": [
+              "none",
+              "blur_fill"
+            ],
+            "title": "Background",
+            "type": "string"
+          },
           "blur_enabled": {
             "default": false,
             "title": "Blur Enabled",
@@ -9298,6 +9634,12 @@
                 "type": "null"
               }
             ]
+          },
+          "dim": {
+            "maximum": 0.8,
+            "minimum": 0.0,
+            "title": "Dim",
+            "type": "number"
           },
           "duration_in_frames": {
             "exclusiveMinimum": 0.0,
@@ -9365,6 +9707,14 @@
             ],
             "title": "Motion",
             "type": "string"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/MoveKeyframe"
+            },
+            "maxItems": 60,
+            "title": "Moves",
+            "type": "array"
           },
           "ownership": {
             "enum": [

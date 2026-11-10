@@ -93,6 +93,7 @@ def seed_asset(
     *,
     project_id: str = PROJECT,
     state: str = "ready",
+    size: tuple[int, int] = (1080, 1920),
 ) -> None:
     audio = kind == "audio"
     with editor_sessions(DATABASE_URL).begin() as session:
@@ -104,8 +105,8 @@ def seed_asset(
                 media_type={"video": "video/mp4", "image": "image/png"}.get(kind, "audio/mpeg"),
                 artifact_location=f"{project_id}/{asset_id}.bin",
                 duration_in_frames=duration,
-                width=None if audio else 1080,
-                height=None if audio else 1920,
+                width=None if audio else size[0],
+                height=None if audio else size[1],
                 fps=30.0,
                 has_audio=kind != "image",
                 validation_state=state,
@@ -546,3 +547,30 @@ async def test_a_not_placed_exclusion_reads_back_with_its_reason(
     entry = {entry.item_id: entry for entry in result.items}["footage_000"]
     assert entry.disposition == "excluded"
     assert entry.reason == "Not placed: no room in the reaction beat"
+
+
+@needs_postgres
+async def test_a_landscape_main_video_gets_blur_fill(
+    imports: PostgresStudioImportRepository,
+) -> None:
+    # Full-frame media of another shape sits on a blurred copy of itself (spec 2026-11-09, 3.8).
+    await create(imports)
+    seed_asset(duration=900, size=(1920, 1080))
+
+    await resolve(imports, "main_000", attach())
+
+    clip = clip_of(saved(), "clip_main_000")
+    assert (clip["fit"], clip["background"]) == ("contain", "blur_fill")
+
+
+@needs_postgres
+async def test_a_vertical_main_video_stays_as_before(
+    imports: PostgresStudioImportRepository,
+) -> None:
+    await create(imports)
+    seed_asset(duration=900)
+
+    await resolve(imports, "main_000", attach())
+
+    clip = clip_of(saved(), "clip_main_000")
+    assert clip["fit"] == "cover" and "background" not in clip

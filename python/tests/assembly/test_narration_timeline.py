@@ -521,3 +521,14 @@ def test_a_revoice_that_shortens_the_draft_keeps_its_markers_inside() -> None:
 
     assert document.canvas.duration_in_frames < 2000
     assert [m.frame for m in document.markers] == [document.canvas.duration_in_frames - 1]
+
+
+def test_retime_stretches_moves() -> None:
+    data = payload()
+    main = next(c for c in data["clips"] if c["clip_id"] == "clip_main")
+    old = main["duration_in_frames"]
+    main["moves"] = [{"frame": 0, "scale": 1.0}, {"frame": old - 1, "scale": 1.2}]
+    document = narrate_document(draft(data), VOICES, [], PRESET, ROLES)
+    retimed = clip(document, "clip_main")
+    new = retimed.duration_in_frames
+    assert [move.frame for move in retimed.moves] == [0, min((old - 1) * new // old, new - 1)]

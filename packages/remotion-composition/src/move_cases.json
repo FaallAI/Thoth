@@ -1,0 +1,147 @@
+{
+  "about": "Shared cases for clip moves (spec 2026-11-09, 3.1). The control plane (clip_moves.py) and the composition (moves.ts) both run every case.",
+  "cases": [
+    {
+      "name": "at a keyframe",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 2.0, "x": 0.1, "y": -0.1, "ease": "ease_in_out"}],
+      "args": {"frame": 0},
+      "expect": [1.0, 0.0, 0.0]
+    },
+    {
+      "name": "linear halfway",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 2.0, "x": 0.1, "y": -0.1, "ease": "ease_in_out"}],
+      "args": {"frame": 5},
+      "expect": [1.5, 0.05, -0.05]
+    },
+    {
+      "name": "after the last keyframe",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 2.0, "x": 0.1, "y": -0.1, "ease": "ease_in_out"}],
+      "args": {"frame": 20},
+      "expect": [2.0, 0.1, -0.1]
+    },
+    {
+      "name": "before the first keyframe",
+      "op": "at",
+      "moves": [{"frame": 5, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 15, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"frame": 0},
+      "expect": [1.2, 0.0, 0.0]
+    },
+    {
+      "name": "ease out",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "ease_out"}, {"frame": 10, "scale": 2.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"frame": 5},
+      "expect": [1.75, 0.0, 0.0]
+    },
+    {
+      "name": "ease in-out, first half",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "ease_in_out"}, {"frame": 10, "scale": 2.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"frame": 2.5},
+      "expect": [1.125, 0.0, 0.0]
+    },
+    {
+      "name": "ease in-out, second half",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "ease_in_out"}, {"frame": 10, "scale": 2.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"frame": 7.5},
+      "expect": [1.875, 0.0, 0.0]
+    },
+    {
+      "name": "hold until the next keyframe",
+      "op": "at",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "hold"}, {"frame": 10, "scale": 2.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"frame": 9},
+      "expect": [1.0, 0.0, 0.0]
+    },
+    {
+      "name": "no moves is the clip's placement",
+      "op": "at",
+      "moves": [],
+      "args": {"frame": 3},
+      "expect": [1.0, 0.0, 0.0]
+    },
+    {
+      "name": "a trim past every keyframe keeps the last value",
+      "op": "shift",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 4, "scale": 1.35, "x": 0.0, "y": 0.0, "ease": "hold"}],
+      "args": {"delta": 10},
+      "expect": [{"frame": 0, "scale": 1.35, "x": 0.0, "y": 0.0, "ease": "hold"}]
+    },
+    {
+      "name": "a start moved earlier pushes the keyframes later",
+      "op": "shift",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 4, "scale": 1.35, "x": 0.0, "y": 0.0, "ease": "hold"}],
+      "args": {"delta": -5},
+      "expect": [{"frame": 5, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 9, "scale": 1.35, "x": 0.0, "y": 0.0, "ease": "hold"}]
+    },
+    {
+      "name": "a trim inside a segment keeps the value at the new start",
+      "op": "shift",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 2.0, "x": 0.1, "y": -0.1, "ease": "ease_in_out"}],
+      "args": {"delta": 5},
+      "expect": [{"frame": 0, "scale": 1.5, "x": 0.05, "y": -0.05, "ease": "linear"}, {"frame": 5, "scale": 2.0, "x": 0.1, "y": -0.1, "ease": "ease_in_out"}]
+    },
+    {
+      "name": "a split on a keyframe neither duplicates nor loses it",
+      "op": "split",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 20, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"at": 10},
+      "expect": [
+        [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 9, "scale": 1.45, "x": 0.0, "y": 0.0, "ease": "linear"}],
+        [{"frame": 0, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}]
+      ]
+    },
+    {
+      "name": "a split between keyframes",
+      "op": "split",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 20, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"at": 5},
+      "expect": [
+        [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 4, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}],
+        [{"frame": 0, "scale": 1.25, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 5, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 15, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}]
+      ]
+    },
+    {
+      "name": "a split before the first keyframe keeps its value on the left",
+      "op": "split",
+      "moves": [{"frame": 6, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 12, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"at": 3},
+      "expect": [
+        [{"frame": 0, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}],
+        [{"frame": 3, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 9, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}]
+      ]
+    },
+    {
+      "name": "stretch to half",
+      "op": "stretch",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 20, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"old": 30, "new": 15},
+      "expect": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 5, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}]
+    },
+    {
+      "name": "stretch keeps the first of colliding frames",
+      "op": "stretch",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 1, "scale": 1.2, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 2, "scale": 1.4, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"old": 3, "new": 2},
+      "expect": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 1, "scale": 1.4, "x": 0.0, "y": 0.0, "ease": "linear"}]
+    },
+    {
+      "name": "fit drops what falls past the end and keeps the value there",
+      "op": "fit",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 20, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"duration": 15},
+      "expect": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 14, "scale": 1.3, "x": 0.0, "y": 0.0, "ease": "linear"}]
+    },
+    {
+      "name": "fit leaves moves that fit",
+      "op": "fit",
+      "moves": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}],
+      "args": {"duration": 15},
+      "expect": [{"frame": 0, "scale": 1.0, "x": 0.0, "y": 0.0, "ease": "linear"}, {"frame": 10, "scale": 1.5, "x": 0.0, "y": 0.0, "ease": "linear"}]
+    }
+  ]
+}

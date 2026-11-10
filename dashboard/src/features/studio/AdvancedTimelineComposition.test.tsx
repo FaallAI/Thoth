@@ -2,7 +2,7 @@
 
 import { afterEach, expect, mock, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { previewComposition } from "./preview";
@@ -10,7 +10,7 @@ import { applyTimelineOperation } from "./timeline_domain";
 import { typedTimelineDocument } from "./timeline-test-fixtures";
 
 /** Props the media primitives received, in render order, per test. */
-const mediaProps: { audio: Record<string, unknown>[]; video: Record<string, unknown>[] } = { audio: [], video: [] };
+const mediaProps: { audio: Record<string, unknown>[]; video: Record<string, unknown>[]; mounts: number } = { audio: [], video: [], mounts: 0 };
 
 /** The frame `useCurrentFrame` reports inside a clip's sequence. */
 const currentFrame = { value: 0 };
@@ -83,9 +83,12 @@ mock.module("remotion", () => ({
 
 // The WebCodecs video tag needs a real decoder; its props are what the composition decides.
 mock.module("@remotion/media", () => ({
-  Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, ...rest }: Record<string, unknown>) => {
+  Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, onVideoFrame, ...rest }: Record<string, unknown>) => {
     // Speed (Tier 3a) is captured too: a boolean prop cannot sit on a div.
-    mediaProps.video.push({ volume, playbackRate, preservePitch });
+    mediaProps.video.push({ volume, playbackRate, preservePitch, onVideoFrame });
+    useEffect(() => {
+      mediaProps.mounts += 1;
+    }, []);
     return (
       <div
         data-testid="video"
@@ -921,4 +924,154 @@ test("a held 2x clip freezes where its source ends at that speed", () => {
   currentFrame.value = 15;
   render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
   expect(screen.getByTestId("freeze").getAttribute("data-frame")).toBe("9");
+});
+
+// Studio effects layer (spec 2026-11-09): moves, blur-fill, dim, marks, two caption styles, cards.
+type Effects = StoryClip & { moves?: unknown[]; background?: string; dim?: number };
+const effectsDocument = (fields: Effects) => storyDocument(fields as StoryClip);
+const MARK = { kind: "box", x: 0.2, y: 0.2, w: 0.3, h: 0.2, from_frame: 0, to_frame: 600, side: "top", color: "alert" };
+
+test("blur-fill, dim and a mark draw on the clip", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({
+        background: "blur_fill",
+        dim: 0.5,
+        emphasis: { highlight: false, arrow: false, marks: [MARK] } as StoryClip["emphasis"],
+      })}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  expect(screen.getByTestId("clip-blur-fill")).toBeDefined();
+  expect((screen.getByTestId("clip-dim") as HTMLElement).style.opacity).toBe("0.5");
+  expect(screen.getByTestId("clip-mark").getAttribute("data-mark-kind")).toBe("box");
+});
+
+test("blur-fill blurs an eighth-size copy and scales it up, so a render stays cheap", () => {
+  // A full-canvas blur(48px) made a 60 s render five times slower (plan Task 8, 2026-11-10).
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  const layer = screen.getByTestId("clip-blur-fill-layer") as HTMLElement;
+  expect(layer.style.width).toBe("12.5%");
+  expect(layer.style.transform).toContain("scale(8.8)");
+});
+
+test("a movie's blur-fill blurs each frame inside its small canvas, never as a CSS filter", () => {
+  // A CSS blur over a layer that changes every frame re-rasterizes every frame (plan Task 8, 2026-11-10).
+  mediaProps.video.length = 0;
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  const canvas = screen.getByTestId("clip-blur-fill").querySelector("canvas")!;
+  expect(canvas.style.filter).toBe("");
+  const calls: unknown[][] = [];
+  const context = {
+    filter: "none",
+    clearRect: (...args: unknown[]) => calls.push(["clear", ...args]),
+    drawImage: (...args: unknown[]) => calls.push(["draw", context.filter, ...args.slice(1)]),
+  };
+  canvas.getContext = (() => context) as never;
+  const onVideoFrame = mediaProps.video.map((props) => props.onVideoFrame).find((call) => typeof call === "function") as (image: unknown) => void;
+  onVideoFrame({ displayWidth: canvas.width * 2, displayHeight: canvas.height });
+  // The last frame is cleared, then the frame covers the canvas plus 3 sigma (18 px) on every side, so
+  // the blur's transparent edge falls outside the canvas (review 2026-11-10).
+  const [width, height] = [canvas.width + 36, canvas.height + 36];
+  const scale = Math.max(width / (canvas.width * 2), height / canvas.height);
+  expect(calls).toEqual([
+    ["clear", 0, 0, canvas.width, canvas.height],
+    ["draw", "blur(6px)", (canvas.width - canvas.width * 2 * scale) / 2, (canvas.height - canvas.height * scale) / 2, canvas.width * 2 * scale, canvas.height * scale],
+  ]);
+});
+
+test("turning blur-fill on remounts the clip's video, so a paused preview draws the background", () => {
+  // A paused player does not redraw for a new frame callback (review 2026-11-10).
+  // A clip that already has an effect keeps its layers, so only a key makes the video remount.
+  const { rerender } = render(<AdvancedTimelineComposition document={effectsDocument({ dim: 0.3 })} previewSources={TYPED_SOURCES} />);
+  const before = mediaProps.mounts;
+  rerender(<AdvancedTimelineComposition document={effectsDocument({ dim: 0.3, background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  expect(mediaProps.mounts).toBe(before + 1);
+});
+
+test("blur-fill on a video draws the clip's own frames, with no second decoder", () => {
+  // A second Video of the same source made a 60 s render five times slower (plan Task 8, 2026-11-10).
+  mediaProps.video.length = 0;
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("clip-blur-fill").querySelector('[data-testid="video"]')).toBeNull();
+  expect(mediaProps.video.some((props) => typeof props.onVideoFrame === "function")).toBe(true);
+  expect(screen.getByTestId("clip-blur-fill").querySelector("canvas")).not.toBeNull();
+});
+
+test("dim veils only its own clip's picture", () => {
+  // Spec 2026-11-09, 3.3: "a black veil over the clip's own picture" (review 2026-11-10).
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({ dim: 0.4, fit: "fill", position: { x: 0.1, y: 0, scale: 0.5 } } as Effects)}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  const veil = screen.getByTestId("clip-dim") as HTMLElement;
+  expect(veil.style.width).toBe("50%");
+  expect(veil.style.left).toBe("35%");
+});
+
+test("with blur-fill, dim veils the whole canvas, the blurred copy being part of the clip", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({ dim: 0.4, background: "blur_fill", fit: "fill", position: { x: 0, y: 0, scale: 0.5 } } as Effects)}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  expect((screen.getByTestId("clip-dim") as HTMLElement).style.width).toBe("");
+});
+
+test("a clip without effects draws no blur-fill, dim or marks", () => {
+  render(<AdvancedTimelineComposition document={storyDocument({})} previewSources={TYPED_SOURCES} />);
+  expect(screen.queryByTestId("clip-blur-fill")).toBeNull();
+  expect(screen.queryByTestId("clip-dim")).toBeNull();
+  expect(screen.queryByTestId("clip-mark")).toBeNull();
+});
+
+test("moves draw through their keyframes, stacked on the placement", () => {
+  const moves = [
+    { frame: 0, scale: 1, x: 0, y: 0, ease: "linear" },
+    { frame: 10, scale: 2, x: 0, y: 0.1, ease: "linear" },
+  ];
+  currentFrame.value = 5;
+  render(<AdvancedTimelineComposition document={effectsDocument({ moves })} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe("translate(25%, -45%) scale(2.25)");
+});
+
+function captionDocument(style: string, words?: { text: string; from_frame: number; duration_in_frames: number }[]) {
+  const document = typedTimelineDocument();
+  const caption = document.clips!.find((clip) => clip.kind === "caption")! as Extract<
+    NonNullable<EditDocumentV2["clips"]>[number],
+    { kind: "caption" }
+  >;
+  caption.style_slot = style;
+  caption.cues = [{ from_frame: 0, duration_in_frames: 60, text: "Kok bisa ya? Siapa yang merintahin?", ...(words ? { words } : {}) }];
+  return document;
+}
+
+test("kinetic shows one group of words at a time", () => {
+  const words = ["Kok", "bisa", "ya?", "Siapa", "yang", "merintahin?"].map((text, i) => ({ text, from_frame: i * 10, duration_in_frames: 10 }));
+  currentFrame.value = 35;
+  render(<AdvancedTimelineComposition document={captionDocument("kinetic", words)} previewSources={TYPED_SOURCES} />);
+  const cue = screen.getByTestId("caption-cue");
+  expect(cue.getAttribute("data-caption-style")).toBe("kinetic");
+  expect(cue.textContent).toBe("Siapa yang merintahin?");
+});
+
+test("kinetic cue without words keeps its text", () => {
+  render(<AdvancedTimelineComposition document={captionDocument("kinetic")} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("caption-cue").textContent).toBe("Kok bisa ya? Siapa yang merintahin?");
+});
+
+test("a card text clip draws a white card", () => {
+  const document = typedTimelineDocument();
+  document.clips!.push({
+    kind: "text", clip_id: "clip_card", track_id: "track_overlay", from_frame: 0, duration_in_frames: 30,
+    ownership: "ai_managed", hidden: false, locked: false, heading: "Siapa yang merintahin?", body: "", style_slot: "card",
+  } as never);
+  document.tracks.find((track) => track.track_id === "track_overlay")!.clip_ids!.push("clip_card");
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const card = screen.getByTestId("text-card") as HTMLElement;
+  expect(card.style.backgroundColor).toBe("#ffffff");
+  expect(card.textContent).toBe("Siapa yang merintahin?");
 });

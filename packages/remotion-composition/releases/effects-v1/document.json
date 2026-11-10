@@ -1,0 +1,424 @@
+{
+  "schema_version": 2,
+  "document_id": "doc_effects_v1",
+  "project_id": "project_template_release",
+  "revision": 1,
+  "template": {
+    "template_id": "vertical_text_story",
+    "version": 1
+  },
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "duration_in_frames": 120
+  },
+  "scenes": [
+    {
+      "scene_id": "scene_title",
+      "role": "title",
+      "start_frame": 0,
+      "duration_in_frames": 60,
+      "clip_ids": [
+        "clip_title"
+      ]
+    },
+    {
+      "scene_id": "scene_source",
+      "role": "source",
+      "start_frame": 60,
+      "duration_in_frames": 60,
+      "clip_ids": [
+        "clip_body"
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "track_id": "track_main",
+      "kind": "main_video",
+      "label": "Main",
+      "order": 1
+    },
+    {
+      "track_id": "track_story",
+      "kind": "overlay",
+      "label": "Story",
+      "order": 2
+    },
+    {
+      "track_id": "track_badge",
+      "kind": "overlay",
+      "label": "Badge",
+      "order": 3
+    },
+    {
+      "track_id": "track_caption",
+      "kind": "caption",
+      "label": "Caption",
+      "order": 4
+    },
+    {
+      "track_id": "track_score",
+      "kind": "music",
+      "label": "Score",
+      "order": 5,
+      "muted": true
+    },
+    {
+      "track_id": "track_spare",
+      "kind": "b_roll",
+      "label": "Spare",
+      "order": 6,
+      "hidden": true
+    },
+    {
+      "track_id": "track_backdrop",
+      "kind": "b_roll",
+      "label": "Backdrop",
+      "order": 0
+    }
+  ],
+  "clips": [
+    {
+      "clip_id": "clip_still",
+      "track_id": "track_main",
+      "scene_id": "scene_title",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "video",
+      "asset_id": "asset_image",
+      "crop": {
+        "left": 0.1,
+        "top": 0.05,
+        "width": 0.8,
+        "height": 0.9
+      },
+      "position": {
+        "x": 0.0,
+        "y": 0.05,
+        "scale": 0.6
+      },
+      "fit": "cover",
+      "motion": "slow_zoom",
+      "emphasis": {
+        "highlight": false,
+        "arrow": false,
+        "marks": [
+          {
+            "kind": "box",
+            "x": 0.2,
+            "y": 0.3,
+            "w": 0.6,
+            "h": 0.2,
+            "side": "top",
+            "from_frame": 10,
+            "to_frame": 60,
+            "color": "accent"
+          },
+          {
+            "kind": "arrow",
+            "x": 0.5,
+            "y": 0.7,
+            "w": 0.0,
+            "h": 0.0,
+            "side": "left",
+            "from_frame": 30,
+            "to_frame": 60,
+            "color": "alert"
+          }
+        ]
+      },
+      "moves": [
+        {
+          "frame": 0,
+          "scale": 1.15,
+          "x": 0.06,
+          "y": 0.0,
+          "ease": "linear"
+        },
+        {
+          "frame": 59,
+          "scale": 1.15,
+          "x": -0.06,
+          "y": 0.0,
+          "ease": "linear"
+        }
+      ],
+      "dim": 0.5
+    },
+    {
+      "clip_id": "clip_motion",
+      "track_id": "track_main",
+      "scene_id": "scene_source",
+      "from_frame": 60,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "video",
+      "asset_id": "asset_landscape",
+      "fit": "contain",
+      "source_from_frame": 0,
+      "motion": "pan",
+      "background": "blur_fill",
+      "emphasis": {
+        "highlight": false,
+        "arrow": false,
+        "marks": [
+          {
+            "kind": "box",
+            "x": 0.3,
+            "y": 0.25,
+            "w": 0.4,
+            "h": 0.5,
+            "side": "top",
+            "from_frame": 0,
+            "to_frame": 60,
+            "color": "accent"
+          }
+        ]
+      },
+      "moves": [
+        {
+          "frame": 19,
+          "scale": 1.0,
+          "x": 0.0,
+          "y": 0.0,
+          "ease": "ease_out"
+        },
+        {
+          "frame": 27,
+          "scale": 1.35,
+          "x": 0.0,
+          "y": 0.0,
+          "ease": "hold"
+        }
+      ]
+    },
+    {
+      "clip_id": "clip_title",
+      "track_id": "track_story",
+      "scene_id": "scene_title",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "text",
+      "heading": "Preview and render agree",
+      "body": "Every glyph on this frame is drawn with the typeface this package carries.",
+      "style_slot": "title_top"
+    },
+    {
+      "clip_id": "clip_body",
+      "track_id": "track_story",
+      "scene_id": "scene_source",
+      "from_frame": 100,
+      "duration_in_frames": 20,
+      "ownership": "user_edited",
+      "kind": "text",
+      "heading": "Or the release does not ship",
+      "body": "A changed pixel is a failed comparison, never a tolerance.",
+      "style_slot": "card"
+    },
+    {
+      "clip_id": "clip_withheld",
+      "track_id": "track_story",
+      "from_frame": 0,
+      "duration_in_frames": 120,
+      "ownership": "ai_managed",
+      "kind": "text",
+      "heading": "Hidden clip",
+      "body": "A hidden clip on a visible track must never reach either surface.",
+      "style_slot": "title",
+      "hidden": true
+    },
+    {
+      "clip_id": "clip_badge",
+      "track_id": "track_badge",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "overlay",
+      "preset_id": "badge",
+      "parameters": {
+        "accent_slot": "accent_primary",
+        "text": "Release capsule"
+      }
+    },
+    {
+      "clip_id": "clip_lower_third",
+      "track_id": "track_badge",
+      "from_frame": 60,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "overlay",
+      "preset_id": "lower_third",
+      "parameters": {
+        "accent_slot": "accent_secondary",
+        "text": "vertical_text_story v1"
+      }
+    },
+    {
+      "clip_id": "clip_progress",
+      "track_id": "track_badge",
+      "from_frame": 0,
+      "duration_in_frames": 120,
+      "ownership": "ai_managed",
+      "kind": "overlay",
+      "preset_id": "progress_bar"
+    },
+    {
+      "clip_id": "clip_caption",
+      "track_id": "track_caption",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "caption",
+      "style_slot": "kinetic",
+      "cues": [
+        {
+          "from_frame": 0,
+          "duration_in_frames": 60,
+          "text": "Indonesia baru aja nge-unlock level terendah. Kok bisa ya?",
+          "words": [
+            {
+              "from_frame": 0,
+              "duration_in_frames": 6,
+              "text": "Indonesia"
+            },
+            {
+              "from_frame": 6,
+              "duration_in_frames": 6,
+              "text": "baru"
+            },
+            {
+              "from_frame": 12,
+              "duration_in_frames": 6,
+              "text": "aja"
+            },
+            {
+              "from_frame": 18,
+              "duration_in_frames": 6,
+              "text": "nge-unlock"
+            },
+            {
+              "from_frame": 24,
+              "duration_in_frames": 6,
+              "text": "level"
+            },
+            {
+              "from_frame": 30,
+              "duration_in_frames": 6,
+              "text": "terendah."
+            },
+            {
+              "from_frame": 36,
+              "duration_in_frames": 6,
+              "text": "Kok"
+            },
+            {
+              "from_frame": 42,
+              "duration_in_frames": 6,
+              "text": "bisa"
+            },
+            {
+              "from_frame": 48,
+              "duration_in_frames": 6,
+              "text": "ya?"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "clip_id": "clip_score",
+      "track_id": "track_score",
+      "from_frame": 0,
+      "duration_in_frames": 120,
+      "ownership": "ai_managed",
+      "kind": "audio",
+      "asset_id": "asset_audio",
+      "volume": 0.8,
+      "fade_in_frames": 15,
+      "fade_out_frames": 15,
+      "source_from_frame": 0
+    },
+    {
+      "clip_id": "clip_spare",
+      "track_id": "track_spare",
+      "from_frame": 0,
+      "duration_in_frames": 120,
+      "ownership": "ai_managed",
+      "kind": "video",
+      "asset_id": "asset_video",
+      "fit": "cover"
+    },
+    {
+      "clip_id": "clip_caption_boxed",
+      "track_id": "track_caption",
+      "from_frame": 60,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "caption",
+      "style_slot": "boxed",
+      "cues": [
+        {
+          "from_frame": 0,
+          "duration_in_frames": 60,
+          "text": "Small subtitles on a solid box."
+        }
+      ]
+    },
+    {
+      "clip_id": "clip_backdrop",
+      "track_id": "track_backdrop",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "video",
+      "asset_id": "asset_landscape",
+      "fit": "cover",
+      "source_from_frame": 0
+    }
+  ],
+  "asset_refs": [
+    {
+      "asset_id": "asset_image",
+      "project_id": "project_template_release",
+      "kind": "image",
+      "has_audio": false,
+      "validation_state": "ready",
+      "width": 540,
+      "height": 960
+    },
+    {
+      "asset_id": "asset_video",
+      "project_id": "project_template_release",
+      "kind": "video",
+      "has_audio": true,
+      "validation_state": "ready",
+      "width": 360,
+      "height": 640,
+      "fps": 30,
+      "duration_in_frames": 60
+    },
+    {
+      "asset_id": "asset_audio",
+      "project_id": "project_template_release",
+      "kind": "audio",
+      "has_audio": true,
+      "validation_state": "ready",
+      "duration_in_frames": 120
+    },
+    {
+      "asset_id": "asset_landscape",
+      "project_id": "project_template_release",
+      "kind": "video",
+      "has_audio": false,
+      "validation_state": "ready",
+      "width": 640,
+      "height": 360,
+      "fps": 30,
+      "duration_in_frames": 60
+    }
+  ]
+}
