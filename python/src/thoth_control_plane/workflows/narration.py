@@ -52,7 +52,12 @@ async def _step(name: str, argument: object, *, queue: str | None = None) -> Nar
 async def _mark(document_id: str, status: str, code: str | None = None) -> None:
     await workflow.execute_activity(
         "narration_mark",
-        NarrationMark(document_id=document_id, status=status, failure_code=code),  # type: ignore[arg-type]
+        NarrationMark(
+            document_id=document_id,
+            status=status,  # type: ignore[arg-type]
+            failure_code=code,
+            workflow_id=workflow.info().workflow_id,
+        ),
         start_to_close_timeout=timedelta(seconds=30),
         retry_policy=RetryPolicy(maximum_attempts=5),
     )

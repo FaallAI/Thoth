@@ -34,8 +34,11 @@ from thoth_control_plane.domain.style_templates import StyleTemplate
 
 logger = logging.getLogger(__name__)
 
-#: A style's narration may be stopped by its undo until the voice is being made (paid for).
-UNDOABLE = frozenset({"transcribing", "scripting", "awaiting_approval"})
+#: A style's narration its undo may stop: only while its script waits, when no step runs that
+#: could write over the narration the undo brings back (final review, 2026-11-10).
+UNDOABLE = frozenset({"awaiting_approval"})
+#: A narration whose steps are running: the undo waits for it.
+RUNNING = frozenset({"transcribing", "scripting", "voicing", "writing"})
 
 
 class StyleTemplates(Protocol):
@@ -139,7 +142,7 @@ class StyleService:
                 )
             except NarrationRefused as error:
                 refused = error.code
-            except NarrationUnavailable:
+            except Exception:  # the look is saved whatever stops the narration (final review)
                 refused = "narration_unavailable"
         if refused:
             logger.warning("style narration not started document=%s code=%s", document_id, refused)
@@ -153,11 +156,21 @@ class StyleService:
     async def undo(
         self, project_id: str, document_id: str, request: RestoreRevisionRequest
     ) -> EditDocument:
-        """Undo a style: stop its narration if no voice is being made yet, then restore."""
+        """Undo a style: stop its waiting narration, restore the draft, then bring back the
+        narration the style replaced. While a narration step runs, the undo waits."""
         state = await self._narration(project_id, document_id)
         if state is not None and self._narrations is not None:
-            if state.status in UNDOABLE:
-                await self._narrations.cancel(project_id, document_id)
-            elif state.status in {"voicing", "writing"}:
+            if state.status in RUNNING:
                 raise StyleRefused("narration_in_progress")
-        return await self._documents.restore_revision(project_id, document_id, request)
+            if state.status in UNDOABLE:
+                try:
+                    await self._narrations.cancel(project_id, document_id)
+                except (NarrationRefused, NarrationUnavailable) as error:
+                    logger.warning("style undo could not stop the narration: %s", error)
+        document = await self._documents.restore_revision(project_id, document_id, request)
+        if self._narrations is not None:
+            try:
+                await self._narrations.restore_previous(project_id, document_id)
+            except Exception as error:  # the draft is back; its old narration may not be
+                logger.warning("style undo kept the narration as it was: %s", error)
+        return document

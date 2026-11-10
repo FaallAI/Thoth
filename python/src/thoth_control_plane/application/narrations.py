@@ -119,6 +119,11 @@ class NarrationService:
         roles = await self._roles(project_id, document_id) if self._roles else {}
         return preview_document(document, template, state.script, preset, roles)
 
+    async def restore_previous(self, project_id: str, document_id: str) -> bool:
+        """A style's undo: the finished narration its restart replaced comes back."""
+        await self.get(project_id, document_id)  # 404 for another project's draft
+        return bool(await self._require().restore_previous(document_id))
+
     async def is_locked(self, project_id: str, document_id: str) -> bool:
         if self._store is None:
             return False

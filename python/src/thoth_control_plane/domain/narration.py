@@ -205,3 +205,5 @@ class NarrationMark(StrictModel):
     #: `completed` closes a re-voice that could not finish; the draft keeps its narration.
     status: Literal["failed", "cancelled", "completed"]
     failure_code: str | None = None
+    #: The workflow marking itself; a row since given to another narration is left alone.
+    workflow_id: str | None = None

@@ -120,6 +120,12 @@ class NarrationActivities:
     @activity.defn(name="narration_mark")
     async def mark(self, mark: NarrationMark) -> None:
         """The workflow's own terminal state: cancelled, or failed after the retries ran out."""
+        if mark.workflow_id is not None:
+            # A style's undo may have given the row back to the narration it replaced.
+            await self._ports.store.close(
+                mark.document_id, mark.workflow_id, mark.status, failure_code=mark.failure_code
+            )
+            return
         await self._ports.store.set_status(
             mark.document_id, mark.status, failure_code=mark.failure_code
         )

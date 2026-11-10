@@ -301,6 +301,8 @@ class NarrationRow(EditorBase):
     voices: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     stale_beats: Mapped[Any] = mapped_column(JSONB, server_default="[]")
     failure_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Editor migration 0030: the finished narration a restart replaced, for a style's undo.
+    previous: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 

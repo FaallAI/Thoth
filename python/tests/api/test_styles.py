@@ -82,7 +82,8 @@ async def test_undo_stops_the_styles_narration_and_restores_the_draft() -> None:
     store, gateway = Store(), Gateway()
     async with build(store, gateway) as api:
         await apply(api)
-        assert store.state is not None and store.state.status == "transcribing"
+        assert store.state is not None
+        store.state = store.state.model_copy(update={"status": "awaiting_approval"})
         undone = await api.post(UNDO, json={"base_revision": 2, "revision": 1}, headers=AUTH)
     assert undone.status_code == 200
     assert undone.json()["revision"] == 3
@@ -121,3 +122,57 @@ async def test_the_cut_preview_is_computed_and_never_saved() -> None:
     assert answer.status_code == 200
     assert answer.json()["style"]["template_id"] == "style_b"
     assert latest.json()["revision"] == 2
+
+
+# Final review fixes (2026-11-10).
+async def test_undo_waits_while_the_script_is_being_written() -> None:
+    store, gateway = Store(), Gateway()
+    async with build(store, gateway) as api:
+        await apply(api)
+        undone = await api.post(UNDO, json={"base_revision": 2, "revision": 1}, headers=AUTH)
+    assert (undone.status_code, code(undone)) == (409, "narration_in_progress")
+
+
+async def test_undo_brings_back_the_narration_the_style_replaced() -> None:
+    from thoth_control_plane.domain.narration import NarrationScript
+
+    store, gateway = Store(), Gateway()
+    old = NarrationScript.model_validate(
+        {"beats": [{"beat": "main", "text": "Lama."}], "sfx_cues": []}
+    )
+    store.state = waiting("completed").model_copy(update={"script": old})
+    async with build(store, gateway) as api:
+        await apply(api)
+        store.state = store.state.model_copy(update={"status": "awaiting_approval"})
+        undone = await api.post(UNDO, json={"base_revision": 2, "revision": 1}, headers=AUTH)
+    assert undone.status_code == 200
+    assert store.state.status == "completed" and store.state.script == old
+
+
+async def test_undo_restores_even_when_the_narration_will_not_stop() -> None:
+    from thoth_control_plane.application.narrations import NarrationRefused
+
+    store, gateway = Store(), Gateway()
+    async with build(store, gateway) as api:
+        await apply(api)
+        store.state = store.state.model_copy(update={"status": "awaiting_approval"})
+
+        async def refuse(*_args: object) -> None:
+            raise NarrationRefused("narration_not_active")
+
+        api._transport.app.state.narration_service.cancel = refuse  # type: ignore[attr-defined]
+        undone = await api.post(UNDO, json={"base_revision": 2, "revision": 1}, headers=AUTH)
+    assert undone.status_code == 200
+
+
+async def test_a_narration_that_fails_to_start_still_reports_the_style_applied() -> None:
+    store, gateway = Store(), Gateway()
+    async with build(store, gateway) as api:
+
+        async def broken(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("editor database gone")
+
+        api._transport.app.state.narration_service.start = broken  # type: ignore[attr-defined]
+        answer = await apply(api)
+    assert answer.status_code == 200
+    assert answer.json()["narration_refused"] == "narration_unavailable"

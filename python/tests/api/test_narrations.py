@@ -36,6 +36,7 @@ DOC = "/api/v1/projects/project_001/edit-documents/edoc_abc123"
 class Store:
     def __init__(self) -> None:
         self.state: NarrationState | None = None
+        self.previous: NarrationState | None = None
         self.preset = StoredPreset(preset=NarrationPreset(), revision=0)
 
     async def get(self, project_id: str, document_id: str) -> NarrationState | None:
@@ -46,10 +47,18 @@ class Store:
     ) -> NarrationState:
         if self.state is not None and self.state.status in ACTIVE_STATUSES:
             raise NarrationInProgress()
+        if self.state is not None and self.state.status == "completed":
+            self.previous = self.state
         self.state = NarrationState(
             document_id=document_id, workflow_id=workflow_id, status="transcribing"
         )
         return self.state
+
+    async def restore_previous(self, document_id: str) -> bool:
+        if self.previous is None:
+            return False
+        self.state, self.previous = self.previous, None
+        return True
 
     async def set_status(
         self, document_id: str, status: str, *, failure_code: str | None = None

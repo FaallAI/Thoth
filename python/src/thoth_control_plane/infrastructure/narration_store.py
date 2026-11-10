@@ -54,6 +54,21 @@ def _state(row: NarrationRow) -> NarrationState:
     )
 
 
+#: A finished narration's fields that a style's undo brings back (editor migration 0030).
+_KEPT = (
+    "workflow_id",
+    "status",
+    "preset",
+    "transcript",
+    "script",
+    "estimate",
+    "unsupported",
+    "voices",
+    "stale_beats",
+    "failure_code",
+)
+
+
 class NarrationStore:
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
@@ -87,6 +102,9 @@ class NarrationStore:
             if row is None:
                 row = NarrationRow(document_id=document_id)
                 session.add(row)
+            elif row.status == "completed":
+                # A style's undo brings the finished narration back (spec 2026-11-10).
+                row.previous = {name: getattr(row, name) for name in _KEPT}
             row.project_id = project_id
             row.workflow_id = workflow_id
             row.status = "transcribing"
@@ -100,6 +118,41 @@ class NarrationStore:
             return _state(row)
 
         return await self._run(work)
+
+    async def restore_previous(self, document_id: str) -> bool:
+        """Put back the finished narration a restart replaced; False when there is none."""
+
+        def work(session: Session) -> bool:
+            row = session.get(NarrationRow, document_id, with_for_update=True)
+            if row is None or not row.previous:
+                return False
+            for name in _KEPT:
+                setattr(row, name, row.previous.get(name))
+            row.previous = None
+            row.updated_at = func.current_timestamp()
+            return True
+
+        return await self._run(work)
+
+    async def close(
+        self,
+        document_id: str,
+        workflow_id: str,
+        status: NarrationStatus,
+        *,
+        failure_code: str | None = None,
+    ) -> None:
+        """A workflow's own terminal state, ignored once the row belongs to another workflow."""
+
+        def work(session: Session) -> None:
+            row = session.get(NarrationRow, document_id, with_for_update=True)
+            if row is None or row.workflow_id != workflow_id:
+                return
+            row.status = status
+            row.failure_code = failure_code
+            row.updated_at = func.current_timestamp()
+
+        await self._run(work)
 
     async def get(self, project_id: str, document_id: str) -> NarrationState | None:
         def work(session: Session) -> NarrationState | None:
