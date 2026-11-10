@@ -70,7 +70,7 @@ Every new field has a default and is left out of the stored document when unused
 - Background back to None keeps fit Contain.
 - Story's Dim shows the first card's value.
 
-**For the operator:** the Card place is offered in Story only, while spec 3.7 lists the new styles in the Timeline Inspector.
+**Added on the operator's word (2026-11-10):** the Timeline Inspector gives a text clip a Heading position select (Top, Middle, Lower third, Card), as Story does, per spec 3.7.
 
 **Verification.**
 - **Python:** `make test` gives 4768 passed and 224 skipped. `make test-postgres` gives 204 passed. Lint is clean.

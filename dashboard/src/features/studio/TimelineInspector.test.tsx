@@ -8,7 +8,7 @@ import { render } from "@/test-render";
 import type { EditDocumentOperation } from "@/api/control-plane";
 import { setPositionPreset } from "./story/story_edits";
 import { TimelineInspector } from "./TimelineInspector";
-import { timelineDocument, typedTimelineDocument } from "./timeline-test-fixtures";
+import { timelineDocument, typedTimelineDocument, upgradedTextDocument } from "./timeline-test-fixtures";
 
 afterEach(cleanup);
 
@@ -645,4 +645,21 @@ test("a fixed mark window clears the message", () => {
   fireEvent.blur(until);
   expect(operations).toHaveLength(1);
   expect(screen.queryByText("A mark must end after it starts.")).toBeNull();
+});
+
+// Spec 2026-11-09, 3.7 (operator, 2026-11-10): a text clip's place, Card included, in the Timeline too.
+test("a text clip's heading position offers Card and sends set_text_place", () => {
+  const operations: EditDocumentOperation[] = [];
+  render(
+    <TimelineInspector
+      document={upgradedTextDocument()}
+      selectedClipId="clip_001"
+      selectedTrackId=""
+      onOperation={(operation) => operations.push(operation)}
+    />,
+  );
+  const place = screen.getByLabelText("Heading position") as HTMLSelectElement;
+  expect([...place.options].map((option) => option.textContent)).toEqual(["Top", "Middle", "Lower third", "Card"]);
+  fireEvent.change(place, { target: { value: "card" } });
+  expect(payload(operations[0]!)).toEqual({ kind: "set_text_place", operation_id: "op", clip_id: "clip_001", style_slot: "card" });
 });

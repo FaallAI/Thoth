@@ -158,6 +158,14 @@ const fractionOf = (percent: number) => Math.round(percent * 100) / 10000;
 /** The server's longest fade (`FadeFrames`). */
 const MAX_FADE_FRAMES = 300;
 
+/** Where a text clip's heading sits, Style B's card included (spec 2026-11-09, 3.6 and 3.7). */
+const TEXT_PLACES = [
+  ["title_top", "top"],
+  ["title", "middle"],
+  ["title_lower", "lower"],
+  ["card", "card"],
+] as const;
+
 type VideoClipOf = Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "video" }>;
 type MarkOf = NonNullable<NonNullable<VideoClipOf["emphasis"]>["marks"]>[number];
 
@@ -448,6 +456,7 @@ export function TimelineInspector({
     overlayText: useId(),
     overlayAccent: useId(),
     captionStyle: useId(),
+    textPlace: useId(),
     captionCues: useId(),
   };
   const fps = document.canvas.fps;
@@ -899,6 +908,33 @@ export function TimelineInspector({
                 t("studio.timeline.overlayAccent"),
                 clip.parameters?.accent_slot ?? NOT_SET,
               )}
+            </Section>
+          ) : null}
+          {clip.kind === "text" ? (
+            <Section title={t("studio.timeline.section.content")}>
+              <div className={field}>
+                <label htmlFor={ids.textPlace}>{t("studio.inspector.headingPlace")}</label>
+                <select
+                  id={ids.textPlace}
+                  className={input}
+                  // Any older slot draws mid-frame, so it reads as Middle, as in Story.
+                  value={TEXT_PLACES.some(([slot]) => slot === clip.style_slot) ? clip.style_slot : "title"}
+                  disabled={frozen}
+                  onChange={(event) =>
+                    emit({
+                      kind: "set_text_place",
+                      clip_id: clip.clip_id,
+                      style_slot: event.target.value as (typeof TEXT_PLACES)[number][0],
+                    })
+                  }
+                >
+                  {TEXT_PLACES.map(([slot, label]) => (
+                    <option key={slot} value={slot}>
+                      {t(`studio.inspector.position.${label}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </Section>
           ) : null}
           {clip.kind === "caption" ? (
