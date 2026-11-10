@@ -98,9 +98,18 @@ The built-in styles come from code. A draft records its style in an optional `st
 - **At 430,** the Style control is hidden in the phone header, like the narration chip.
 - **Write e2e:** held back, because it applies a style through the same confirmation. A one-day write token was minted for it (the old one expired at 11:48 UTC). The throwaway project holds 480 drafts before the run.
 
+**Fix pushed and redeployed on 2026-11-10 (operator: "ya lanjutkan").**
+- **Push:** `49a33858` went to PR #128. CI run 42863502730 is green and published the images.
+- **Deploy:** stage1 runs `49a33858`, deployed detached. No workflow was running, and `make deploy` exited 0. Web answered 200, and the worker, api, web and renderer run the new digests. The rollback copy is `pins-824ca431.env`.
+- **After the deploy:** 0 error lines in the worker and 0 api 5xx. The style routes answered 200: 45 lists, 3 applies and 1 undo.
+- **Read-only e2e:** 42 of 42 pass at `w1440` on the four-file set, the Style check included. Indonesian `studio-id`: 3 of 3 at each of `w1440id` and `w1024id`.
+- **Live check at 1440x900, judged from a screenshot:** choosing Style A opens "Apply Style A?" under the control, with its whole text and both buttons. Cancel closed it, and the draft stayed at revision 20 with no style.
+- **Write e2e** (`tests-write/styles.e2e.ts`, `rw1440`): 2 of 2 pass:
+  - Style A rebuilds a draft, and one Undo clears the style;
+  - Style B is recorded, and Style A then replaces it.
+- **What stays behind:** the throwaway project went from 480 to 482 drafts; the two blank test drafts stay there. No narration, model or voice call was made: the worker logged no provider or script lines.
+
 **Next steps** (each its own gate):
-- push `a7ae5771` and this record to PR #128, then redeploy it to stage1;
-- the read-only Style check, the write e2e, and screenshots of the confirmation and a styled draft;
 - the operator tries it on one real narrated draft (a paid voice only when they approve a script);
 - merge.
 
