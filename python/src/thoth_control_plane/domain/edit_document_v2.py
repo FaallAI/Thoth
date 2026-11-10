@@ -358,6 +358,13 @@ class TimelineMarker(StrictModel):
     label: Annotated[str, Field(max_length=60)] = ""
 
 
+class AppliedStyle(StrictModel):
+    """The style template, and its revision, a draft last took (spec 2026-11-10)."""
+
+    template_id: OpaqueId
+    revision: Annotated[int, Field(gt=0)]
+
+
 class EditDocumentV2(StrictModel):
     """A complete, validated, immutable schema-v2 multi-track document revision."""
 
@@ -376,6 +383,8 @@ class EditDocumentV2(StrictModel):
     markers: Annotated[list[TimelineMarker], Field(max_length=100)] = Field(
         default_factory=list, exclude_if=lambda markers: not markers
     )
+    #: The style the draft took; absent when none, so a rollback stays safe (spec 2026-11-10).
+    style: AppliedStyle | None = Field(default_factory=lambda: None, exclude_if=lambda s: s is None)
 
     @model_validator(mode="after")
     def validate_structure(self) -> EditDocumentV2:

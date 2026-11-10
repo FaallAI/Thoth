@@ -322,3 +322,15 @@ class SfxLibraryRow(EditorBase):
     duration_seconds: Mapped[float] = mapped_column(Double)
     labels: Mapped[Any] = mapped_column(JSONB, server_default="{}")
     created_at: Mapped[datetime] = _created_at()
+
+
+class StyleTemplateRow(EditorBase):
+    """Editor migration 0028: a workspace's style template revisions (spec 2026-11-10)."""
+
+    __tablename__ = "style_templates"
+
+    workspace_id: Mapped[str] = mapped_column(Text)
+    template_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[Any] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = _created_at()

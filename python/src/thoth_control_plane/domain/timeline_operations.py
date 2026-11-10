@@ -19,6 +19,7 @@ from pydantic import Field
 from thoth_control_plane.domain.clip_moves import shift_moves, split_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     TRACK_CLIP_KINDS,
+    AppliedStyle,
     AssetRef,
     Background,
     CaptionCue,
@@ -257,6 +258,14 @@ class SetClipBackground(StrictModel):
     background: Background
 
 
+class SetDocumentStyle(StrictModel):
+    """Record (or clear) the style template a draft took (spec 2026-11-10)."""
+
+    kind: Literal["set_document_style"]
+    operation_id: OpaqueId
+    style: AppliedStyle | None
+
+
 class SetClipDim(StrictModel):
     kind: Literal["set_clip_dim"]
     operation_id: OpaqueId
@@ -423,6 +432,7 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipMoves
     | SetClipBackground
     | SetClipDim
+    | SetDocumentStyle
     | SetClipMarks
     | ReplaceClipAsset
     | AddTextClip
@@ -524,6 +534,8 @@ def apply_timeline_operation(
                 clip.fit = "contain"
         case SetClipDim():
             _unlocked_video_clip(document, operation.clip_id).dim = operation.dim
+        case SetDocumentStyle():
+            document.style = operation.style
         case SetClipMarks():
             clip = _unlocked_video_clip(document, operation.clip_id)
             clip.emphasis = clip.emphasis.model_copy(update={"marks": list(operation.marks)})

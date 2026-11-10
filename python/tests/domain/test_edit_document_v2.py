@@ -443,3 +443,17 @@ def test_new_caption_styles_validate(style: str) -> None:
     payload = document_with_every_clip_kind()
     clip_by_id(payload, "clip_caption")["style_slot"] = style
     assert EditDocumentV2.model_validate(payload)
+
+
+# Style templates (spec 2026-11-10): a draft records the style it took, only when it took one.
+def test_a_draft_without_a_style_dumps_no_style_key() -> None:
+    assert "style" not in document_v2_fixture().model_dump()
+
+
+def test_a_draft_keeps_the_style_it_took() -> None:
+    payload = document_v2_fixture().model_dump()
+    payload["style"] = {"template_id": "style_a", "revision": 1}
+    assert EditDocumentV2.model_validate(payload).model_dump()["style"] == {
+        "template_id": "style_a",
+        "revision": 1,
+    }

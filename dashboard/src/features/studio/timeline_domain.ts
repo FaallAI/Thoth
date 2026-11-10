@@ -442,6 +442,11 @@ export function applyTimelineOperation(
     case "set_clip_dim":
       unlockedVideoClip(next, operation.clip_id).dim = operation.dim;
       break;
+    case "set_document_style":
+      // The style a draft took (spec 2026-11-10); none is stored when cleared.
+      if (operation.style) next.style = { ...operation.style };
+      else delete next.style;
+      break;
     case "set_clip_marks": {
       const clip = unlockedVideoClip(next, operation.clip_id);
       clip.emphasis = { highlight: false, arrow: false, ...clip.emphasis, marks: operation.marks.map((mark) => ({ ...mark })) };

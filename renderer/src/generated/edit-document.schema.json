@@ -2,6 +2,28 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$ref": "#/$defs/EditDocumentV2",
   "$defs": {
+    "AppliedStyle": {
+      "additionalProperties": false,
+      "description": "The style template, and its revision, a draft last took (spec 2026-11-10).",
+      "properties": {
+        "revision": {
+          "exclusiveMinimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "template_id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+          "title": "Template Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "template_id",
+        "revision"
+      ],
+      "title": "AppliedStyle",
+      "type": "object"
+    },
     "AssetRef": {
       "additionalProperties": false,
       "description": "Safe, immutable projection of a validated project asset.\n\nCarries identity and playback metadata only. The artifact locator and any\npreview capability stay server-side and never enter a persisted document.",
@@ -381,6 +403,16 @@
           "const": 2,
           "title": "Schema Version",
           "type": "integer"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppliedStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "template": {
           "$ref": "#/$defs/TemplateRef"

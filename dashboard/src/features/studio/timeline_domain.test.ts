@@ -1216,3 +1216,15 @@ test("a trim start keeps the move value on the client", () => {
   const next = applyTimelineOperation(document, { kind: "trim_clip_start", operation_id: "op_trim", clip_id: "clip_main", from_frame: 15 } as never, {});
   expect(mainOf(next).moves!.map((move) => [move.frame, Number(move.scale.toFixed(6))])).toEqual([[0, 1.15], [15, 1.3]]);
 });
+
+// Style templates (spec 2026-11-10).
+test("set_document_style records and clears the draft's style", () => {
+  const styled = applyTimelineOperation(
+    documentV2(),
+    { kind: "set_document_style", operation_id: "op_style", style: { template_id: "style_a", revision: 1 } } as never,
+    {},
+  );
+  expect(styled.style).toEqual({ template_id: "style_a", revision: 1 });
+  const cleared = applyTimelineOperation(styled, { kind: "set_document_style", operation_id: "op_clear", style: null } as never, {});
+  expect(cleared.style ?? null).toBeNull();
+});

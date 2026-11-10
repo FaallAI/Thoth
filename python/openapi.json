@@ -509,6 +509,28 @@
         "title": "AdminUsageView",
         "type": "object"
       },
+      "AppliedStyle": {
+        "additionalProperties": false,
+        "description": "The style template, and its revision, a draft last took (spec 2026-11-10).",
+        "properties": {
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "revision"
+        ],
+        "title": "AppliedStyle",
+        "type": "object"
+      },
       "ApplyPromptProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1952,6 +1974,7 @@
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_document_style": "#/components/schemas/SetDocumentStyle",
                   "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
@@ -2050,6 +2073,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetDocumentStyle"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipMarks"
@@ -2267,6 +2293,16 @@
             "const": 2,
             "title": "Schema Version",
             "type": "integer"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "template": {
             "$ref": "#/components/schemas/TemplateRef"
@@ -6731,6 +6767,39 @@
         "title": "SetClipVolume",
         "type": "object"
       },
+      "SetDocumentStyle": {
+        "additionalProperties": false,
+        "description": "Record (or clear) the style template a draft took (spec 2026-11-10).",
+        "properties": {
+          "kind": {
+            "const": "set_document_style",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "style"
+        ],
+        "title": "SetDocumentStyle",
+        "type": "object"
+      },
       "SetMarker": {
         "additionalProperties": false,
         "properties": {
@@ -7811,6 +7880,7 @@
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_document_style": "#/components/schemas/SetDocumentStyle",
                   "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
@@ -7909,6 +7979,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetDocumentStyle"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipMarks"
