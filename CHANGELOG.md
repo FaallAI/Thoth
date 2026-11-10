@@ -55,18 +55,19 @@ The built-in styles come from code. A draft records its style in an optional `st
 - **Smaller fixes:** apply now reports a narration failure without losing the saved look; undo answers when the narration will not stop; the style list is read once; the confirmation takes focus and closes on Escape; one write e2e named what it really proves.
 - **Two further fixes:** tall pictures take Style A's pan or scroll (the reviewer disagreed with my first ruling), and a re-voice no longer re-cuts a styled draft (operator, from a side note).
 
-**Deferred minors:**
-- The caption pager ignores the style's words per caption.
-- The cut preview ignores the first narration's title-card skip.
-- A single main video loops instead of holding its last frame.
-- Prompt Lab's variant check is loose, and its fallback logs no warning.
-- The advisory lock key drifted.
-- `style_templates` needs `workspace_id` in its key before the editor slice.
-- Redo after a style's undo does not restart its narration.
+**Minors, fixed after the review (operator, 2026-11-10).** Each was test-first:
+- Captions page by the style's words per caption, so Style B shows three words.
+- The cut preview skips the main video's title card, as the first voice does. A styled script stores the card's frames, and the voice reuses them.
+- A single main video that runs out holds its last frame, instead of starting again.
+- Prompt Lab refuses a variant that does not fit its stage. A style prompt that falls back because its store is down logs a warning.
+- A plain prompt binding locks the same key its proposals lock.
+- `style_templates` is keyed by workspace.
+- The rollback note above covers styled drafts.
+- Redo after a style's undo applies the style again, so its narration starts.
 
 **Verification.**
-- **Python:** `make test` gives 4841 passed and 230 skipped. `make test-postgres` gives 210 passed. Lint is clean.
-- **Dashboard:** 1997 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
+- **Python:** `make test` gives 4850 passed and 233 skipped. `make test-postgres` gives 213 passed. Lint is clean.
+- **Dashboard:** 1999 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
 - **Renderer and composition:** 262 tests pass.
 - **Read-only e2e against a local dev server of this branch, at 1440:** the 41 existing checks pass.
 - **The new Style check fails there, as expected:** the dev server reaches stage1's API, which answers 404 for `/styles` until this branch is deployed. It runs after the deploy.
