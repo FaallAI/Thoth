@@ -65,9 +65,14 @@ The built-in styles come from code. A draft records its style in an optional `st
 - The rollback note above covers styled drafts.
 - Redo after a style's undo applies the style again, so its narration starts.
 
+**Re-voice of a styled draft (operator, 2026-11-10).**
+- A re-voice re-cuts a beat by the style when its voice changed and its shots are as the last write left them. The draft keeps a fingerprint of each beat's shots in `style.cuts`.
+- A beat with any hand edit only stretches. The re-voice confirmation names it before the voice is paid for, and the Style control names it afterwards.
+- Applying the style again re-cuts every beat.
+
 **Verification.**
-- **Python:** `make test` gives 4850 passed and 233 skipped. `make test-postgres` gives 213 passed. Lint is clean.
-- **Dashboard:** 1999 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
+- **Python:** `make test` gives 4855 passed and 233 skipped. `make test-postgres` gives 213 passed. Lint is clean.
+- **Dashboard:** 2003 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
 - **Renderer and composition:** 262 tests pass.
 - **Read-only e2e against a local dev server of this branch, at 1440:** the 41 existing checks pass.
 - **The new Style check fails there, as expected:** the dev server reaches stage1's API, which answers 404 for `/styles` until this branch is deployed. It runs after the deploy.
