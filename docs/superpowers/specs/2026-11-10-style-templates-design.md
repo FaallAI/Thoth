@@ -56,6 +56,8 @@ result fit to check rather than to rebuild:
   two built-in styles.
 - **The style's script prompt can be changed in Prompt Lab now.** This gives front-end control
   over how each style speaks from day one.
+- **The cuts can be seen before any voice is paid for.** The operator can compare A and B by their
+  cut rhythm, not only their look, without approving a script.
 
 ## 3. What exists (checked 2026-11-10)
 
@@ -152,15 +154,22 @@ style every clip would be listed (my call).
    - The narration, caption and SFX clips stay until a new voice replaces them.
 2. **A new narration is started** with the style's script prompt. It is the existing Create
    narration or Recreate flow, and the editing lock applies while it runs.
-3. **The script waits for approval** with the TTS estimate, as today. Reject with a note writes it
-   again. Approving makes the voice, then:
+3. **The script waits for approval** with the TTS estimate, as today.
+   - The approval screen's 9:16 preview plays a **cut preview**: the draft as it will be cut in
+     the style, using timing estimated from the script.
+   - The estimate splits the preset's words per second over each beat's words, and puts sentence
+     ends where the script has them.
+   - The cut preview is computed on request and **never saved**. No voice is made for it.
+   - Reject with a note writes the script again, and the preview follows the new script.
+   - Approving makes the voice, then:
    - the captions in the style's caption style;
    - the card lines as `card` text clips;
    - the ducking and SFX.
 4. **Beats are retimed to the voice and cut by the style.** Each beat lasts as long as its voice, as
    today. Then the style's cut rules split the beat's picture into shots at the voice's sentence
-   ends, cycling through its materials, each shot with its move. The cuts can only be placed here,
-   because they follow the voice's timing.
+   ends, cycling through its materials, each shot with its move. The saved cuts are placed here,
+   from the real timing. They can differ slightly from the preview, which used estimated timing.
+   Both come from the same cut function.
 
 **Changing style** repeats the same steps. Cancelling at the script step keeps the rebuilt
 arrangement with the old narration, uncut by the new style until a voice is made. Undo restores the
@@ -241,4 +250,6 @@ first narration.
 - Exact move amounts, dim levels and caption sizes within §5.
 - How "one undo step" is achieved: one batch of operations, or a snapshot.
 - The cut algorithm within §4 and §5: how materials are cycled and how short a last shot may be.
+- How the cut preview reaches the approval screen. For example, an endpoint returns the preview
+  document, and the Player renders it read-only.
 - How the card lines extend the script's answer contract while old scripts stay valid.
