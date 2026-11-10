@@ -117,7 +117,12 @@ class NarrationService:
             else (await store.get_preset(project_id)).preset
         )
         roles = await self._roles(project_id, document_id) if self._roles else {}
-        return preview_document(document, template, state.script, preset, roles)
+        intro = (
+            await store.get_intro_frames(document_id)
+            if hasattr(store, "get_intro_frames")
+            else None
+        )
+        return preview_document(document, template, state.script, preset, roles, intro or 0)
 
     async def restore_previous(self, project_id: str, document_id: str) -> bool:
         """A style's undo: the finished narration its restart replaced comes back."""

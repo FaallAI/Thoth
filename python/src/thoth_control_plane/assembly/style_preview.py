@@ -41,6 +41,7 @@ def preview_document(
     script: NarrationScript,
     preset: NarrationPreset,
     roles_by_item: Mapping[str, str] | None = None,
+    intro_frames: int = 0,
 ) -> EditDocumentV2:
     """The draft as the style will cut it once voiced, with no voice in it."""
     fps = document.canvas.fps
@@ -70,6 +71,7 @@ def preview_document(
         preset,
         roles_by_item,
         place_sfx=False,
+        intro_frames=intro_frames,
         style=template,
         card_lines=cards,
     )

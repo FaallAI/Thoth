@@ -74,9 +74,21 @@ class Store:
             )
         ]
 
-    async def set_script(self, _doc: str, script: Any, estimate: Any, unsupported: Any) -> None:
+    async def set_script(
+        self,
+        _doc: str,
+        script: Any,
+        estimate: Any,
+        unsupported: Any,
+        *,
+        intro_frames: int | None = None,
+    ) -> None:
         self.status.append(("awaiting_approval", None))
         self.script, self.estimate, self.unsupported = script, estimate, unsupported
+        self.intro_frames = intro_frames
+
+    async def get_intro_frames(self, _doc: str) -> int | None:
+        return getattr(self, "intro_frames", None)
 
     async def get_script(self, _doc: str) -> Any:
         return self.script
@@ -602,3 +614,14 @@ def test_an_unstyled_script_keeps_the_project_prompt() -> None:
     built, seen = ports()
     run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
     assert "card_line" not in seen["provider_requests"][0]["system"]
+
+
+def test_a_styled_script_keeps_the_title_card_for_its_preview() -> None:
+    # Deferred minor (2026-11-10): the cut preview skips the title card the voice will skip.
+    async def intro_card(video: Path) -> float | None:
+        return 0.4375
+
+    built, seen = styled_ports(intro_card=intro_card)
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    fps = seen["documents"].document.canvas.fps
+    assert seen["store"].intro_frames == math.ceil(0.4375 * fps)

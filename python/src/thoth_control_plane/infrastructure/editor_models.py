@@ -303,6 +303,8 @@ class NarrationRow(EditorBase):
     failure_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: Editor migration 0030: the finished narration a restart replaced, for a style's undo.
     previous: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    #: Editor migration 0030: a styled script's title card frames, for its cut preview.
+    intro_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 

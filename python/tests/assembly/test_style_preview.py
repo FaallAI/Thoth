@@ -58,3 +58,20 @@ def test_the_preview_shows_the_card_lines() -> None:
     preview = preview_document(draft(), BUILT_IN_STYLES["style_b"], SCRIPT, PRESET, ROLES)
     cards = [c for c in preview.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"]
     assert [c.heading for c in cards] == ["Kok bisa ya?"]
+
+
+def test_the_preview_skips_the_title_card_like_the_first_voice() -> None:
+    # Deferred minor (2026-11-10): the first narration starts the main video after its title
+    # card, so the preview does too.
+    a = BUILT_IN_STYLES["style_a"]
+
+    def main_starts(document) -> int:  # type: ignore[no-untyped-def]
+        mains = {t.track_id for t in document.tracks if t.kind == "main_video"}
+        return min(
+            c.source_from_frame
+            for c in document.clips
+            if isinstance(c, TimelineVideoClip) and c.track_id in mains
+        )
+
+    assert main_starts(preview_document(draft(), a, SCRIPT, PRESET, ROLES)) < 30
+    assert main_starts(preview_document(draft(), a, SCRIPT, PRESET, ROLES, intro_frames=30)) >= 30

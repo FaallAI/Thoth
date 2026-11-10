@@ -612,3 +612,18 @@ def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
     again = narrate_document(edited, VOICES, [], PRESET, ROLES, style=a)
     kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
     assert kept is not None and kept.dim == 0.3
+
+
+def test_captions_page_by_the_styles_words_per_caption() -> None:
+    # Deferred minor (2026-11-10): Style B pages its captions three words at a time.
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    fast = [voiced("main", 2.0, "satu dua tiga empat lima enam tujuh delapan")]
+    plain = clip(narrate_document(draft(), fast, [], PRESET, ROLES), "clip_caption_narration_main")
+    styled = clip(
+        narrate_document(draft(), fast, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"]),
+        "clip_caption_narration_main",
+    )
+    assert isinstance(plain, TimelineCaptionClip) and isinstance(styled, TimelineCaptionClip)
+    assert max(len(cue.words) for cue in plain.cues) == 4
+    assert max(len(cue.words) for cue in styled.cues) == 3

@@ -160,3 +160,23 @@ def test_a_cancelled_workflow_cannot_close_a_restored_narration(store: Narration
     assert state is not None and state.status == "completed"
     run(store.close("edoc_1", "narration/edoc_1/1", "failed", failure_code="narration_failed"))
     assert run(store.get("project_001", "edoc_1")).status == "failed"
+
+
+def test_a_scripts_title_card_is_kept_until_the_next_narration(store: NarrationStore) -> None:
+    # Deferred minor (2026-11-10): the cut preview reads the title card the script step found.
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/1", NarrationPreset()))
+    run(
+        store.set_script(
+            "edoc_1",
+            NarrationScript.model_validate(
+                {"beats": [{"beat": "main", "text": "Satu."}], "sfx_cues": []}
+            ),
+            VoiceEstimate(characters=5, provider="elevenlabs", voice_id="v", usd=None),
+            {},
+            intro_frames=27,
+        )
+    )
+    assert run(store.get_intro_frames("edoc_1")) == 27
+    run(store.set_status("edoc_1", "completed"))
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/2", NarrationPreset()))
+    assert run(store.get_intro_frames("edoc_1")) is None

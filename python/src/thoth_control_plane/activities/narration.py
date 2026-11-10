@@ -223,8 +223,14 @@ class NarrationActivities:
             if script is None:
                 return await self._fail(step.document_id, "invalid_provider_output")
             estimate = estimate_voice(script, preset, await ports.prices())
+            # A styled draft's cut preview skips the title card the voice will skip.
+            intro = await self._intro_frames(step, document) if style is not None else None
             await ports.store.set_script(
-                step.document_id, script, estimate, unsupported_tokens(script, facts, transcript)
+                step.document_id,
+                script,
+                estimate,
+                unsupported_tokens(script, facts, transcript),
+                intro_frames=intro,
             )
         return NarrationStepResult()
 
@@ -337,7 +343,8 @@ class NarrationActivities:
                 continue
             asset = await ports.sfx_assets.ensure_project_sfx(step.project_id, entry)
             placed.append(PlacedSfx(cue=cue, asset=asset, duration_seconds=entry.duration_seconds))
-        intro = await self._intro_frames(step, document)
+        stored = await ports.store.get_intro_frames(step.document_id)
+        intro = stored if stored is not None else await self._intro_frames(step, document)
         style = _style_of(document)
         cards = (
             {beat.beat: beat.card_line for beat in script.beats if beat.card_line} if script else {}

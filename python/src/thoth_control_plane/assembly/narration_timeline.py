@@ -240,7 +240,12 @@ def narrate_document(
             and caption_before.duration_in_frames == length
         )
         # An unchanged voice keeps the operator's caption fixes; a new one is paged again.
-        cues = caption_before.cues if same_voice else _pages(voice.words, fps, length)  # type: ignore[union-attr]
+        page_words = style.captions.words_per_caption if style is not None else PAGE_WORDS
+        cues = (
+            caption_before.cues  # type: ignore[union-attr]
+            if same_voice
+            else _pages(voice.words, fps, length, page_words)
+        )
         caption_style = (
             caption_before.style_slot
             if isinstance(caption_before, TimelineCaptionClip)
@@ -545,15 +550,17 @@ def _word_frames(word: WordTiming, fps: float, length: int) -> tuple[int, int]:
     return start, end
 
 
-def _pages(words: Sequence[WordTiming], fps: float, length: int) -> list[CaptionCue]:
-    """Pages of at most four words or 1.2 s, each word timed relative to its page."""
+def _pages(
+    words: Sequence[WordTiming], fps: float, length: int, page_words: int = PAGE_WORDS
+) -> list[CaptionCue]:
+    """Pages of at most `page_words` words or 1.2 s, each word timed relative to its page."""
     pages: list[list[WordTiming]] = []
     for word in words:
         if not word.text.strip():
             continue
         if (
             pages
-            and len(pages[-1]) < PAGE_WORDS
+            and len(pages[-1]) < page_words
             and word.end_seconds - pages[-1][0].start_seconds <= PAGE_SECONDS
         ):
             pages[-1].append(word)

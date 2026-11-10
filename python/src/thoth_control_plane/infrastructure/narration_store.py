@@ -113,6 +113,7 @@ class NarrationStore:
             row.unsupported = {}
             row.stale_beats = []
             row.failure_code = None
+            row.intro_frames = None
             row.updated_at = func.current_timestamp()
             session.flush()
             return _state(row)
@@ -213,6 +214,8 @@ class NarrationStore:
         script: NarrationScript,
         estimate: VoiceEstimate,
         unsupported: dict[BeatId, list[str]],
+        *,
+        intro_frames: int | None = None,
     ) -> None:
         await self._update(
             document_id,
@@ -221,7 +224,16 @@ class NarrationStore:
             estimate=estimate.model_dump(mode="json"),
             unsupported=unsupported,
             failure_code=None,
+            intro_frames=intro_frames,
         )
+
+    async def get_intro_frames(self, document_id: str) -> int | None:
+        """The title card frames a styled script found; None when it was not looked for."""
+
+        def work(session: Session) -> int | None:
+            return self._row(session, document_id).intro_frames
+
+        return await self._run(work)
 
     async def get_script(self, document_id: str) -> NarrationScript | None:
         def work(session: Session) -> NarrationScript | None:
