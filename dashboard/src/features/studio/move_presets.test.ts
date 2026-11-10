@@ -55,3 +55,13 @@ test("punch in near the end stays inside the clip", () => {
 test("punch in at the clip's first frame starts there", () => {
   expect(movePreset("punch_in", 90, 30, 0)).toEqual([at(0, 1, "ease_out"), at(8, 1.35, "hold")]);
 });
+
+// Style templates (spec 2026-11-10): the same cases run in Python (domain/move_presets.py).
+import cases from "./move_preset_cases.json";
+
+for (const entry of cases as { name: string; kind: string; duration: number; fps: number; expected: unknown[] }[]) {
+  if (entry.kind === "none") continue;
+  test(`shared case: ${entry.name}`, () => {
+    expect(movePreset(entry.kind as Parameters<typeof movePreset>[0], entry.duration, entry.fps)).toEqual(entry.expected as never);
+  });
+}
