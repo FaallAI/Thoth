@@ -84,12 +84,22 @@ The built-in styles come from code. A draft records its style in an optional `st
 - **Deploy:** stage1 runs the CI images of `824ca431`, deployed detached. No workflow was running, and `make deploy` exited 0. Web answered 200, the editor database is at migration 0030, the worker logged no errors, and the api returned no 5xx responses. The rollback copy is `pins-31d4fc65.env`.
 - **Read-only e2e at w1440, on the effects deploy's set of four files:** 41 of 42 pass. The new Style check failed because the confirmation opened inside the one-row header: its text was cut and the panel below took the clicks (screenshot judged at 1440x900).
 - **Fix, `a7ae5771`, not yet deployed:** the confirmation and the Style notes float under the control, and a note closes with Got it. The check also read the revision before the draft had loaded, and now reads it after. On this branch's local dev server at dev1440, the check passes, and the screenshot shows the whole dialog with both buttons.
-- **Outside that set:** `story-assist` needs a model key, and `studio-id` and some other-width checks fail on labels this deploy did not change. Neither was in the baseline. At 430 the Style control is hidden in the phone header, like the narration chip.
+- **Every file on all six stage1 targets:** 170 of 294 pass. Each test sets its own width, so a target only picks the language. The 124 failures sort as follows:
+  - **English tests on the two Indonesian targets (86):** they look for English names, so they fail by design.
+  - **`studio-id` on the four English targets (12):** they look for Indonesian names, so they fail by design.
+  - **`story-assist` everywhere (18):** it needs a model key.
+  - **The Style check (4):** the bug above.
+  - **Two timing failures (4 rows):** the asset-list check, and `studio-id`'s Timeline check on `w1024id`. The narrated draft's project holds 132 assets, mostly workflow imports, including 12 from 03:47 UTC today. The library loads 20 at a time and fetches the next page only while a clip's asset is still missing, so under a full parallel run the draft's narration row arrives after the 5 s wait.
+- **Compared against the previous deploy, `31d4fc65`:** its dashboard and this branch's ran on the same dev server, against the same stage1 data, with the same commands.
+  - **Alone, 5 runs each:** both pass 15 of 15.
+  - **Under the full parallel load:** 116 and 119 failures, and the same set of test titles fails on both. The only difference is which target a flaky test happened to fail on.
+  - **The Style check** fails on the old dashboard because that dashboard has no Style control.
+  - **Conclusion:** this deploy added no failure beyond the Style dialog. The slow asset library is older than this deploy and is carried forward.
+- **At 430,** the Style control is hidden in the phone header, like the narration chip.
 - **Write e2e:** held back, because it applies a style through the same confirmation. A one-day write token was minted for it (the old one expired at 11:48 UTC). The throwaway project holds 480 drafts before the run.
 
 **Next steps** (each its own gate):
-- merge PR #127 first, then push this branch and open its PR;
-- deploy it to stage1;
+- push `a7ae5771` and this record to PR #128, then redeploy it to stage1;
 - the read-only Style check, the write e2e, and screenshots of the confirmation and a styled draft;
 - the operator tries it on one real narrated draft (a paid voice only when they approve a script);
 - merge.
@@ -98,7 +108,8 @@ After that come the style editor, Style B's material flow (a news photo of each 
 
 **Carried forward:**
 - kinetic captions and a Middle heading share mid-frame;
-- the 8 deferred minors of the effects layer;
+- the Style control at phone width (430);
+- the asset library on a busy project: the draft's own assets first, so its narration does not wait for page after page of other drafts' imports;
 - the understand-anything graph needs `/understand --full`.
 
 ## 2026-11-10 - Studio effects layer
