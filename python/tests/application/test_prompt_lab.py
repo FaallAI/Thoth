@@ -409,3 +409,33 @@ async def test_a_style_prompt_falls_back_to_its_starter() -> None:
         variant="style_b",
     )
     assert created.body in await resolve_style_prompt(service, "project_a", b)
+
+
+# Deferred minor (2026-11-10): a variant belongs to a style's stage, and a style's stage
+# needs a known style.
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stage_id", "variant"),
+    [("narrative_plan", "style_a"), ("style_script", ""), ("style_script", "style_z")],
+)
+async def test_a_variant_must_match_its_stage(stage_id: str, variant: str) -> None:
+    repository = MemoryPromptLabRepository()
+    service = PromptLabService(repository)
+    with pytest.raises(PromptStageNotRegistered):
+        await service.get_binding("project_a", stage_id, variant=variant)
+    assert repository.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_style_prompt_store_outage_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    from thoth_control_plane.application.prompt_lab import resolve_style_prompt
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    class Down:
+        async def get_resolved_prompt(self, *_args: object, **_kwargs: object) -> None:
+            raise PromptLabStoreUnavailable()
+
+    a = BUILT_IN_STYLES["style_a"]
+    with caplog.at_level("WARNING"):
+        assert await resolve_style_prompt(Down(), "project_a", a) == a.narration.starter
+    assert any("style_a" in record.getMessage() for record in caplog.records)

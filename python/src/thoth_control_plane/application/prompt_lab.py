@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import Any
 from uuid import uuid4
@@ -26,7 +27,9 @@ from thoth_control_plane.domain.prompts import (
     SavePromptTemplateRequest,
     resolve_prompt_draft,
 )
-from thoth_control_plane.domain.style_templates import StyleTemplate
+from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
+
+logger = logging.getLogger(__name__)
 
 
 class PromptLabStoreUnavailable(Exception):
@@ -77,6 +80,13 @@ class PromptLabService:
         if stage_id not in known:
             raise PromptStageNotRegistered()
 
+    def _require_variant(self, stage_id: str, variant: str) -> None:
+        """A variant names a style, and only a style's stage has one; the built-in styles are
+        the only ones until the style editor (deferred minor, 2026-11-10)."""
+        self._require_stage(stage_id)
+        if (stage_id == STYLE_STAGE) != (variant in BUILT_IN_STYLES):
+            raise PromptStageNotRegistered()
+
     def _require_repository(self) -> PromptLabRepository:
         if self._repository is None:
             raise PromptLabStoreUnavailable()
@@ -116,7 +126,7 @@ class PromptLabService:
     async def get_binding(
         self, project_id: ProjectId, stage_id: PromptStageId, *, variant: str = ""
     ) -> ProjectPromptBinding | None:
-        self._require_stage(stage_id)
+        self._require_variant(stage_id, variant)
         try:
             return await self._require_repository().get_binding(
                 project_id=project_id, stage_id=stage_id, variant=variant
@@ -134,7 +144,7 @@ class PromptLabService:
         *,
         variant: str = "",
     ) -> ProjectPromptBinding:
-        self._require_stage(stage_id)
+        self._require_variant(stage_id, variant)
         template = await self.get_template_revision(
             project_id, request.template_id, request.template_revision
         )
@@ -167,7 +177,7 @@ class PromptLabService:
     async def get_resolved_prompt(
         self, project_id: ProjectId, stage_id: PromptStageId, *, variant: str = ""
     ) -> ResolvedPromptDraft:
-        self._require_stage(stage_id)
+        self._require_variant(stage_id, variant)
         binding = await self.get_binding(project_id, stage_id, variant=variant)
         if binding is None:
             raise PromptBindingNotFound()
@@ -188,6 +198,12 @@ async def resolve_style_prompt(prompts: Any, project_id: str, template: StyleTem
                 project_id, STYLE_STAGE, variant=template.template_id
             )
             return resolved.visible_text
-        except Exception:  # no binding saved, or the prompt store is down: the starter
-            pass
+        except PromptBindingNotFound:
+            pass  # no binding saved: the starter, as designed
+        except Exception as error:  # the prompt store is down: the starter, said out loud
+            logger.warning(
+                "style prompt fell back to the starter template=%s error=%s",
+                template.template_id,
+                type(error).__name__,
+            )
     return template.narration.starter
