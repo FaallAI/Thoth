@@ -123,7 +123,7 @@ def _b() -> StyleTemplate:
         revision=1,
         origin="built_in",
         beats={
-            "hook": dimmed.model_copy(update={"heading_place": "card"}),
+            "hook": dimmed.model_copy(update={"heading_place": "title_top"}),
             "main": dimmed,
             "evidence": dimmed,
             "reactions": dimmed,
