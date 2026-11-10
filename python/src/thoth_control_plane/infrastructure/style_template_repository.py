@@ -15,10 +15,6 @@ from thoth_control_plane.infrastructure.editor_database import editor_sessions
 from thoth_control_plane.infrastructure.editor_models import StyleTemplateRow
 
 
-def _find(styles: list[StyleTemplate], template_id: str) -> StyleTemplate | None:
-    return next((style for style in styles if style.template_id == template_id), None)
-
-
 def _latest(rows: list[StyleTemplateRow]) -> list[StyleTemplate]:
     latest: dict[str, StyleTemplateRow] = {}
     for row in rows:

@@ -7,6 +7,6 @@ CREATE TABLE style_templates (
     revision INTEGER NOT NULL CHECK (revision > 0),
     body JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (template_id, revision)
+    -- A template id is the workspace's own; the key leads with the workspace, as reads do.
+    PRIMARY KEY (workspace_id, template_id, revision)
 );
-CREATE INDEX style_templates_workspace_idx ON style_templates (workspace_id);

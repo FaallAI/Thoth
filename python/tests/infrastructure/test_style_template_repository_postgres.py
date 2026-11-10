@@ -59,3 +59,15 @@ async def test_a_workspace_sees_its_own_latest_revision_only(
     assert listed["style_mine"].name == "Mine v2"
     assert await styles.get("style_theirs", "ws_one") is None
     assert (await styles.get("style_b", "ws_one")) == BUILT_IN_STYLES["style_b"]
+
+
+async def test_two_workspaces_may_use_the_same_template_id(
+    styles: PostgresStyleTemplateRepository,
+) -> None:
+    # Deferred minor (2026-11-10): a template id is a workspace's own, so the key holds it.
+    store("ws_one", "style_news", 1, "One's news")
+    store("ws_two", "style_news", 1, "Two's news")
+    one = await styles.get("style_news", "ws_one")
+    two = await styles.get("style_news", "ws_two")
+    assert one is not None and two is not None
+    assert (one.name, two.name) == ("One's news", "Two's news")

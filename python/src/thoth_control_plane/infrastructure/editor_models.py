@@ -335,7 +335,7 @@ class StyleTemplateRow(EditorBase):
 
     __tablename__ = "style_templates"
 
-    workspace_id: Mapped[str] = mapped_column(Text)
+    workspace_id: Mapped[str] = mapped_column(Text, primary_key=True)
     template_id: Mapped[str] = mapped_column(Text, primary_key=True)
     revision: Mapped[int] = mapped_column(Integer, primary_key=True)
     body: Mapped[Any] = mapped_column(JSONB)
