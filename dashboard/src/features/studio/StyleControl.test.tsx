@@ -113,3 +113,15 @@ test("the confirmation takes focus, says what it asks, and Escape cancels", asyn
   expect(screen.queryByRole("alertdialog")).toBeNull();
   expect(applied).toEqual([]);
 });
+
+test("a beat a re-voice only stretched, because of hand edits, is named", async () => {
+  // Operator, 2026-11-10: a hand-edited beat is not re-cut by the style, and says so.
+  mount({ ...upgradedTextDocument(), style: { template_id: "style_b", revision: 1, voiced: true, kept: ["main", "reactions"] } } as EditDocumentV2);
+  expect(await screen.findByText(/Main, Reactions/)).toBeTruthy();
+});
+
+test("no note while the style re-cut every changed beat", async () => {
+  mount({ ...upgradedTextDocument(), style: { template_id: "style_b", revision: 1, voiced: true } } as EditDocumentV2);
+  await screen.findByRole("option", { name: "Style B" });
+  expect(screen.queryByText(/kept your edits/)).toBeNull();
+});

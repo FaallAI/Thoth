@@ -12,7 +12,9 @@ The result is ordinary typed edit operations, so a style is one revision and one
 
 from __future__ import annotations
 
+import hashlib
 import itertools
+import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
@@ -47,7 +49,7 @@ from thoth_control_plane.domain.timeline_operations import (
 
 logger = logging.getLogger(__name__)
 #: A style's card line clip, removed when a style or a re-voice places its own.
-STYLE_CARD = re.compile(r"clip_style_[a-z]+_card_\d+")
+STYLE_CARD = re.compile(r"clip_style_([a-z]+)_card_\d+")
 #: How much taller than the canvas a picture must be to take a beat's tall move.
 TALL_TOLERANCE = 0.05
 
@@ -58,8 +60,10 @@ def style_operations(
     roles_by_item: Mapping[str, str] | None = None,
     sentence_ends: Mapping[BeatId, Sequence[int]] | None = None,
     card_lines: Mapping[BeatId, str] | None = None,
+    recut: set[str] | None = None,
 ) -> list[TimelineOperation]:
-    """The operations that put `document` in `template`'s style, the style record last."""
+    """The operations that put `document` in `template`'s style, the style record last.
+    `recut` limits the cuts to those beats (a re-voice, operator 2026-11-10)."""
     fps = document.canvas.fps
     roles = roles_by_item or {}
     beats = clip_beats(document, roles_by_item)
@@ -143,7 +147,8 @@ def style_operations(
         clip.clip_id
         for clip in document.clips
         if isinstance(clip, TimelineTextClip)
-        and STYLE_CARD.fullmatch(clip.clip_id)
+        and (style_card := STYLE_CARD.fullmatch(clip.clip_id))
+        and (recut is None or style_card.group(1) in recut)
         and not clip.locked
     }
     operations.extend(
@@ -156,6 +161,8 @@ def style_operations(
     tracks = {track.track_id: track for track in document.tracks}
 
     for span in beat_spans(document, roles_by_item):
+        if recut is not None and span.beat not in recut:
+            continue
         look = template.beats[span.beat]
         in_beat = [
             clip
@@ -353,3 +360,19 @@ def _free_windows(start: int, end: int, kept: list[tuple[int, int]]) -> list[tup
     if cursor < end:
         windows.append((cursor, end))
     return [(a, b) for a, b in windows if b > a]
+
+
+def beat_fingerprints(
+    document: EditDocumentV2, roles_by_item: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """Per beat, a fingerprint of its picture and text clips: any hand edit changes it."""
+    beats = clip_beats(document, roles_by_item)
+    grouped: dict[str, list[dict[str, object]]] = {}
+    for clip in sorted(document.clips, key=lambda c: c.clip_id):
+        beat = beats.get(clip.clip_id)
+        if beat is not None and isinstance(clip, (TimelineVideoClip, TimelineTextClip)):
+            grouped.setdefault(beat, []).append(clip.model_dump(mode="json"))
+    return {
+        beat: hashlib.sha256(json.dumps(clips, sort_keys=True).encode()).hexdigest()[:32]
+        for beat, clips in grouped.items()
+    }

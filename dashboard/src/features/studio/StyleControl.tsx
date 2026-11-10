@@ -144,6 +144,14 @@ export function StyleControl({
           {message}
         </p>
       ) : null}
+      {/* A re-voice only stretches a beat that holds hand edits (operator, 2026-11-10). */}
+      {document.style?.kept?.length ? (
+        <p className="text-xs text-muted-ink">
+          {t("studio.style.kept", {
+            beats: document.style.kept.map((beat) => t(`studio.story.beat.${beat}` as never)).join(", "),
+          })}
+        </p>
+      ) : null}
     </div>
   );
 }

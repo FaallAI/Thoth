@@ -33,7 +33,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
-from thoth_control_plane.domain.style_apply import style_operations
+from thoth_control_plane.domain.style_apply import beat_fingerprints, style_operations
 from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
@@ -338,22 +338,41 @@ def narrate_document(
     )
     narrated_document = EditDocumentV2.model_validate(payload)
     applied = narrated_document.style
-    # The style cuts once, from the first voice after it was applied (operator, 2026-11-10).
-    if style is None or (applied is not None and applied.voiced):
+    if style is None:
         return narrated_document
+    only: set[str] | None = None
+    kept: list[str] = []
+    if applied is not None and applied.voiced:
+        # A re-voice re-cuts a beat whose voice changed only when its shots are as the last
+        # write left them; a beat with hand edits only stretches (operator, 2026-11-10).
+        changed = [
+            beat
+            for beat, voice in voices.items()
+            if not (
+                isinstance(old := previous.get(f"{NARRATION_PREFIX}{beat}"), TimelineAudioClip)
+                and old.asset_id == voice.asset.asset_id
+            )
+        ]
+        before = beat_fingerprints(document, roles_by_item)
+        only = {b for b in changed if b in applied.cuts and applied.cuts[b] == before.get(b)}
+        kept = [b for b in changed if b not in only]
+        if not only:
+            return _recorded(narrated_document, roles_by_item, kept)
     # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
     ends = {
         beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
         for beat, start in starts.items()
     }
-    operations = style_operations(narrated_document, style, roles_by_item, ends, card_lines)
+    operations = style_operations(
+        narrated_document, style, roles_by_item, ends, card_lines, recut=only
+    )
     styled = apply_edit_operations(
         narrated_document,
         operations,
         resolved_assets={asset.asset_id: asset for asset in narrated_document.asset_refs},
     )
     if not curve:
-        return styled
+        return _recorded(styled, roles_by_item, kept)
     # New shots of the main video duck under the voice like the clip they replaced.
     restyled = styled.model_dump(mode="python")
     restyled["clips"] = [
@@ -364,7 +383,23 @@ def narrate_document(
         ).model_dump(mode="python")
         for clip in styled.clips
     ]
-    return EditDocumentV2.model_validate(restyled)
+    return _recorded(EditDocumentV2.model_validate(restyled), roles_by_item, kept)
+
+
+def _recorded(
+    document: EditDocumentV2, roles_by_item: dict[str, str] | None, kept: list[str]
+) -> EditDocumentV2:
+    """The style record after a write: each beat's shots as left, and the beats kept."""
+    if document.style is None:
+        return document
+    style = document.style.model_copy(
+        update={
+            "voiced": True,
+            "cuts": beat_fingerprints(document, roles_by_item),
+            "kept": [beat for beat in BEAT_ORDER if beat in kept],
+        }
+    )
+    return document.model_copy(update={"style": style})
 
 
 def sentence_ends(words: Sequence[WordTiming], start: int, fps: float) -> list[int]:

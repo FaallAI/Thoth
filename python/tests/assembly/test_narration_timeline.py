@@ -627,3 +627,58 @@ def test_captions_page_by_the_styles_words_per_caption() -> None:
     assert isinstance(plain, TimelineCaptionClip) and isinstance(styled, TimelineCaptionClip)
     assert max(len(cue.words) for cue in plain.cues) == 4
     assert max(len(cue.words) for cue in styled.cues) == 3
+
+
+# Operator, 2026-11-10: a re-voice re-cuts a beat by the style when its voice changed and none
+# of its shots were touched by hand; a beat with hand edits only stretches, and says so.
+def _longer_main() -> VoicedBeat:
+    return VoicedBeat(
+        beat="main",
+        asset=audio("asset_voice_main_v2", 12.0),
+        duration_seconds=12.0,
+        words=words("satu dua tiga. empat lima enam.", 12.0),
+    )
+
+
+def _main_beat_shots(document: EditDocumentV2) -> list[TimelineVideoClip]:
+    from thoth_control_plane.domain.story_beats import clip_beats
+
+    beats = clip_beats(document, ROLES)
+    return [
+        c
+        for c in document.clips
+        if isinstance(c, TimelineVideoClip)
+        and beats.get(c.clip_id) == "main"
+        and c.position is None
+        and not c.hidden
+    ]
+
+
+def test_a_revoice_recuts_an_untouched_beat_by_the_style() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    again = narrate_document(
+        first, [VOICES[0], _longer_main(), VOICES[2]], [], PRESET, ROLES, style=b
+    )
+    shots = _main_beat_shots(again)
+    assert shots and all(c.duration_in_frames <= 90 + 30 for c in shots)
+    assert again.style is not None and again.style.kept == []
+
+
+def test_a_revoice_stretches_a_hand_edited_beat_and_says_so() -> None:
+    from tests.domain.test_timeline_operations import op
+    from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    shot = _main_beat_shots(first)[0]
+    edited = apply_edit_operations(first, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.3)])
+    again = narrate_document(
+        edited, [VOICES[0], _longer_main(), VOICES[2]], [], PRESET, ROLES, style=b
+    )
+    kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
+    assert kept is not None and kept.dim == 0.3
+    assert again.style is not None and again.style.kept == ["main"]

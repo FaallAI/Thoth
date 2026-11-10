@@ -363,8 +363,17 @@ class AppliedStyle(StrictModel):
 
     template_id: OpaqueId
     revision: Annotated[int, Field(gt=0)]
-    #: The style's cuts came from a voice: later re-voices only retime, keeping hand edits.
+    #: The style's cuts came from a voice: a re-voice re-cuts only untouched beats.
     voiced: bool = Field(default_factory=lambda: False, exclude_if=lambda voiced: not voiced)
+    #: Per beat, a fingerprint of its shots as the last narration write left them; a beat whose
+    #: shots still match was not touched by hand (operator, 2026-11-10).
+    cuts: Annotated[dict[str, Annotated[str, Field(max_length=64)]], Field(max_length=16)] = Field(
+        default_factory=dict, exclude_if=lambda cuts: not cuts
+    )
+    #: Beats the last re-voice only stretched, because they hold hand edits.
+    kept: Annotated[list[Annotated[str, Field(max_length=32)]], Field(max_length=16)] = Field(
+        default_factory=list, exclude_if=lambda kept: not kept
+    )
 
 
 class EditDocumentV2(StrictModel):

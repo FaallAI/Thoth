@@ -6,6 +6,24 @@
       "additionalProperties": false,
       "description": "The style template, and its revision, a draft last took (spec 2026-11-10).",
       "properties": {
+        "cuts": {
+          "additionalProperties": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "maxProperties": 16,
+          "title": "Cuts",
+          "type": "object"
+        },
+        "kept": {
+          "items": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Kept",
+          "type": "array"
+        },
         "revision": {
           "exclusiveMinimum": 0,
           "title": "Revision",

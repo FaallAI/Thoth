@@ -1973,6 +1973,12 @@ export interface components {
          * @description The style template, and its revision, a draft last took (spec 2026-11-10).
          */
         AppliedStyle: {
+            /** Cuts */
+            cuts?: {
+                [key: string]: string;
+            };
+            /** Kept */
+            kept?: string[];
             /** Revision */
             revision: number;
             /** Template Id */
