@@ -131,17 +131,27 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - Fix: captions are not drawn while a card covers the frame.
 - **Credit in the middle.**
   - Cause: an imported non-main item's bare `@account` took the `source` slot, which draws as a big mid-frame heading. On this draft that is `@cnnindonesia`.
-  - Fix: a new `credit` slot draws small in the lower left, at 12% from the bottom. That is below Style A's caption lane at 18% and clear of Style B's mid-frame words.
+  - Fix: a new `credit` slot draws small in the lower left, at 27% from the bottom (`7185f3d7`). A first cut at 12% sat inside TikTok's bottom band; a side review caught it against Studio's safe zone (top 10%, bottom 18%). At 27% it clears that band and two lines of the low caption lane, which starts at 18%; TikTok's buttons rule out the right edge.
+  - Checked live on the local build (`dev1440`, read-only) at 0:26.3 with the safe zone on: `@cnnindonesia` sits lower left above the band, and the caption "PIHAK ISTANA" stays mid-frame. At 0:23.3 the white card shows alone.
   - New imports give a non-main, body-less `@account` the `credit` slot, and an older draft's body-less `@account` in `source` draws as a credit too.
   - A quote keeps the middle.
   - Footage credits that older drafts placed at the top (`title_top`) stay there, because that slot is also the operator's own "Top" choice.
 - **Narration cut off.** Two causes:
   - In the preview, `<Video>` from `@remotion/media` holds the Player while it buffers (Remotion docs, "Playback issues"), and no Sequence premounted. Style B's 25 cuts each paused the Player, voice included. Fix: video Sequences premount one second ahead. Renders ignore premounting.
   - Ducking covered only the main-video track. The three footage movies on the b-roll (`has_audio`) played at full level over the Footage narration. Fix: every video clip whose asset has sound ducks, in the first narration and in a style's re-cut. This draft gets the ducking only on its next narration or re-voice.
-- **Commits** (test-first, each RED then GREEN): `4487a1e7` ducking, `152ed361` import credit, `76c01fe6` composition.
+- **Card out of step with the voice** (side review, operator agreed). A card showed at its beat's start, or between facts, while the voice said something else, and hiding the captions under it made that worse.
+  - Example: "Beneran mau mundur?" showed at 23.4 s, but the voice says it at 31.4 s.
+  - Fix (`4bff62b3`): a card shows from the first word of the voice sentence that holds most of its line, at least half the line's words. On a tie the shorter sentence wins. A line the voice never says keeps the old place, and the hook's card stays at the hook's start.
+  - On this draft's stored timing the cards would land at:
+    - Main: 6.0 → 21.9 s, on "Hah, sampai SD juga dibawa?";
+    - Evidence: 23.4 → 31.9 s, on "beneran mau mundur?";
+    - Footage: 50.8 → 47.9 s, on "siapa yang bakal bertahan".
+  - Reactions ("Netizen kok curiga?") matches no sentence and stays at the beat's start, where the voice says "Netizen langsung heboh".
+  - It takes effect on the draft's next narration or re-voice.
+- **Commits** (test-first, each RED then GREEN): `4487a1e7` ducking, `152ed361` import credit, `76c01fe6` composition, `7185f3d7` credit height, `4bff62b3` card timing.
 - **Checks:**
-  - Python 4858 passed, 233 skipped; ruff clean;
-  - dashboard 2008 passed, `tsc -b` clean, build OK;
+  - Python 4860 passed, 233 skipped; ruff clean;
+  - dashboard 2009 passed, `tsc -b` clean, build OK;
   - the release goldens hold no card and no `@` credit, so their pixels do not move.
 - **Not yet pushed or deployed.**
 
