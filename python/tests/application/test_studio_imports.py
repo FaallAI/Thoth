@@ -230,6 +230,27 @@ def test_a_new_drafts_headings_start_at_the_top_and_quoted_text_stays_in_the_mid
     ]
 
 
+def test_an_account_credit_goes_to_the_credit_corner_and_a_quote_stays_in_the_middle() -> None:
+    # A source's @account read as a big mid-frame title (operator, 2026-11-12).
+    payload = projection_payload()
+    payload["items"] = [
+        item("main", 0, text="Main caption", platform="tiktok"),
+        item("profile_page", 0, title="@cnnindonesia", text=None, media_kind="image"),
+        item("creator_photo", 0, title="Photo 1", text=None, media_kind="image"),
+        item("footage", 0, title="@kompastv"),
+        item("comment", 0, title="@viewer", text="A quote", media_kind="image"),
+    ]
+    document = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source)
+
+    assert [(clip.heading, clip.style_slot) for clip in document.clips] == [
+        ("main 0", "title_top"),
+        ("@cnnindonesia", "credit"),
+        ("Photo 1", "source"),
+        ("@kompastv", "credit"),
+        ("@viewer", "source"),
+    ]
+
+
 def test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat() -> None:
     # Without it a quoted comment had no beat: narration crammed it over the footage titles.
     document = build_studio_draft(PROJECT, "edoc_first", create_request().source)

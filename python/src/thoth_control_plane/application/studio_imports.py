@@ -63,6 +63,13 @@ def _heading(item: StudioSourceItem) -> str:
     return f"{item.role.capitalize()} {item.order + 1}"
 
 
+def _slot(item: StudioSourceItem, body: str, default: str) -> str:
+    # A source's bare @account is a credit in a lower corner (operator, 2026-11-12).
+    if item.role != "main" and not body and _heading(item).startswith("@"):
+        return "credit"
+    return "title_top" if item.role in HEADING_ONLY_ROLES else default
+
+
 def build_studio_draft(
     project_id: ProjectId, document_id: OpaqueId, projection: StudioSourceProjection
 ) -> EditDocumentV2:
@@ -88,9 +95,7 @@ def build_studio_draft(
                     update={
                         "source_role": item.role,
                         # A lone title goes above the action; quoted text keeps the middle.
-                        "style_slot": (
-                            "title_top" if item.role in HEADING_ONLY_ROLES else clip.style_slot
-                        ),
+                        "style_slot": _slot(item, clip.body, clip.style_slot),
                     }
                 )
                 for clip, item in zip(document.clips, items, strict=True)
