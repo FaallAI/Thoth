@@ -34,6 +34,8 @@ type Props = {
   document: EditDocumentV2;
   previewSources?: PreviewSources;
   onPreviewUnavailable?: (assetId: string) => void;
+  /** Studio's Player is playing: videos load a second ahead. A held frame and a render never do. */
+  premount?: boolean;
 };
 
 /**
@@ -276,6 +278,7 @@ export function AdvancedTimelineComposition({
   document,
   previewSources = {},
   onPreviewUnavailable,
+  premount = false,
 }: Props) {
   useCompositionFonts();
   // Whether a clip is a still or a movie comes only from the document's own
@@ -300,9 +303,10 @@ export function AdvancedTimelineComposition({
                 name={clip.clip_id}
                 from={clip.from_frame}
                 durationInFrames={clip.duration_in_frames}
-                // A video loads a second ahead: at a cut the Player would otherwise pause to buffer,
-                // and the narration stops with it (stage1, 2026-11-12). Renders ignore it.
-                premountFor={clip.kind === "video" ? Math.round(document.canvas.fps) : undefined}
+                // While playing, a video loads a second ahead: at a cut the Player would otherwise
+                // pause to buffer, and the narration stops with it (stage1, 2026-11-12). Only while
+                // playing: a hidden copy of a movie on screen shifted a held frame's pixels.
+                premountFor={premount && clip.kind === "video" ? Math.round(document.canvas.fps) : undefined}
               >
                 {renderClip(
                   clip,

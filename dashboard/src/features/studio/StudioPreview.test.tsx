@@ -88,6 +88,19 @@ test("forwards a persistent preview error callback without exposing a locator", 
   expect(JSON.stringify(timeline)).not.toContain("editor-assets");
 });
 
+test("videos premount only while the Player plays, so a held frame matches the render", async () => {
+  // CI parity, 2026-11-12: premounting on a held frame shifted a playing movie's pixels.
+  expect((previewComposition(timeline).inputProps as { premount?: boolean }).premount).toBe(false);
+  expect(
+    (previewComposition(timeline, undefined, undefined, true).inputProps as { premount?: boolean }).premount,
+  ).toBe(true);
+  expect(Object.keys(previewComposition(textStory, undefined, undefined, true).inputProps)).toEqual(["document"]);
+  const source = await Bun.file(new URL("StudioPreview.tsx", import.meta.url)).text();
+  expect(source).toMatch(/previewComposition\(currentDocument, previewSources, onPreviewUnavailable, playing\)/);
+  expect(source).toMatch(/addEventListener\("play"/);
+  expect(source).toMatch(/addEventListener\("pause"/);
+});
+
 test("the view states no part of the Player projection itself", async () => {
   // Rendering the view here would prove nothing: GuidedStudio's tests replace
   // ./StudioPreview for the whole test process, so the props it hands a Player

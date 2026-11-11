@@ -1,6 +1,6 @@
 import { useLocale } from "@/lib/locale";
 import { Player } from "@remotion/player";
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument } from "@/api/control-plane";
@@ -67,9 +67,32 @@ export function StudioPreview({
 
   const currentDocument = document ?? loadedDocument;
 
+  // Videos premount only while playing: at a cut the Player would otherwise pause to load the next
+  // one, voice included, and a premount on a held frame shifted its pixels (stage1/CI, 2026-11-12).
+  const [instance, setInstance] = useState<PlayerTimelineRef | null>(null);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    if (!instance) return;
+    const on = () => setPlaying(true);
+    const off = () => setPlaying(false);
+    instance.addEventListener("play", on);
+    instance.addEventListener("pause", off);
+    instance.addEventListener("ended", off);
+    return () => {
+      instance.removeEventListener("play", on);
+      instance.removeEventListener("pause", off);
+      instance.removeEventListener("ended", off);
+    };
+  }, [instance]);
   // Remotion types the Player ref by its own PlayerRef; this view only drives the
   // timeline subset of it. A callback ref reports the instance React committed.
-  const ref = onPlayer as unknown as ComponentProps<typeof Player>["ref"];
+  const ref = useCallback(
+    (next: PlayerTimelineRef | null) => {
+      setInstance(next);
+      onPlayer?.(next);
+    },
+    [onPlayer],
+  ) as unknown as ComponentProps<typeof Player>["ref"];
 
   const preview = currentDocument ? (
     <div
@@ -101,7 +124,7 @@ export function StudioPreview({
         ref={ref}
         // The Player ties component and inputProps together through one generic;
         // previewComposition already pairs them correctly.
-        {...(previewComposition(currentDocument, previewSources, onPreviewUnavailable) as {
+        {...(previewComposition(currentDocument, previewSources, onPreviewUnavailable, playing) as {
           component: never;
           inputProps: never;
         })}

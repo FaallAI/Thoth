@@ -387,12 +387,17 @@ test("captions give way while a narrator card fills the frame", () => {
   expect(screen.getAllByTestId("caption-cue")).toHaveLength(1);
 });
 
-test("a video mounts a second before its cut so the preview never stops to load it", () => {
-  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+test("while playing, a video mounts a second before its cut so the preview never stops to load it", () => {
   const premount = (name: string) =>
     screen.getAllByTestId("sequence").find((node) => node.getAttribute("data-name") === name)!.getAttribute("data-premount");
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} premount />);
   expect(premount("clip_video")).toBe("30");
   expect(premount("clip_text")).toBeNull();
+  cleanup();
+  // A held frame mounts nothing early: a hidden copy of a playing movie shifted its pixels, and
+  // the template release parity gate caught it (CI, 2026-11-12).
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  expect(premount("clip_video")).toBeNull();
 });
 
 test("two lines of heading hold about as many characters as the canvas is wide", () => {
