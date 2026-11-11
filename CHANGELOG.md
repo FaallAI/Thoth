@@ -114,10 +114,16 @@ The built-in styles come from code. A draft records its style in an optional `st
 - **Cause:** a draft clip may hold 200 subtitle blur regions, since OCR gives a long video many timed ones. The operation a style uses to copy them onto each shot capped the list at 20 (added in eb521be8). The error came before any write, so the draft was left as it was.
 - **Fix** (`53434611`, test-first): the operation takes the clip's own cap of 200, and `openapi.json` is regenerated. The new test `test_a_style_keeps_a_long_videos_many_subtitle_blurs` failed with the stage1 error, then passed.
 - **Checks:** full Python suite 4856 passed, 233 skipped; ruff clean. The generated dashboard types do not change.
-- **Not yet pushed or deployed.**
+- **Pushed and redeployed, 2026-11-12** (operator: "ya push dan redeploy"):
+  - `af10fb5a` went to PR #128, and CI run 43068329173 is green;
+  - deploy: no workflow was running, `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-49a33858.env`;
+  - api and worker run with 0 restarts. Five minutes after the deploy they showed 0 api 5xx and 0 worker error lines. The api container holds the 200 cap.
+- **Dry run on the real draft** (revision 25, 14 clips, 22 blur regions, 15 roles): the stored revision and inventory were read with SELECTs, and `style_operations` was applied in memory in the api container. Nothing was saved, and no provider was called:
+  - Style A: 78 operations, 17 shots keep all 22 regions;
+  - Style B: 168 operations, 29 shots keep all 22 regions.
 
 **Next steps** (each its own gate):
-- push and redeploy `53434611`, then the operator tries Style again on the same draft (a paid voice only when they approve a script);
+- the operator tries Style again on the same draft (a paid voice only when they approve a script);
 - merge.
 
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
