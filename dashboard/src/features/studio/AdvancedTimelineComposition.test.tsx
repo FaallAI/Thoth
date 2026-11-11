@@ -354,6 +354,15 @@ test("a credit sits small in a lower corner, an old draft's bare @account too", 
   }
 });
 
+test("a credit stays clear of TikTok's bottom band and above two lines of low captions", () => {
+  // Side review, 2026-11-12: at 12% from the bottom TikTok's name and description covered it.
+  render(<AdvancedTimelineComposition document={withText("credit", "@kompastv", "")} previewSources={SOURCES} />);
+  const bottom = Number.parseFloat(screen.getByTestId("credit").style.paddingBottom);
+  // The safe zone ends at 18%; a two-line caption in the low lane reaches about 26%.
+  expect(bottom).toBeGreaterThanOrEqual(1920 * 0.26);
+  expect(bottom).toBeLessThan(1920 * 0.33);
+});
+
 test("a quote under an @account keeps the middle", () => {
   render(<AdvancedTimelineComposition document={withText("source", "@viewer", "A quote")} previewSources={SOURCES} />);
   expect(screen.queryByTestId("credit")).toBeNull();

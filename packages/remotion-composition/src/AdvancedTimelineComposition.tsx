@@ -135,8 +135,12 @@ const CAPTION_LANE: CSSProperties = {
 const CAPTION_SAFE_BOTTOM = 0.18;
 /** A [from, to) frame range on the canvas. */
 type Span = readonly [number, number];
-/** A source credit, small in the lower left: under Style A's captions, clear of Style B's words. */
-const CREDIT_BOTTOM = 0.12;
+/**
+ * A source credit, small in the lower left. TikTok's name and description cover the bottom 18%
+ * and its buttons the right edge; the low caption lane starts at 18% and two lines reach about
+ * 26%, so the credit sits just above that (side review, 2026-11-12).
+ */
+const CREDIT_BOTTOM = 0.27;
 const CREDIT_LANE: CSSProperties = {
   alignItems: "flex-start",
   justifyContent: "flex-end",
