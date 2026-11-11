@@ -267,6 +267,16 @@ def test_the_main_video_ducks_under_speech_and_leaks_in_pauses() -> None:
     assert keyframes[-1][1] == 1.0
 
 
+def test_footage_on_the_b_roll_ducks_under_its_voice() -> None:
+    # A footage movie's own sound played at full level over its narration (stage1, 2026-11-12).
+    document = narrate_document(draft(), [*VOICES, voiced("footage", 4.0)], [], PRESET, ROLES)
+
+    footage = clip(document, "clip_footage_000")
+    assert PRESET.duck_volume in {key.volume for key in footage.volume_keyframes}
+    # A still card has no sound to duck.
+    assert clip(document, "clip_comment_card_000").volume_keyframes == []
+
+
 def test_sfx_land_on_their_word_and_voices_fade_at_their_edges() -> None:
     cue = SfxCue(sfx_id="impact", beat="main", moment="emphasis_word", word_index=2)
     sfx = PlacedSfx(cue=cue, asset=audio("asset_sfx_impact", 1.0), duration_seconds=1.0)

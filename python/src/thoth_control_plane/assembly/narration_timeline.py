@@ -301,7 +301,8 @@ def narrate_document(
     curve = _duck_curve(speech, preset, fps)
     ducked = []
     for clip in clips:
-        under = (isinstance(clip, TimelineVideoClip) and clip.track_id in main_tracks) or (
+        # Every movie with sound ducks, footage on the b-roll too (stage1, 2026-11-12).
+        under = _sounding(clip, assets) or (
             isinstance(clip, TimelineAudioClip) and not clip.clip_id.startswith(_LAYER_PREFIXES)
         )
         if under and curve:
@@ -373,12 +374,12 @@ def narrate_document(
     )
     if not curve:
         return _recorded(styled, roles_by_item, kept)
-    # New shots of the main video duck under the voice like the clip they replaced.
+    # New shots of a movie duck under the voice like the clip they replaced.
     restyled = styled.model_dump(mode="python")
     restyled["clips"] = [
         (
             clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
-            if isinstance(clip, TimelineVideoClip) and clip.track_id in main_tracks
+            if _sounding(clip, assets)
             else clip
         ).model_dump(mode="python")
         for clip in styled.clips
@@ -647,6 +648,14 @@ def _speech(words: Sequence[WordTiming], start: int, length: int, fps: float) ->
         else:
             windows.append(window)
     return windows
+
+
+def _sounding(clip: object, assets: Mapping[str, AssetRef]) -> bool:
+    """A video clip whose media carries sound: it ducks under the narration."""
+    if not isinstance(clip, TimelineVideoClip):
+        return False
+    asset = assets.get(clip.asset_id)
+    return asset is not None and asset.kind == "video" and asset.has_audio
 
 
 def _duck_curve(
