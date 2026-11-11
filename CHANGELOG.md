@@ -109,8 +109,15 @@ The built-in styles come from code. A draft records its style in an optional `st
   - Style B is recorded, and Style A then replaces it.
 - **What stays behind:** the throwaway project went from 480 to 482 drafts; the two blank test drafts stay there. No narration, model or voice call was made: the worker logged no provider or script lines.
 
+**Operator's first real draft, 2026-11-12: Internal Server Error, fixed locally.**
+- **Symptom:** every Style choice on draft `edoc_98b423ae…` answered 500. The api log shows a `ValidationError` for `AddClipFromAsset.blur_regions`: "at most 20 items, not 22".
+- **Cause:** a draft clip may hold 200 subtitle blur regions, since OCR gives a long video many timed ones. The operation a style uses to copy them onto each shot capped the list at 20 (added in eb521be8). The error came before any write, so the draft was left as it was.
+- **Fix** (`53434611`, test-first): the operation takes the clip's own cap of 200, and `openapi.json` is regenerated. The new test `test_a_style_keeps_a_long_videos_many_subtitle_blurs` failed with the stage1 error, then passed.
+- **Checks:** full Python suite 4856 passed, 233 skipped; ruff clean. The generated dashboard types do not change.
+- **Not yet pushed or deployed.**
+
 **Next steps** (each its own gate):
-- the operator tries it on one real narrated draft (a paid voice only when they approve a script);
+- push and redeploy `53434611`, then the operator tries Style again on the same draft (a paid voice only when they approve a script);
 - merge.
 
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
