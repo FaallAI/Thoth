@@ -99,7 +99,8 @@ class AddClipFromAsset(StrictModel):
     background: Background | None = Field(default=None, exclude_if=lambda value: value is None)
     #: A style's shot keeps its source clip's subtitle blur, in source frames (spec 2026-11-10).
     blur_enabled: bool | None = Field(default=None, exclude_if=lambda value: value is None)
-    blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=20)] | None = Field(
+    # The clip's own cap: OCR gives a long video many timed regions.
+    blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=200)] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
     #: A style's shot of a movie that has run out holds its last frame.

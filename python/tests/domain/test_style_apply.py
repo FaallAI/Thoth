@@ -146,6 +146,19 @@ def test_a_style_keeps_the_main_videos_subtitle_blur() -> None:
     assert all(s.blur_enabled and [r.y for r in s.blur_regions] == [0.65] for s in shots)
 
 
+def test_a_style_keeps_a_long_videos_many_subtitle_blurs() -> None:
+    # A real draft's OCR gave its main video 22 timed blur regions (stage1, 2026-11-12).
+    data = payload()
+    main = next(c for c in data["clips"] if c["clip_id"] == "clip_main")
+    main["blur_enabled"] = True
+    main["blur_regions"] = [
+        {"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09, "from_frame": i * 10, "to_frame": i * 10 + 9}
+        for i in range(22)
+    ]
+    shots = [c for c in _main_shots(styled(narrated(data))) if not c.hidden]
+    assert shots and all(len(s.blur_regions) == 22 for s in shots)
+
+
 def test_a_hidden_middle_shot_is_built_around() -> None:
     once = styled(narrated())
     middle = sorted(_main_shots(once), key=lambda c: c.from_frame)[1]

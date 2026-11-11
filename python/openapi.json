@@ -211,7 +211,7 @@
                 "items": {
                   "$ref": "#/components/schemas/ClipBlurRegion"
                 },
-                "maxItems": 20,
+                "maxItems": 200,
                 "type": "array"
               },
               {
