@@ -122,8 +122,32 @@ The built-in styles come from code. A draft records its style in an optional `st
   - Style A: 78 operations, 17 shots keep all 22 regions;
   - Style B: 168 operations, 29 shots keep all 22 regions.
 
+**Operator's look at the styled draft, 2026-11-12: three findings, fixed locally.**
+
+The draft is at revision 27, Style B, voiced. The operator wrote: "teks background putih sering tertimpa", "credit … jangan di taruh di tengah … pojok bawah", and "narasi suara sering terputus". Evidence came from the stored revision and a read-only e2e session at `w1440`. The screenshot at 0:23.3 shows the kinetic caption "TERNYATA INI GARA-GARA" drawn over the white card "Beneran mau mundur?".
+
+- **Captions over the white card.**
+  - Cause: Style B's narrator card fills the frame on the overlay track, and the caption track draws above it, both in mid-frame.
+  - Fix: captions are not drawn while a card covers the frame.
+- **Credit in the middle.**
+  - Cause: an imported non-main item's bare `@account` took the `source` slot, which draws as a big mid-frame heading. On this draft that is `@cnnindonesia`.
+  - Fix: a new `credit` slot draws small in the lower left, at 12% from the bottom. That is below Style A's caption lane at 18% and clear of Style B's mid-frame words.
+  - New imports give a non-main, body-less `@account` the `credit` slot, and an older draft's body-less `@account` in `source` draws as a credit too.
+  - A quote keeps the middle.
+  - Footage credits that older drafts placed at the top (`title_top`) stay there, because that slot is also the operator's own "Top" choice.
+- **Narration cut off.** Two causes:
+  - In the preview, `<Video>` from `@remotion/media` holds the Player while it buffers (Remotion docs, "Playback issues"), and no Sequence premounted. Style B's 25 cuts each paused the Player, voice included. Fix: video Sequences premount one second ahead. Renders ignore premounting.
+  - Ducking covered only the main-video track. The three footage movies on the b-roll (`has_audio`) played at full level over the Footage narration. Fix: every video clip whose asset has sound ducks, in the first narration and in a style's re-cut. This draft gets the ducking only on its next narration or re-voice.
+- **Commits** (test-first, each RED then GREEN): `4487a1e7` ducking, `152ed361` import credit, `76c01fe6` composition.
+- **Checks:**
+  - Python 4858 passed, 233 skipped; ruff clean;
+  - dashboard 2008 passed, `tsc -b` clean, build OK;
+  - the release goldens hold no card and no `@` credit, so their pixels do not move.
+- **Not yet pushed or deployed.**
+
 **Next steps** (each its own gate):
-- the operator tries Style again on the same draft (a paid voice only when they approve a script);
+- push and redeploy, then the operator looks at the same draft again;
+- the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
 - merge.
 
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
