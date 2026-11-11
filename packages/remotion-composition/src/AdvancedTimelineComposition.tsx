@@ -133,6 +133,23 @@ const CAPTION_LANE: CSSProperties = {
 };
 /** Keeps a caption above TikTok's interface, which covers the bottom 18% of the canvas. */
 const CAPTION_SAFE_BOTTOM = 0.18;
+/** A [from, to) frame range on the canvas. */
+type Span = readonly [number, number];
+/** A source credit, small in the lower left: under Style A's captions, clear of Style B's words. */
+const CREDIT_BOTTOM = 0.12;
+const CREDIT_LANE: CSSProperties = {
+  alignItems: "flex-start",
+  justifyContent: "flex-end",
+  paddingLeft: 48,
+};
+const CREDIT: CSSProperties = {
+  borderRadius: 6,
+  backgroundColor: "rgba(0, 0, 0, 0.55)",
+  padding: "6px 14px",
+  color: "#ffffff",
+  fontSize: 30,
+  fontWeight: 600,
+};
 const UNAVAILABLE: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
@@ -260,12 +277,17 @@ export function AdvancedTimelineComposition({
   // Whether a clip is a still or a movie comes only from the document's own
   // validated asset reference, never from a preview URL or its suffix.
   const refs = new Map((document.asset_refs ?? []).map((ref) => [ref.asset_id, ref]));
+  const lanes = visibleLanes(document).filter(({ track }) => !track.hidden);
+  // A narrator card fills the frame with its own words; captions wait until it ends.
+  const cards: Span[] = lanes.flatMap(({ clips }) =>
+    clips
+      .filter((clip) => !clip.hidden && clip.kind === "text" && clip.style_slot === "card")
+      .map((clip): Span => [clip.from_frame, clip.from_frame + clip.duration_in_frames]),
+  );
   return (
     <AbsoluteFill style={CANVAS}>
       {/* Lanes are editor rows, so a hidden track still has one; the composition drops it. */}
-      {visibleLanes(document)
-        .filter(({ track }) => !track.hidden)
-        .flatMap(({ track, clips }) =>
+      {lanes.flatMap(({ track, clips }) =>
           clips
             .filter((clip) => !clip.hidden)
             .map((clip) => (
@@ -274,6 +296,9 @@ export function AdvancedTimelineComposition({
                 name={clip.clip_id}
                 from={clip.from_frame}
                 durationInFrames={clip.duration_in_frames}
+                // A video loads a second ahead: at a cut the Player would otherwise pause to buffer,
+                // and the narration stops with it (stage1, 2026-11-12). Renders ignore it.
+                premountFor={clip.kind === "video" ? Math.round(document.canvas.fps) : undefined}
               >
                 {renderClip(
                   clip,
@@ -282,6 +307,7 @@ export function AdvancedTimelineComposition({
                   document.canvas,
                   previewSources,
                   onPreviewUnavailable,
+                  cards,
                 )}
               </Sequence>
             )),
@@ -296,10 +322,18 @@ function renderClip(
   refs: Map<string, AssetRef>,
   canvas: EditDocumentV2["canvas"],
   sources: PreviewSources,
-  onPreviewUnavailable?: (assetId: string) => void,
+  onPreviewUnavailable: ((assetId: string) => void) | undefined,
+  cards: readonly Span[],
 ): ReactNode {
   switch (clip.kind) {
     case "text":
+      if (isCredit(clip)) {
+        return (
+          <AbsoluteFill data-testid="credit" style={{ ...CREDIT_LANE, paddingBottom: canvas.height * CREDIT_BOTTOM }}>
+            <span style={CREDIT}>{clip.heading}</span>
+          </AbsoluteFill>
+        );
+      }
       if (clip.style_slot === "card") {
         // Style B's narrator card: the heading alone, black on white (spec 2026-11-09, 3.6).
         return (
@@ -348,7 +382,7 @@ function renderClip(
           ? { ...CAPTION_LANE, justifyContent: "center", paddingBottom: canvas.height * 0.1 }
           : { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM };
       return (
-        <AbsoluteFill style={lane}>
+        <CaptionLane start={clip.from_frame} cards={cards} style={lane}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -371,7 +405,7 @@ function renderClip(
               )}
             </Sequence>
           ))}
-        </AbsoluteFill>
+        </CaptionLane>
       );
     }
     case "video": {
@@ -414,6 +448,28 @@ function renderClip(
 }
 
 /** Style B's words, one group at a time: each group stays until the next one starts. */
+/** A caption clip's lane, drawn only while no narrator card covers the frame. */
+function CaptionLane({
+  start,
+  cards,
+  style,
+  children,
+}: {
+  start: number;
+  cards: readonly Span[];
+  style: CSSProperties;
+  children: ReactNode;
+}) {
+  const frame = start + useCurrentFrame();
+  if (cards.some(([from, to]) => frame >= from && frame < to)) return null;
+  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+}
+
+/** A credit: the slot itself, or an older draft's bare @account left in the old middle slot. */
+function isCredit(clip: { style_slot: string; heading: string; body: string }): boolean {
+  return clip.style_slot === "credit" || (clip.style_slot === "source" && !clip.body && clip.heading.startsWith("@"));
+}
+
 function KineticCue({
   words,
   style,

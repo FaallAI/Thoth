@@ -34,13 +34,21 @@ mock.module("remotion", () => ({
     from,
     durationInFrames,
     name,
+    premountFor,
   }: {
     children?: ReactNode;
     from: number;
     durationInFrames: number;
     name?: string;
+    premountFor?: number;
   }) => (
-    <div data-testid="sequence" data-name={name} data-from={from} data-duration={durationInFrames}>
+    <div
+      data-testid="sequence"
+      data-name={name}
+      data-from={from}
+      data-duration={durationInFrames}
+      data-premount={premountFor}
+    >
       {children}
     </div>
   ),
@@ -325,6 +333,57 @@ test("a heading in the old slots draws as it always has, so old drafts and golde
     expect(screen.getByRole("heading", { level: 1 }).getAttribute("style")).not.toContain("line-clamp");
     cleanup();
   }
+});
+
+// Operator, 2026-11-12: a source's @account read as a big mid-frame title; it belongs in a corner.
+const withText = (slot: string, heading: string, body: string) => {
+  const document = documentV2();
+  const text = document.clips!.find((clip) => clip.kind === "text") as { style_slot: string; heading: string; body: string };
+  Object.assign(text, { style_slot: slot, heading, body });
+  return document;
+};
+
+test("a credit sits small in a lower corner, an old draft's bare @account too", () => {
+  for (const [slot, heading] of [["credit", "@kompastv"], ["source", "@cnnindonesia"]] as const) {
+    render(<AdvancedTimelineComposition document={withText(slot, heading, "")} previewSources={SOURCES} />);
+    const credit = screen.getByTestId("credit");
+    expect(credit.textContent).toBe(heading);
+    expect(credit.getAttribute("style")).toContain("justify-content: flex-end");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    cleanup();
+  }
+});
+
+test("a quote under an @account keeps the middle", () => {
+  render(<AdvancedTimelineComposition document={withText("source", "@viewer", "A quote")} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("credit")).toBeNull();
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("@viewer");
+});
+
+test("captions give way while a narrator card fills the frame", () => {
+  // Stage1, 2026-11-12: Style B's kinetic words ran over its white card.
+  const document = withText("card", "Beneran mau mundur?", "");
+  const text = document.clips!.find((clip) => clip.kind === "text")!;
+  Object.assign(text, { from_frame: 0, duration_in_frames: 60 });
+  document.tracks!.find((track) => track.track_id === "track_hidden")!.hidden = false;
+
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.getByTestId("text-card")).toBeDefined();
+  expect(screen.queryAllByTestId("caption-cue")).toHaveLength(0);
+  cleanup();
+
+  currentFrame.value = 70;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.getAllByTestId("caption-cue")).toHaveLength(1);
+});
+
+test("a video mounts a second before its cut so the preview never stops to load it", () => {
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  const premount = (name: string) =>
+    screen.getAllByTestId("sequence").find((node) => node.getAttribute("data-name") === name)!.getAttribute("data-premount");
+  expect(premount("clip_video")).toBe("30");
+  expect(premount("clip_text")).toBeNull();
 });
 
 test("two lines of heading hold about as many characters as the canvas is wide", () => {
