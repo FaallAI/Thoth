@@ -61,9 +61,11 @@ def style_operations(
     sentence_ends: Mapping[BeatId, Sequence[int]] | None = None,
     card_lines: Mapping[BeatId, str] | None = None,
     recut: set[str] | None = None,
+    card_at: Mapping[BeatId, int] | None = None,
 ) -> list[TimelineOperation]:
     """The operations that put `document` in `template`'s style, the style record last.
-    `recut` limits the cuts to those beats (a re-voice, operator 2026-11-10)."""
+    `recut` limits the cuts to those beats (a re-voice, operator 2026-11-10). `card_at` is the
+    frame the voice says a beat's card line: its card shows there instead of between facts."""
     fps = document.canvas.fps
     roles = roles_by_item or {}
     beats = clip_beats(document, roles_by_item)
@@ -189,8 +191,10 @@ def style_operations(
             look_on(clip.clip_id, clip.asset_id, clip.duration_in_frames, look, card=True)
 
         line = (card_lines or {}).get(span.beat)
+        spoken = None if span.beat == "hook" else (card_at or {}).get(span.beat)
         between = (
             bool(line)
+            and spoken is None
             and span.beat != "hook"
             and template.cuts.card_between_facts
             and text_track is not None
@@ -310,7 +314,12 @@ def style_operations(
                         )
                     look_on(clip_id, shot.source.asset_id, shot.duration, look, card=False)
         if line and not placed_between:
-            card(span.beat, line, span.start_frame, min(card_frames, span.duration_in_frames))
+            length = min(card_frames, span.duration_in_frames)
+            end = span.start_frame + span.duration_in_frames
+            at = span.start_frame
+            if spoken is not None:
+                at = max(span.start_frame, min(spoken, end - length))
+            card(span.beat, line, at, length)
 
         if look.heading_place is not None:
             operations.extend(

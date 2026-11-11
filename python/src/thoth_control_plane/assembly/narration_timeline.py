@@ -13,6 +13,7 @@ which is how one beat is re-voiced. Clip IDs derive from beats, so the result is
 from __future__ import annotations
 
 import math
+import re
 from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -364,8 +365,15 @@ def narrate_document(
         beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
         for beat, start in starts.items()
     }
+    # A card shows while the voice says its line, when it says it.
+    card_at = {
+        beat: frame
+        for beat, line in (card_lines or {}).items()
+        if beat in starts
+        and (frame := spoken_at(line, voices[beat].words, starts[beat], fps)) is not None
+    }
     operations = style_operations(
-        narrated_document, style, roles_by_item, ends, card_lines, recut=only
+        narrated_document, style, roles_by_item, ends, card_lines, recut=only, card_at=card_at
     )
     styled = apply_edit_operations(
         narrated_document,
@@ -410,6 +418,29 @@ def sentence_ends(words: Sequence[WordTiming], start: int, fps: float) -> list[i
         for word in words
         if word.text.rstrip().endswith((".", "?", "!", "\u2026"))
     ]
+
+
+def _tokens(text: str) -> list[str]:
+    return [token for token in re.split(r"[^\w-]+", text.casefold()) if token]
+
+
+def spoken_at(line: str, words: Sequence[WordTiming], start: int, fps: float) -> int | None:
+    """The frame the voice first says a word of the sentence a card line repeats: the sentence
+    holding most of the line's words (at least half; on a tie the shorter, closer one), or None
+    when no sentence does (stage1, 2026-11-12)."""
+    wanted = set(_tokens(line))
+    best: tuple[int, float, int] | None = None  # (shared words, closeness, frame)
+    sentence: list[WordTiming] = []
+    for word in words:
+        sentence.append(word)
+        if word.text.rstrip().endswith((".", "?", "!", "…")) or word is words[-1]:
+            said = [w for w in sentence if wanted & set(_tokens(w.text))]
+            shared = len(wanted & {t for w in said for t in _tokens(w.text)})
+            score = (shared, shared / len(sentence))
+            if 2 * shared >= len(wanted) > 0 and (best is None or score > best[:2]):
+                best = (*score, start + round(said[0].start_seconds * fps))
+            sentence = []
+    return None if best is None else best[2]
 
 
 def _old_windows(

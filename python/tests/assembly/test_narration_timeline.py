@@ -608,6 +608,79 @@ def test_a_styled_narration_places_the_card_lines() -> None:
     assert [c.heading for c in cards] == ["Kok bisa ya?"]
 
 
+def _timed(*spans: tuple[str, float, float]) -> list[WordTiming]:
+    return [WordTiming(text=t, start_seconds=a, end_seconds=b) for t, a, b in spans]
+
+
+def test_a_card_shows_when_the_voice_says_its_line() -> None:
+    # Stage1, 2026-11-12: the card came at the beat's start while the voice said something else.
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    main = VoicedBeat(
+        beat="main",
+        asset=audio("asset_voice_main", 5.0),
+        duration_seconds=5.0,
+        words=_timed(
+            ("Ternyata", 0.0, 0.4),
+            ("ini", 0.5, 0.7),
+            ("gara-gara", 0.8, 1.4),
+            ("kabar.", 1.5, 2.0),
+            ("Waduh,", 2.6, 3.0),
+            ("beneran", 3.1, 3.5),
+            ("mau", 3.6, 3.8),
+            ("mundur?", 3.9, 4.6),
+        ),
+    )
+    styled = narrate_document(
+        draft(),
+        [VOICES[0], main, VOICES[2]],
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"main": "Beneran mau mundur?", "reactions": "Tidak ada yang cocok"},
+    )
+    cards = {
+        c.heading: c.from_frame
+        for c in styled.clips
+        if isinstance(c, TimelineTextClip) and c.style_slot == "card"
+    }
+    voice = next(c for c in styled.clips if c.clip_id == "clip_narration_main")
+    # "beneran", the first word of the line the voice says.
+    assert cards["Beneran mau mundur?"] == voice.from_frame + round(3.1 * FPS)
+    # A line the voice never says keeps the old place.
+    assert "Tidak ada yang cocok" in cards
+
+
+def test_a_card_lands_on_its_closest_sentence_at_the_first_word_it_repeats() -> None:
+    # The stored draft of 2026-11-12: a long sentence shared as many words as the short reaction.
+    from thoth_control_plane.assembly.narration_timeline import spoken_at
+
+    words = _timed(
+        ("pakai", 0.0, 0.3),
+        ("dokumen", 0.4, 0.8),
+        ("dari", 0.9, 1.0),
+        ("SD", 1.1, 1.3),
+        ("sampai", 1.4, 1.7),
+        ("S1.", 1.8, 2.2),
+        ("Hah,", 2.5, 2.7),
+        ("sampai", 2.8, 3.1),
+        ("SD", 3.2, 3.4),
+        ("juga", 3.5, 3.6),
+        ("dibawa?", 3.7, 4.2),
+        ("karena", 4.5, 4.8),
+        ("menentukan", 4.9, 5.4),
+        ("siapa", 5.5, 5.8),
+        ("yang", 5.9, 6.0),
+        ("bakal", 6.1, 6.3),
+        ("bertahan.", 6.4, 7.0),
+    )
+    assert spoken_at("Sampai dokumen SD dibawa?", words, 100, FPS) == 100 + round(2.8 * FPS)
+    assert spoken_at("Siapa yang bakal bertahan?", words, 100, FPS) == 100 + round(5.5 * FPS)
+    assert spoken_at("Netizen kok curiga?", words, 100, FPS) is None
+
+
 def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
     # Final review (operator, 2026-11-10): the style cuts once, from its first voice; a re-voice
     # only retimes, so shots the operator changed afterwards stay as they left them.
