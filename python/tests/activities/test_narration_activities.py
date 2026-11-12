@@ -198,8 +198,9 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
     async def transcribe(_path: Path) -> list[TranscriptSegment]:
         return [TranscriptSegment(text="kucing itu lari", start_seconds=0.0, end_seconds=1.0)]
 
-    async def upload_audio(project: str, _audio: bytes, _media: str) -> AssetRef:
+    async def upload_audio(project: str, audio: bytes, _media: str) -> AssetRef:
         seen["uploads"] += 1
+        seen.setdefault("uploaded", []).append(audio)
         return AssetRef(
             asset_id=f"asset_voice_{seen['uploads']}",
             project_id=project,
@@ -625,3 +626,23 @@ def test_a_styled_script_keeps_the_title_card_for_its_preview() -> None:
     run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
     fps = seen["documents"].document.canvas.fps
     assert seen["store"].intro_frames == math.ceil(0.4375 * fps)
+
+
+def test_every_voice_is_brought_to_one_level_before_it_is_stored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Operator, 2026-11-12: the narration was too quiet, and its beats ran 4 dB apart.
+    levelled: list[str] = []
+
+    def level(audio: bytes, media_type: str, **_: object) -> bytes:
+        levelled.append(media_type)
+        return b"LEVEL:" + audio
+
+    monkeypatch.setattr("thoth_control_plane.activities.narration.normalize_loudness", level)
+    built, seen = ports()
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(activities.voice(STEP))
+
+    assert len(levelled) == 3
+    assert seen["uploaded"] and all(audio.startswith(b"LEVEL:") for audio in seen["uploaded"])
