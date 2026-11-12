@@ -340,3 +340,23 @@ class StyleTemplateRow(EditorBase):
     revision: Mapped[int] = mapped_column(Integer, primary_key=True)
     body: Mapped[Any] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created_at()
+
+
+class WorkspaceAssetRow(EditorBase):
+    """Editor migration 0031: a workspace's own asset library (spec 2026-11-13)."""
+
+    __tablename__ = "workspace_assets"
+
+    workspace_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    asset_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    kind: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text)
+    labels: Mapped[Any] = mapped_column(JSONB, server_default="{}")
+    media_type: Mapped[str] = mapped_column(Text)
+    location: Mapped[str] = mapped_column(Text)
+    checksum: Mapped[str] = mapped_column(Text)
+    duration_seconds: Mapped[float | None] = mapped_column(Double, nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_audio: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    created_at: Mapped[datetime] = _created_at()

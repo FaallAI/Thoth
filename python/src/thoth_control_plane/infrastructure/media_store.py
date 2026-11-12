@@ -25,8 +25,10 @@ if TYPE_CHECKING:
 _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 #: Workflow media (`reports`), editor uploads, render inputs and outputs, and the volume archive.
 #: `glance/` holds each asset's derived filmstrip or peaks (Tier 3b); the upload sweep skips it.
-#: `sfx/` holds the shared SFX library that projects copy from.
-_PREFIXES = frozenset({"reports", "uploads", "renders", "work", "archive", "glance", "sfx"})
+#: `sfx/` holds the shared SFX library that projects copy from; `library/` each workspace's own.
+_PREFIXES = frozenset(
+    {"reports", "uploads", "renders", "work", "archive", "glance", "sfx", "library"}
+)
 _CHUNK = 1024 * 1024
 
 
