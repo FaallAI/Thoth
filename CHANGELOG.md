@@ -199,10 +199,14 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - Python 4863 passed, 233 skipped; Postgres-backed 213 passed;
   - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
   - the composition was not touched.
-- **Not yet pushed or deployed.**
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - The push of `c5af66f5` passed its push run's first jobs, but its PR run failed **Validate image build**: the offline smoke (`docker/test-renderer-offline.sh`) still expected the post card and profile page copied onto the timeline, seven b-roll clips, and the 5c-2 scenes.
+  - `4b3967bf` updates the smoke: both are `decided` at import with no clip, five b-roll clips, the creator clip and photo in scenes 2 and 3, and a `clip_credit` holding an `@account`.
+  - CI: PR run 43168191649 green (Validate image build included); push run 43168186380 green, with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-cbec24f5.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
 
 **Next steps** (each its own gate):
-- push and redeploy; then remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
+- remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
 - merge.
