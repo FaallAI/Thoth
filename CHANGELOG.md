@@ -46,6 +46,28 @@ The operator asked for one place to keep their own reusable media for every draf
 - `rg "list_sfx|seed_sfx|listSfx|addSfxToProject"` over `python/src` and `dashboard/src` finds nothing.
 - Isolation is tested at every seam: repository, service, routes and script writer. Another workspace's item answers 404, and read scope cannot upload or delete.
 
+**Final review** (one fresh reviewer over the whole branch): no Critical. All three Important findings were fixed test-first in `c7f59537`, each test failing before its fix:
+- **Parallel uploads of one file raced to a 503.** The add now uses `INSERT … ON CONFLICT DO NOTHING` and reads the winner's row; the concurrent test failed 3 of 3 runs before the fix.
+- **Long or emoji file names were refused with 422.** The header length limit is gone, and the name is trimmed to 120 characters.
+- **A kind change could turn an image, a clip or a long backsound into an SFX.** It is now refused with 422 `kind_mismatch`, and the script writer only offers audio.
+
+After the fixes: `make test` 4900 passed, 240 skipped; Postgres 38 passed; lint clean.
+
+**Calls made during the build:**
+- the CLI count test runs against `import_directory`;
+- labels are edited as a `tags` list inside them;
+- the library stores `duration_seconds`, not frames;
+- `assets/meme` and `assets/ui` reach the container by `docker cp` at import, not in the image.
+
+**Deferred minors:**
+- add-to-draft copy failures answer 500, not 503;
+- a failed delete of the duplicate object on the dedupe path answers 503;
+- a cancellation after the row commits leaves a row without its object;
+- the Studio panel's "+" fails silently;
+- rename drops text before a slash;
+- "Delete selected" includes selected items hidden by a filter, although its count shows them;
+- the kind select offers every kind, and a refused change snaps back silently.
+
 **Not run:** the e2e check `e2e/tests/assets-page.e2e.ts` targets stage1, which does not serve `/library` until this branch is deployed.
 
 **Next steps** (each its own gate):
