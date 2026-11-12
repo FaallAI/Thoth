@@ -62,10 +62,12 @@ Branch `feat/narration-loudness`, from master `29c7ceb3`.
 
 The beats now sit 0.5 dB apart, with true peaks at −1.7 dB. The voice and narration activity tests pass (52).
 
-**Not yet pushed or deployed.**
+**Pushed and deployed, 2026-11-12** (operator: "ya boleh"):
+- **PR #129:** `42b843a8` opened it. PR run 43237976011 is green with Validate image build and Template release parity. Push run 43237959490 is green, with the images published and the non-live smoke passing.
+- **Deploy:** `make deploy` exited 0, web answered 200, and the four services run the new digests. The worker holds `TARGET_LUFS = -14.0`. The rollback copy is `pins-1a59f61e.env`.
+- **Health:** api and worker showed 0 restarts, 0 5xx and 0 error lines.
 
 **Next steps** (each its own gate):
-- push and open the PR, then CI and a redeploy to stage1, each with the operator's authorisation;
 - the operator hears it on the next narration or re-voice of a draft (a paid voice only with their approval);
 - then planner stage 1 (roadmap step 2): a short design with the operator first.
 
