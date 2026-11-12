@@ -31,6 +31,8 @@ type Props = {
   client: PromptProposalPanelClient;
   projectId: string;
   stageId: string;
+  /** A style's script stage: the style template whose starter it begins from (2026-11-10). */
+  variant?: string;
   savedTemplateId: string | null;
   savedTemplateRevision: number | null;
   savedBindingRevision: number | null;
@@ -90,7 +92,7 @@ export function PromptProposalPanel(props: Props) {
     const key = generateReasonKey(reason);
     return key ? t(key) : null;
   };
-  const { client, projectId, stageId, formDirty, online, onApplied, onUseStarter, onCreateScratch } =
+  const { client, projectId, stageId, variant, formDirty, online, onApplied, onUseStarter, onCreateScratch } =
     props;
   const [instructions, setInstructions] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("en-US");
@@ -382,7 +384,7 @@ export function PromptProposalPanel(props: Props) {
   const useStarter = () => {
     const generation = generationRef.current;
     void client
-      .getPromptStarter(stageId)
+      .getPromptStarter(stageId, variant)
       .then((starter) => {
         if (generationRef.current !== generation) return;
         onUseStarter(starter.body, starter.language);

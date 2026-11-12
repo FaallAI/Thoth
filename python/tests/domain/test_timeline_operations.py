@@ -331,6 +331,9 @@ def test_timeline_operations_carry_no_locator_field_in_their_schema() -> None:
         "position",
         "source_role",
         "background",
+        "blur_enabled",
+        "blur_regions",
+        "hold_after_source",
     }
 
 
@@ -1954,3 +1957,13 @@ def test_add_clip_from_asset_can_carry_a_background() -> None:
         resolved_assets={source.asset_id: source},
     )
     assert find_clip(result, "clip_new").background == "blur_fill"
+
+
+def test_set_document_style_records_and_clears_it() -> None:
+    styled = apply_edit_operations(
+        document_v2_fixture(),
+        [op("set_document_style", style={"template_id": "style_b", "revision": 1})],
+    )
+    assert styled.style is not None and styled.style.template_id == "style_b"
+    cleared = apply_edit_operations(styled, [op("set_document_style", style=None)])
+    assert cleared.style is None and "style" not in cleared.model_dump()

@@ -2,6 +2,261 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-10 - Style templates: Style A and Style B as data
+
+Branch `feat/style-templates`, stacked on `feat/studio-effects-layer` (PR #127, not yet merged).
+- **Spec:** `docs/superpowers/specs/2026-11-10-style-templates-design.md`, approved by the operator on 2026-11-10.
+- **Plan:** `docs/superpowers/plans/2026-11-10-style-templates.md`.
+- **Execution:** done natively, then one fresh review of the whole branch and one fix pass.
+
+**What changed.** A style is now data, not code. A style template holds:
+- a look per Story beat: move, blur-fill, dim, card emphasis and heading place;
+- cut rules: the longest shot, cuts on sentence ends, materials taking turns, and cards between facts;
+- a caption style;
+- how the narration speaks: its own script prompt, target length, SFX count, and card lines.
+
+Style A (IsseiNugroho) and Style B (WinNews) are the two built-in templates. Choosing one in Studio's new **Style** control:
+- asks first, saying the cuts, look and hand edits are replaced and that no voice is made before an approval with its cost;
+- rebuilds the draft from its own materials as one revision: full-frame picture clips become the style's shots, positioned cards keep their place and take the look, and locked or hidden clips, narration, music, SFX and clips with no beat stay;
+- starts a new narration whose script is written in the style.
+
+While that script waits for approval, the preview plays a **cut preview**: the draft as the style will cut it, using timing estimated from the script, and nothing is saved. After approval, the voice's real sentence ends place the saved cuts, and the main video's new shots duck under the voice as before.
+
+**Undo and narration.**
+- One Undo restores the draft from before the style, and brings back the finished narration the style replaced, kept in the new `narrations.previous` column (migration 0030).
+- A plain restore is refused while a narration runs, so a style's Undo has its own route. That route stops the style's narration only while its script waits for approval, and otherwise waits.
+- A workflow's terminal mark now carries its workflow id, so a cancelled style narration cannot overwrite the narration the Undo brought back.
+- A styled draft is cut once, from its first voice. Later re-voices only retime, so hand edits stay.
+
+**Prompt Lab.** Each style's script prompt is one `style_script` stage. Its project binding is kept per style template (`variant`), so a copied style later needs no code change. The style stages are listed in Prompt Lab as "Style A script" and "Style B script". The model is the narration script's own.
+
+**Storage.** Migrations 0028, 0029 and 0030:
+- add `style_templates` for a workspace's own templates, keyed by workspace (none exist until the style editor);
+- add the `style_script` stage;
+- give the bindings a `variant` key, `''` for every existing binding;
+- give each narration a `previous` copy, for a style's undo, and `intro_frames`, for a styled draft's cut preview.
+
+The built-in styles come from code. A draft records its style in an optional `style` field, left out when unset.
+
+**Rollback note.**
+- Older images never read the new table or columns, so the migrations may stay. Roll back by restoring the pins and `compose up`, never `make deploy` with old pins.
+- A styled draft will not open on older images. Its `style` field, and a style shot's held last frame, are unknown there.
+- A narration whose script has card lines (every Style B script) will not load there either.
+- Drafts and narrations that never used a style stay safe.
+
+**Final review, by a fresh reviewer: 2 Critical, 5 Important, 14 Minor.** Five Minors were re-graded Important. Every fix was test-first:
+- **Subtitle blur.** A style dropped the main video's subtitle blur. Shots now keep their source's blur and crop.
+- **Hidden or locked shots.** A hidden or locked shot made the rebuild overlap it, refusing the style or failing a paid re-voice. The rebuild now works around kept clips.
+- **Card lines.** They piled up on re-voice and re-apply. Old style cards are now replaced.
+- **Switching styles.** A switch left the last style's look on cards. Cards now take absolute values.
+- **Sentence ends.** The main video ignored other beats' sentence ends. All sentence ends are now used.
+- **Narration on undo.** Undo lost the replaced narration. It is now restored, guarded against the workflow race.
+- **Style prompts.** A style's script stage had no starter in Prompt Lab. It now starts from the style's own.
+- **Smaller fixes:** apply now reports a narration failure without losing the saved look; undo answers when the narration will not stop; the style list is read once; the confirmation takes focus and closes on Escape; one write e2e named what it really proves.
+- **Two further fixes:** tall pictures take Style A's pan or scroll (the reviewer disagreed with my first ruling), and a re-voice no longer re-cuts a styled draft (operator, from a side note).
+
+**Minors, fixed after the review (operator, 2026-11-10).** Each was test-first:
+- Captions page by the style's words per caption, so Style B shows three words.
+- The cut preview skips the main video's title card, as the first voice does. A styled script stores the card's frames, and the voice reuses them.
+- A single main video that runs out holds its last frame, instead of starting again.
+- Prompt Lab refuses a variant that does not fit its stage. A style prompt that falls back because its store is down logs a warning.
+- A plain prompt binding locks the same key its proposals lock.
+- `style_templates` is keyed by workspace.
+- The rollback note above covers styled drafts.
+- Redo after a style's undo applies the style again, so its narration starts.
+
+**Re-voice of a styled draft (operator, 2026-11-10).**
+- A re-voice re-cuts a beat by the style when its voice changed and its shots are as the last write left them. The draft keeps a fingerprint of each beat's shots in `style.cuts`.
+- A beat with any hand edit only stretches. The re-voice confirmation names it before the voice is paid for, and the Style control names it afterwards.
+- Applying the style again re-cuts every beat.
+
+**Verification.**
+- **Python:** `make test` gives 4855 passed and 233 skipped. `make test-postgres` gives 213 passed. Lint is clean.
+- **Dashboard:** 2003 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
+- **Renderer and composition:** 262 tests pass.
+- **Read-only e2e against a local dev server of this branch, at 1440:** the 41 existing checks pass.
+- **The new Style check fails there, as expected:** the dev server reaches stage1's API, which answers 404 for `/styles` until this branch is deployed. It runs after the deploy.
+- **The write checks** (`e2e/tests-write/styles.e2e.ts`) are written but not run.
+- **No paid call was made.** Providers are stubbed in tests.
+
+**Merged, pushed and deployed on 2026-11-10 (operator: merge #127, push and PR, deploy, read-only and write e2e).**
+- **PR #127** was merged as `b565cbf5`. This branch was rebased onto it with an identical tree, pushed, and opened as PR #128.
+- **Deploy:** stage1 runs the CI images of `824ca431`, deployed detached. No workflow was running, and `make deploy` exited 0. Web answered 200, the editor database is at migration 0030, the worker logged no errors, and the api returned no 5xx responses. The rollback copy is `pins-31d4fc65.env`.
+- **Read-only e2e at w1440, on the effects deploy's set of four files:** 41 of 42 pass. The new Style check failed because the confirmation opened inside the one-row header: its text was cut and the panel below took the clicks (screenshot judged at 1440x900).
+- **Fix, `a7ae5771`, not yet deployed:** the confirmation and the Style notes float under the control, and a note closes with Got it. The check also read the revision before the draft had loaded, and now reads it after. On this branch's local dev server at dev1440, the check passes, and the screenshot shows the whole dialog with both buttons.
+- **Every file on all six stage1 targets:** 170 of 294 pass. Each test sets its own width, so a target only picks the language. The 124 failures sort as follows:
+  - **English tests on the two Indonesian targets (86):** they look for English names, so they fail by design.
+  - **`studio-id` on the four English targets (12):** they look for Indonesian names, so they fail by design.
+  - **`story-assist` everywhere (18):** it needs a model key.
+  - **The Style check (4):** the bug above.
+  - **Two timing failures (4 rows):** the asset-list check, and `studio-id`'s Timeline check on `w1024id`. The narrated draft's project holds 132 assets, mostly workflow imports, including 12 from 03:47 UTC today. The library loads 20 at a time and fetches the next page only while a clip's asset is still missing, so under a full parallel run the draft's narration row arrives after the 5 s wait.
+- **Compared against the previous deploy, `31d4fc65`:** its dashboard and this branch's ran on the same dev server, against the same stage1 data, with the same commands.
+  - **Alone, 5 runs each:** both pass 15 of 15.
+  - **Under the full parallel load:** 116 and 119 failures, and the same set of test titles fails on both. The only difference is which target a flaky test happened to fail on.
+  - **The Style check** fails on the old dashboard because that dashboard has no Style control.
+  - **Conclusion:** this deploy added no failure beyond the Style dialog. The slow asset library is older than this deploy and is carried forward.
+- **At 430,** the Style control is hidden in the phone header, like the narration chip.
+- **Write e2e:** held back, because it applies a style through the same confirmation. A one-day write token was minted for it (the old one expired at 11:48 UTC). The throwaway project holds 480 drafts before the run.
+
+**Fix pushed and redeployed on 2026-11-10 (operator: "ya lanjutkan").**
+- **Push:** `49a33858` went to PR #128. CI run 42863502730 is green and published the images.
+- **Deploy:** stage1 runs `49a33858`, deployed detached. No workflow was running, and `make deploy` exited 0. Web answered 200, and the worker, api, web and renderer run the new digests. The rollback copy is `pins-824ca431.env`.
+- **After the deploy:** 0 error lines in the worker and 0 api 5xx. The style routes answered 200: 45 lists, 3 applies and 1 undo.
+- **Read-only e2e:** 42 of 42 pass at `w1440` on the four-file set, the Style check included. Indonesian `studio-id`: 3 of 3 at each of `w1440id` and `w1024id`.
+- **Live check at 1440x900, judged from a screenshot:** choosing Style A opens "Apply Style A?" under the control, with its whole text and both buttons. Cancel closed it, and the draft stayed at revision 20 with no style.
+- **Write e2e** (`tests-write/styles.e2e.ts`, `rw1440`): 2 of 2 pass:
+  - Style A rebuilds a draft, and one Undo clears the style;
+  - Style B is recorded, and Style A then replaces it.
+- **What stays behind:** the throwaway project went from 480 to 482 drafts; the two blank test drafts stay there. No narration, model or voice call was made: the worker logged no provider or script lines.
+
+**Operator's first real draft, 2026-11-12: Internal Server Error, fixed locally.**
+- **Symptom:** every Style choice on draft `edoc_98b423ae…` answered 500. The api log shows a `ValidationError` for `AddClipFromAsset.blur_regions`: "at most 20 items, not 22".
+- **Cause:** a draft clip may hold 200 subtitle blur regions, since OCR gives a long video many timed ones. The operation a style uses to copy them onto each shot capped the list at 20 (added in eb521be8). The error came before any write, so the draft was left as it was.
+- **Fix** (`53434611`, test-first): the operation takes the clip's own cap of 200, and `openapi.json` is regenerated. The new test `test_a_style_keeps_a_long_videos_many_subtitle_blurs` failed with the stage1 error, then passed.
+- **Checks:** full Python suite 4856 passed, 233 skipped; ruff clean. The generated dashboard types do not change.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya push dan redeploy"):
+  - `af10fb5a` went to PR #128, and CI run 43068329173 is green;
+  - deploy: no workflow was running, `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-49a33858.env`;
+  - api and worker run with 0 restarts. Five minutes after the deploy they showed 0 api 5xx and 0 worker error lines. The api container holds the 200 cap.
+- **Dry run on the real draft** (revision 25, 14 clips, 22 blur regions, 15 roles): the stored revision and inventory were read with SELECTs, and `style_operations` was applied in memory in the api container. Nothing was saved, and no provider was called:
+  - Style A: 78 operations, 17 shots keep all 22 regions;
+  - Style B: 168 operations, 29 shots keep all 22 regions.
+
+**Operator's look at the styled draft, 2026-11-12: three findings, fixed locally.**
+
+The draft is at revision 27, Style B, voiced. The operator wrote: "teks background putih sering tertimpa", "credit … jangan di taruh di tengah … pojok bawah", and "narasi suara sering terputus". Evidence came from the stored revision and a read-only e2e session at `w1440`. The screenshot at 0:23.3 shows the kinetic caption "TERNYATA INI GARA-GARA" drawn over the white card "Beneran mau mundur?".
+
+- **Captions over the white card.**
+  - Cause: Style B's narrator card fills the frame on the overlay track, and the caption track draws above it, both in mid-frame.
+  - Fix: captions are not drawn while a card covers the frame.
+- **Credit in the middle.**
+  - Cause: an imported non-main item's bare `@account` took the `source` slot, which draws as a big mid-frame heading. On this draft that is `@cnnindonesia`.
+  - Fix: a new `credit` slot draws small in the lower left, at 27% from the bottom (`7185f3d7`). A first cut at 12% sat inside TikTok's bottom band; a side review caught it against Studio's safe zone (top 10%, bottom 18%). At 27% it clears that band and two lines of the low caption lane, which starts at 18%; TikTok's buttons rule out the right edge.
+  - Checked live on the local build (`dev1440`, read-only) at 0:26.3 with the safe zone on: `@cnnindonesia` sits lower left above the band, and the caption "PIHAK ISTANA" stays mid-frame. At 0:23.3 the white card shows alone.
+  - New imports give a non-main, body-less `@account` the `credit` slot, and an older draft's body-less `@account` in `source` draws as a credit too.
+  - A quote keeps the middle.
+  - Footage credits that older drafts placed at the top (`title_top`) stay there, because that slot is also the operator's own "Top" choice.
+- **Narration cut off.** Two causes:
+  - In the preview, `<Video>` from `@remotion/media` holds the Player while it buffers (Remotion docs, "Playback issues"), and no Sequence premounted. Style B's 25 cuts each paused the Player, voice included. Fix: video Sequences premount one second ahead. Renders ignore premounting.
+  - Ducking covered only the main-video track. The three footage movies on the b-roll (`has_audio`) played at full level over the Footage narration. Fix: every video clip whose asset has sound ducks, in the first narration and in a style's re-cut. This draft gets the ducking only on its next narration or re-voice.
+- **Card out of step with the voice** (side review, operator agreed). A card showed at its beat's start, or between facts, while the voice said something else, and hiding the captions under it made that worse.
+  - Example: "Beneran mau mundur?" showed at 23.4 s, but the voice says it at 31.4 s.
+  - Fix (`4bff62b3`): a card shows from the first word of the voice sentence that holds most of its line, at least half the line's words. On a tie the shorter sentence wins. A line the voice never says keeps the old place, and the hook's card stays at the hook's start.
+  - On this draft's stored timing the cards would land at:
+    - Main: 6.0 → 21.9 s, on "Hah, sampai SD juga dibawa?";
+    - Evidence: 23.4 → 31.9 s, on "beneran mau mundur?";
+    - Footage: 50.8 → 47.9 s, on "siapa yang bakal bertahan".
+  - Reactions ("Netizen kok curiga?") matches no sentence and stays at the beat's start, where the voice says "Netizen langsung heboh".
+  - It takes effect on the draft's next narration or re-voice.
+- **Commits** (test-first, each RED then GREEN): `4487a1e7` ducking, `152ed361` import credit, `76c01fe6` composition, `7185f3d7` credit height, `4bff62b3` card timing.
+- **Checks:**
+  - Python 4860 passed, 233 skipped; ruff clean;
+  - dashboard 2009 passed, `tsc -b` clean, build OK;
+  - no release golden holds an `@` credit. The earlier note here, that no golden holds a card, was wrong: `effects-v1` does (see below).
+- **CI parity gate on the push of `84cf4a2b` (run 43083333453): failed.**
+  - Template release parity: `vertical_text_story-v1` frame 30 previewed off its golden and its own render by at most 2 levels on 1135 pixels; `story_mode-v1` frame 30 by 1 level on 1165 pixels. Renders were unchanged.
+  - The operator chose to investigate before deploying.
+  - Local F1 A/B (`D:/thoth-tmp/fixes/f1_verify.sh`):
+    - HEAD failed both releases at frame 30;
+    - HEAD without premount passed both.
+  - Cause: frame 30 is where `clip_motion` (from 60) starts premounting. A premounted copy of a movie already on screen (`clip_spare`, same asset) shifts that movie's preview pixels. Remotion hides the premounted Sequence with `display: none`, so it is not compositing; the two players decode the same file.
+  - `@remotion/media` `<Video>` always holds the Player while it buffers, and its docs offer premounting as the remedy.
+  - Fix (`ffeb3f48`): Studio's Player passes `premount` only while it plays. A held frame (Studio paused, the parity harness) mounts nothing early and matches the render. Playback still loads the next video a second ahead. Tests: dashboard 2010 passed, renderer 262 passed, renderer typecheck clean.
+- **`effects-v1` golden re-approved (operator, 2026-11-12: "ya di setujui").**
+  - With the fix, `effects-v1` frame 119 no longer matched its 2026-11-10 golden: that golden drew the boxed caption "Small subtitles on a solid box." over the white card, the very overlap the operator reported. The candidate hides it; preview and render still match exactly.
+  - The candidate frame was shown side by side with the old golden before promotion.
+  - Promotion (`D:/thoth-tmp/fixes/f6_promote.sh`):
+    - redrawn at `ffeb3f48` with no network;
+    - every redrawn frame byte-identical to the frames shown;
+    - promoted from `run_87f98e836e96312d` to golden set `sha256-56f91f71…`, committed in `9b226703`;
+    - all three releases then passed twice on fresh roots.
+  - The first build attempt failed on the network, before any code ran: Docker Hub was unreachable over IPv6 and reachable over IPv4. The retry built.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh").
+  - `cbec24f5` went to PR #128. CI run 43154585344 is green, Template release parity included.
+  - Deploy: no workflow was running, `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-af10fb5a.env`.
+  - After the deploy, api and worker showed 0 restarts, 0 api 5xx and 0 worker error lines.
+  - Read-only e2e at `w1440` on the operator's draft (revision 27, unchanged), safe zone on:
+    - at 0:23.3 the white card "Beneran mau mundur?" shows alone, with no caption over it;
+    - at 0:26.3, `@cnnindonesia` sits small in the lower left, above TikTok's band, and the caption "PIHAK ISTANA" stays mid-frame.
+
+**The post card and profile page leave the timeline (operator, 2026-11-12: "post, dan profile page tuh sebenarnya tidak perlu masuk ke content juga! jadi jelek!").** Fixed locally, test-first.
+- Operator's choices:
+  - both stay in Materials, so a person can still add one;
+  - the main video's `@account` credit stays in its corner;
+  - the two profile-page shots come off the operator's draft after the deploy.
+- `ebd66b5a`:
+  - `UNPLACED_ROLES` (post_card, profile_page): no scene and no overlay; their inventory items start `excluded` with no scene;
+  - the first `@account` among the post, profile page and profile card rides over the main scene as `clip_credit` (slot `credit`, role `main`, the title's span);
+  - the profile and comment cards no longer wait out a post card that is not on screen: only an attached post counts. The Postgres test showed the profile card at frame 223 before the fix and frame 90 after;
+  - a run missing either no longer files a "Not captured" gate item, which would have held the render on a decision about material nobody places. The now-unused platform sets were removed.
+- `50af65cf`: a credit is never moved as a heading, neither by a style's heading place nor by Story's Heading position, which now skips credits.
+- **Evidence beat check** (side review, operator asked to confirm). The stored draft's beats were computed in memory, with no writes:
+  - Main spans 0–44.8 s, so the main video runs under Evidence and Reactions.
+  - Without the profile-page shots, Evidence (23.4–32.9 s) keeps the profile card, its voice, captions and credit.
+  - Without any evidence card, only the voice, captions and credit remain over the main video.
+  - In a new draft with no evidence card, narration asks only for the beats present, so Evidence is neither voiced nor left empty.
+- **Checks:**
+  - Python 4863 passed, 233 skipped; Postgres-backed 213 passed;
+  - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
+  - the composition was not touched.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - The push of `c5af66f5` passed its push run's first jobs, but its PR run failed **Validate image build**: the offline smoke (`docker/test-renderer-offline.sh`) still expected the post card and profile page copied onto the timeline, seven b-roll clips, and the 5c-2 scenes.
+  - `4b3967bf` updates the smoke: both are `decided` at import with no clip, five b-roll clips, the creator clip and photo in scenes 2 and 3, and a `clip_credit` holding an `@account`.
+  - CI: PR run 43168191649 green (Validate image build included); push run 43168186380 green, with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-cbec24f5.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
+
+**The main title ran past the frame (operator, 2026-11-12: "kenapa mengenerate heading terlalu panjang jadinya head di video tidak tampil semua").** Fixed locally, test-first (`ab5b6094`). The operator chose a headline written by the narration model.
+- **Cause:** the title was never written by a model. It was the TikTok caption cut to `TITLE_CHARS = 120` on a whole word (`assembly/service.py`). The top heading clamps to two lines, about 58 characters at 1080 wide (`headingFitChars`). Studio already warned "Too long for the frame: 116 characters", but nothing shortened the title.
+- **Script:**
+  - every script request now asks for a `"headline"` of at most `HEADLINE_MAX = 55` characters, in the narration's language, from the facts only, with no handle;
+  - `NarrationScript.headline` is optional, so stored scripts still decode, and `openapi.json` and the dashboard types are regenerated;
+  - the parser drops a headline that is too long or holds an `@`;
+  - `supported_headline` drops one naming a number or name the facts lack, because nobody reviews it before it shows. The fact check was split out of `unsupported_tokens` (`_evidence`, `_missing`), so beats and headline share one rule.
+- **Draft:**
+  - `narrate_document(headline=…)` sets the main beat's first heading (not a credit or card) to the headline, unless a person edited that title (`ownership == "user_edited"`, set by `ReplaceText`);
+  - the narration write and the style preview both pass it.
+- **Fallback:** until narration writes one, a new draft's main title is the caption cut on a whole word to `HEADING_FIT_CHARS = 58`. The 116-character caption becomes "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai…".
+- **Checks:**
+  - Python 4868 passed, 233 skipped; Postgres-backed 213 passed;
+  - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
+  - the composition was not touched.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - `fe8d9da2` went to PR #128. PR run 43175628200 is green with Validate image build; push run 43175620125 is green with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-4b3967bf.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
+  - The operator's current draft keeps its long title until its next narration or re-voice, or until they edit the title in the Inspector.
+
+**Small follow-ups (operator: "oke lanjutkan", then "Tindak lanjut kecil"), fixed locally, test-first.**
+- **The Style control at 430** (`43340ed2`).
+  - Checked live on stage1 at `w430`, read-only: the control does sit at the top of the "⋯" menu.
+  - Its confirmation floated 20rem wide from the control's left edge and ran past the phone's right edge.
+  - Fix: a `variant` like NarrationChecking's. Inside the menu (below full desktop) the confirmation and notes flow under the control at the menu's width.
+  - Seen at `dev430` on the local build: the whole dialog fits the menu. Cancel left the draft at revision 27 with Style B.
+- **Kinetic captions vs a Middle heading** (`4eb0fd28`). While a heading is drawn mid-frame, Style B's kinetic words step down to the low caption lane (18%). A mid-frame heading is any visible text that is not `title_top`, `title_lower`, `card` or a credit. A placed heading leaves the middle to the words, and captions still hide under a narrator card.
+- **Headline in Title Case** (side review, operator: "ya tolonh ini"; `189589e1`).
+  - The fact check reads a mid-sentence capital as a name. In a Title Case headline every word counts as one, so a single word the facts lack dropped the whole headline silently, back to the cut caption.
+  - The request now asks for sentence case: a capital only for the first word and for names.
+  - A dropped headline is logged as a warning naming what the facts lack.
+- **Checks:**
+  - Python 4870 passed, 233 skipped; ruff clean;
+  - dashboard 2013 passed, `tsc -b` clean, build OK;
+  - renderer 262 passed, typecheck clean.
+  - Local template parity (`f1_verify3.sh`): all three releases pass, so no golden moves. The first build attempt failed downloading the headless browser over the local network; the retry built.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - `1a59f61e` went to PR #128. PR run 43182475795 is green with Validate image build and Template release parity; push run 43182466792 is green with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-fe8d9da2.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
+
+**Next steps** (each its own gate):
+- remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
+- the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
+- the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
+- merge.
+
+After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
+
+**Carried forward:**
+- the asset library on a busy project: the draft's own assets first, so its narration does not wait for page after page of other drafts' imports;
+- the understand-anything graph needs `/understand --full`.
+
 ## 2026-11-10 - Studio effects layer
 
 Branch `feat/studio-effects-layer` from master `4971b458` (PR #126 merged; PR #125 merged as `ff4d1004` before it).
@@ -87,6 +342,13 @@ Every new field has a default and is left out of the stored document when unused
 - **Read-only e2e on stage1 at w1440:** 41/41.
 - **Write e2e on stage1 at rw1440, in the throwaway project, with the one-day write token minted 2026-11-09:** `effects.e2e.ts` passes 3/3 (blur-fill and dim, Push in, Add box).
 - **What stays behind:** the project's drafts went from 477 to 480. The three new blank drafts stay in the throwaway project, and the operator's drafts are untouched.
+
+**Redeployed on 2026-11-10 with the Card place in the Timeline,** at `31d4fc65`:
+- **CI:** the push and PR runs pass.
+- **Images:** `thoth@sha256:b57d8a1b2658…`, `thoth-remotion-renderer@sha256:0c130bc7d32f…` and `thoth-web@sha256:26bebd2e95ae…`.
+- **Rollback pins:** `pins-e4353c9a.env`.
+- **Checks:** every service is healthy.
+- **Read-only e2e on stage1 at w1440:** 41/41.
 
 **Next steps** (each its own gate):
 - the operator tries it on stage1;

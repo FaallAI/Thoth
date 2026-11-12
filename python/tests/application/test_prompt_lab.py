@@ -31,7 +31,7 @@ class MemoryPromptLabRepository:
 
     def __init__(self) -> None:
         self.templates: dict[tuple[str, str, int], PromptTemplateRevision] = {}
-        self.bindings: dict[tuple[str, str], ProjectPromptBinding] = {}
+        self.bindings: dict[tuple[str, str, str], ProjectPromptBinding] = {}
         self.calls: list[str] = []
 
     async def list_template_heads(
@@ -96,15 +96,22 @@ class MemoryPromptLabRepository:
         self.templates[(project_id, template_id, next_revision)] = saved
         return saved
 
-    async def get_binding(self, *, project_id: str, stage_id: str) -> ProjectPromptBinding | None:
+    async def get_binding(
+        self, *, project_id: str, stage_id: str, variant: str = ""
+    ) -> ProjectPromptBinding | None:
         self.calls.append("get_binding")
-        return self.bindings.get((project_id, stage_id))
+        return self.bindings.get((project_id, stage_id, variant))
 
     async def save_binding(
-        self, *, project_id: str, stage_id: str, request: SaveProjectPromptBindingRequest
+        self,
+        *,
+        project_id: str,
+        stage_id: str,
+        request: SaveProjectPromptBindingRequest,
+        variant: str = "",
     ) -> ProjectPromptBinding:
         self.calls.append("save_binding")
-        latest = self.bindings.get((project_id, stage_id))
+        latest = self.bindings.get((project_id, stage_id, variant))
         if request.base_revision is None:
             if latest is not None:
                 raise PromptBindingRevisionConflict(latest)
@@ -123,9 +130,10 @@ class MemoryPromptLabRepository:
                 "template_revision": request.template_revision,
                 "project_override": request.project_override,
                 "revision": next_revision,
+                "variant": variant,
             }
         )
-        self.bindings[(project_id, stage_id)] = saved
+        self.bindings[(project_id, stage_id, variant)] = saved
         return saved
 
 
@@ -348,3 +356,86 @@ def test_service_satisfies_the_repository_seam_contract() -> None:
     repository: PromptLabRepository = MemoryPromptLabRepository()
     assert callable(repository.save_template)
     assert callable(repository.save_binding)
+
+
+# Style templates (spec 2026-11-10): one style stage, its prompt kept per template.
+@pytest.mark.asyncio
+async def test_style_stages_are_listed_per_template() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    service = PromptLabService(MemoryPromptLabRepository())
+    stages = service.list_stages(styles=list(BUILT_IN_STYLES.values()))
+    assert [(s.stage_id, s.variant, s.label) for s in stages if s.stage_id == "style_script"] == [
+        ("style_script", "style_a", "Style A script"),
+        ("style_script", "style_b", "Style B script"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_style_binding_is_kept_per_variant() -> None:
+    service = PromptLabService(MemoryPromptLabRepository())
+    created = await service.save_template(
+        "project_a",
+        SavePromptTemplateRequest.model_validate(template_request(stage_id="style_script")),
+    )
+    request = SaveProjectPromptBindingRequest.model_validate(
+        binding_request(template_id=created.template_id)
+    )
+    bound = await service.save_binding("project_a", "style_script", request, variant="style_a")
+    assert bound.variant == "style_a"
+    assert await service.get_binding("project_a", "style_script", variant="style_b") is None
+    resolved = await service.get_resolved_prompt("project_a", "style_script", variant="style_a")
+    assert created.body in resolved.visible_text
+
+
+@pytest.mark.asyncio
+async def test_a_style_prompt_falls_back_to_its_starter() -> None:
+    from thoth_control_plane.application.prompt_lab import resolve_style_prompt
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    service = PromptLabService(MemoryPromptLabRepository())
+    b = BUILT_IN_STYLES["style_b"]
+    assert await resolve_style_prompt(service, "project_a", b) == b.narration.starter
+    created = await service.save_template(
+        "project_a",
+        SavePromptTemplateRequest.model_validate(template_request(stage_id="style_script")),
+    )
+    await service.save_binding(
+        "project_a",
+        "style_script",
+        SaveProjectPromptBindingRequest.model_validate(
+            binding_request(template_id=created.template_id)
+        ),
+        variant="style_b",
+    )
+    assert created.body in await resolve_style_prompt(service, "project_a", b)
+
+
+# Deferred minor (2026-11-10): a variant belongs to a style's stage, and a style's stage
+# needs a known style.
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stage_id", "variant"),
+    [("narrative_plan", "style_a"), ("style_script", ""), ("style_script", "style_z")],
+)
+async def test_a_variant_must_match_its_stage(stage_id: str, variant: str) -> None:
+    repository = MemoryPromptLabRepository()
+    service = PromptLabService(repository)
+    with pytest.raises(PromptStageNotRegistered):
+        await service.get_binding("project_a", stage_id, variant=variant)
+    assert repository.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_style_prompt_store_outage_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    from thoth_control_plane.application.prompt_lab import resolve_style_prompt
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    class Down:
+        async def get_resolved_prompt(self, *_args: object, **_kwargs: object) -> None:
+            raise PromptLabStoreUnavailable()
+
+    a = BUILT_IN_STYLES["style_a"]
+    with caplog.at_level("WARNING"):
+        assert await resolve_style_prompt(Down(), "project_a", a) == a.narration.starter
+    assert any("style_a" in record.getMessage() for record in caplog.records)

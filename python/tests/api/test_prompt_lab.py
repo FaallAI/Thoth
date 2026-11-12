@@ -26,7 +26,7 @@ AUTH_HEADERS = {"Authorization": "Bearer test-key"}
 class MemoryPromptLabRepository:
     def __init__(self) -> None:
         self.templates: dict[tuple[str, str, int], PromptTemplateRevision] = {}
-        self.bindings: dict[tuple[str, str], ProjectPromptBinding] = {}
+        self.bindings: dict[tuple[str, str, str], ProjectPromptBinding] = {}
 
     async def list_template_heads(
         self, *, project_id: str, stage_id: str
@@ -87,13 +87,20 @@ class MemoryPromptLabRepository:
         self.templates[(project_id, template_id, next_revision)] = saved
         return saved
 
-    async def get_binding(self, *, project_id: str, stage_id: str) -> ProjectPromptBinding | None:
-        return self.bindings.get((project_id, stage_id))
+    async def get_binding(
+        self, *, project_id: str, stage_id: str, variant: str = ""
+    ) -> ProjectPromptBinding | None:
+        return self.bindings.get((project_id, stage_id, variant))
 
     async def save_binding(
-        self, *, project_id: str, stage_id: str, request: SaveProjectPromptBindingRequest
+        self,
+        *,
+        project_id: str,
+        stage_id: str,
+        request: SaveProjectPromptBindingRequest,
+        variant: str = "",
     ) -> ProjectPromptBinding:
-        latest = self.bindings.get((project_id, stage_id))
+        latest = self.bindings.get((project_id, stage_id, variant))
         if request.base_revision is None:
             if latest is not None:
                 raise PromptBindingRevisionConflict(latest)
@@ -112,9 +119,10 @@ class MemoryPromptLabRepository:
                 "template_revision": request.template_revision,
                 "project_override": request.project_override,
                 "revision": next_revision,
+                "variant": variant,
             }
         )
-        self.bindings[(project_id, stage_id)] = saved
+        self.bindings[(project_id, stage_id, variant)] = saved
         return saved
 
 
@@ -145,14 +153,19 @@ async def test_prompt_stages_require_auth_and_return_the_ordered_registry() -> N
 
     assert forbidden.status_code == 403
     assert allowed.status_code == 200
-    assert [stage["stage_id"] for stage in allowed.json()] == [
-        "narrative_plan",
-        "visual_plan",
-        "caption_copy",
-        "story_assist",
-        "narration_script",
+    stages = allowed.json()
+    assert [(stage["stage_id"], stage.get("variant")) for stage in stages] == [
+        ("narrative_plan", None),
+        ("visual_plan", None),
+        ("caption_copy", None),
+        ("story_assist", None),
+        ("narration_script", None),
+        # Each style template's script prompt (spec 2026-11-10), written in Prompt Lab only.
+        ("style_script", "style_a"),
+        ("style_script", "style_b"),
     ]
-    assert all(stage["status"] == "proposal_ready" for stage in allowed.json())
+    assert all(stage["status"] == "proposal_ready" for stage in stages[:5])
+    assert all(stage["status"] == "draft_only" for stage in stages[5:])
 
 
 @pytest.mark.asyncio

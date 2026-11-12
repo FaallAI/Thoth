@@ -25,6 +25,7 @@ from thoth_control_plane.domain.studio_imports import (
     StudioImportInventory,
     StudioImportItem,
     StudioSourceProjection,
+    inventory,
     source_key,
 )
 
@@ -230,6 +231,75 @@ def test_a_new_drafts_headings_start_at_the_top_and_quoted_text_stays_in_the_mid
     ]
 
 
+def test_an_account_credit_goes_to_the_credit_corner_and_a_quote_stays_in_the_middle() -> None:
+    # A source's @account read as a big mid-frame title (operator, 2026-11-12).
+    payload = projection_payload()
+    payload["items"] = [
+        item("main", 0, text="Main caption", platform="tiktok"),
+        item("creator_photo", 0, title="Photo 1", text=None, media_kind="image"),
+        item("footage", 0, title="@kompastv"),
+        item("comment", 0, title="@viewer", text="A quote", media_kind="image"),
+    ]
+    document = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source)
+
+    assert [(clip.heading, clip.style_slot) for clip in document.clips] == [
+        ("main 0", "title_top"),
+        ("Photo 1", "source"),
+        ("@kompastv", "credit"),
+        ("@viewer", "source"),
+    ]
+
+
+def _with_post_and_profile() -> dict[str, Any]:
+    payload = projection_payload()
+    payload["items"] = [
+        item("main", 0, text="Main caption", platform="tiktok"),
+        item(
+            "post_card",
+            0,
+            title="@cnnindonesia",
+            text=None,
+            media_kind="image",
+            reading_seconds=3.0,
+        ),
+        item("profile_page", 0, title="@cnnindonesia", text=None, media_kind="image"),
+        item("footage", 0, title="@kompastv"),
+    ]
+    return payload
+
+
+def test_the_post_and_profile_page_stay_in_materials_off_the_timeline() -> None:
+    # Operator, 2026-11-12: "post, dan profile page tuh sebenarnya tidak perlu masuk ke content".
+    source = create_request(_with_post_and_profile()).source
+    document = build_studio_draft(PROJECT, "edoc_first", source)
+    assert [clip.source_role for clip in document.clips if clip.clip_id != "clip_credit"] == [
+        "main",
+        "footage",
+    ]
+    listed = {entry.item_id: entry for entry in inventory(source)}
+    for item_id in ("post_card_000", "profile_page_000"):
+        assert listed[item_id].scene_id is None
+        assert listed[item_id].disposition == "excluded"
+
+
+def test_the_main_videos_account_credit_rides_over_the_main_scene() -> None:
+    # The credit kept its corner when the profile page left the timeline (operator, 2026-11-12).
+    document = build_studio_draft(
+        PROJECT, "edoc_first", create_request(_with_post_and_profile()).source
+    )
+    title, credit = document.clips[0], document.clips[1]
+    assert (credit.heading, credit.style_slot, credit.source_role) == (
+        "@cnnindonesia",
+        "credit",
+        "main",
+    )
+    assert (credit.from_frame, credit.duration_in_frames, credit.scene_id) == (
+        title.from_frame,
+        title.duration_in_frames,
+        title.scene_id,
+    )
+
+
 def test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat() -> None:
     # Without it a quoted comment had no beat: narration crammed it over the footage titles.
     document = build_studio_draft(PROJECT, "edoc_first", create_request().source)
@@ -291,3 +361,21 @@ async def test_a_keyed_draft_refuses_an_unsafe_idempotency_key() -> None:
         await StudioImportService(MemoryStudioImports()).create_keyed(
             PROJECT, "f" * 64, create_request().source, "C:\\Users\\key"
         )
+
+
+def test_a_long_caption_title_is_cut_to_the_two_lines_the_top_holds() -> None:
+    # Operator, 2026-11-12: a 116-character caption ran past the top's two lines (58 characters
+    # at 1080 wide, the composition's headingFitChars) until narration writes a headline.
+    caption = (
+        "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai disebut pihak istana telah "
+        "menyampaikan niatan pengunduran diri"
+    )
+    payload = projection_payload()
+    payload["items"] = [item("main", 0, title=caption, text="Main caption", platform="tiktok")]
+    heading = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source).clips[0]
+    assert heading.heading == "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai…"
+    assert len(heading.heading) <= 58
+
+    payload["items"] = [item("main", 0, title="Banjir di Bekasi", platform="tiktok")]
+    short = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source).clips[0]
+    assert short.heading == "Banjir di Bekasi"

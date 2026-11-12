@@ -442,6 +442,11 @@ export function applyTimelineOperation(
     case "set_clip_dim":
       unlockedVideoClip(next, operation.clip_id).dim = operation.dim;
       break;
+    case "set_document_style":
+      // The style a draft took (spec 2026-11-10); none is stored when cleared.
+      if (operation.style) next.style = { ...operation.style };
+      else delete next.style;
+      break;
     case "set_clip_marks": {
       const clip = unlockedVideoClip(next, operation.clip_id);
       clip.emphasis = { highlight: false, arrow: false, ...clip.emphasis, marks: operation.marks.map((mark) => ({ ...mark })) };
@@ -717,6 +722,10 @@ function addClipFromAsset(
           hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
           ...(operation.background ? { background: operation.background } : {}),
+          // A style's shot keeps its source clip's subtitle blur (spec 2026-11-10).
+          ...(operation.blur_enabled != null ? { blur_enabled: operation.blur_enabled } : {}),
+          ...(operation.blur_regions ? { blur_regions: operation.blur_regions.map((region) => ({ ...region })) } : {}),
+          ...(operation.hold_after_source != null ? { hold_after_source: operation.hold_after_source } : {}),
         },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];

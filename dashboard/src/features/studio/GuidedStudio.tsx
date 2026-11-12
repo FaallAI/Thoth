@@ -6,6 +6,7 @@ import type {
   ControlPlaneClient,
   EditDocument,
   EditDocumentOperation,
+  EditDocumentV2,
   EditorAsset,
   StudioImportItem,
   StudioMaterials,
@@ -20,11 +21,13 @@ import {
   canStartUpgrade,
   createEditorState,
   editorReducer,
+  restoreTarget,
   sceneTextClip,
   hasValidText,
   toEditDocumentPatch,
   type EditorState,
 } from "./editor_state";
+import { StyleControl } from "./StyleControl";
 import { Inspector } from "./Inspector";
 import { IssuesBar } from "./IssuesPanel";
 import { PreviewControls } from "./PreviewControls";
@@ -75,6 +78,10 @@ type Props = {
         ControlPlaneClient,
         | "upgradeEditDocument"
         | "restoreEditDocument"
+        | "listStyles"
+        | "applyStyle"
+        | "undoStyle"
+        | "getNarrationPreview"
         | "uploadEditorAsset"
         | "listEditorAssets"
         | "createEditorPreviewCapability"
@@ -433,6 +440,26 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   });
   const [showScript, setShowScript] = useState(false);
+  // While a styled draft's script waits for approval, the preview plays the draft as the style
+  // will cut it, from the script's estimated timing; nothing is saved (spec 2026-11-10).
+  const [cutPreview, setCutPreview] = useState<EditDocumentV2 | null>(null);
+  const previewing = narration?.status === "awaiting_approval" && Boolean(timeline?.style) && Boolean(client.getNarrationPreview);
+  useEffect(() => {
+    if (!previewing || !client.getNarrationPreview) {
+      setCutPreview(null);
+      return;
+    }
+    let live = true;
+    void client.getNarrationPreview(projectId, documentId).then(
+      (preview) => live && setCutPreview(preview),
+      () => live && setCutPreview(null),
+    );
+    return () => {
+      live = false;
+    };
+    // The preview follows the waiting script: a rejected script writes a new one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewing, narration?.workflow_id, narration?.script, projectId, documentId]);
   // Beats with a narration voice, and those whose text changed after it (spec 2026-11-01, goal 6).
   const voicedBeats = new Set(
     (timeline?.clips ?? []).flatMap((clip) => (clip.clip_id.startsWith("clip_narration_") ? [clip.clip_id.slice("clip_narration_".length) as BeatId] : [])),
@@ -658,10 +685,30 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     if (said.length) setPlacedNotice(said.join(" "));
   };
 
-  /** A saved edit has no snapshot left, so Undo and Redo ask the server for its revision. */
+  /** A saved edit has no snapshot left, so Undo and Redo ask the server for its revision. A
+   * style's undo goes through the style, which also stops its narration (spec 2026-11-10). */
   const restoreRevision = (direction: "undo" | "redo") => {
-    const target = direction === "undo" ? state.savedUndo.at(-1) : state.savedRedo[0];
-    const restore = client.restoreEditDocument;
+    const goal = restoreTarget(state, direction);
+    if (goal?.template && client.applyStyle && !restoring) {
+      const requestGeneration = generation.current;
+      setRestoring(true);
+      setRestoreFailed(false);
+      void client
+        .applyStyle(projectId, documentId, { template_id: goal.template, base_revision: base.revision })
+        .then((result) => {
+          if (requestGeneration !== generation.current) return;
+          dispatch({ type: "style_applied", document: result.document, previousRevision: result.previous_revision });
+          if (result.narration) {
+            setNarration(result.narration);
+            setShowScript(true);
+          }
+        })
+        .catch(() => setRestoreFailed(true))
+        .finally(() => setRestoring(false));
+      return;
+    }
+    const target = goal?.revision;
+    const restore = goal?.style && client.undoStyle ? client.undoStyle : client.restoreEditDocument;
     if (target === undefined || !restore || restoring) return;
     const requestGeneration = generation.current;
     setRestoring(true);
@@ -836,6 +883,23 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         }
         narration={
           <>
+        {timeline && client.listStyles && client.applyStyle ? (
+          <StyleControl
+            client={{ listStyles: client.listStyles, applyStyle: client.applyStyle }}
+            projectId={projectId}
+            documentId={documentId}
+            document={timeline}
+            disabled={isNarrationActive(narration) || saveStatus !== "saved"}
+            variant={viewport === "full_desktop" ? "chip" : "block"}
+            onApplied={(result) => {
+              dispatch({ type: "style_applied", document: result.document, previousRevision: result.previous_revision });
+              if (result.narration) {
+                setNarration(result.narration);
+                setShowScript(true);
+              }
+            }}
+          />
+        ) : null}
         {story && timeline && narrationClient ? (
           <>
             {/* Until the first read answers, null means "not read yet": no Create on a narrated draft. */}
@@ -1225,8 +1289,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     </>
                   ) : undefined
                 }
-                // Review shows what was saved; Edit shows the draft.
-                document={reviewing ? base : state.draft}
+                // Review shows what was saved; Edit shows the draft, or a style's cut preview.
+                document={reviewing ? base : (cutPreview ?? state.draft)}
                 onPlayer={setAttachedPlayer}
                 embedded
                 playbackRate={playbackRate}

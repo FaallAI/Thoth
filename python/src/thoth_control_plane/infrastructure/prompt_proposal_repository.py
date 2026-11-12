@@ -663,6 +663,8 @@ class PostgresPromptProposalRepository:
             .where(
                 ProjectPromptBindingRow.project_id == project_id,
                 ProjectPromptBindingRow.stage_id == current.stage_id,
+                # Proposals improve a stage's plain binding, never a style's (spec 2026-11-10).
+                ProjectPromptBindingRow.variant == "",
             )
             .with_for_update()
         )

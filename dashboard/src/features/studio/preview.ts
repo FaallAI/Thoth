@@ -27,8 +27,9 @@ export function previewComposition(
   document: EditDocument,
   previewSources?: PreviewSources,
   onPreviewUnavailable?: (assetId: string) => void,
+  playing = false,
 ) {
   return isTimelineDocument(document)
-    ? timelineComposition(document, previewSources, onPreviewUnavailable)
+    ? timelineComposition(document, previewSources, onPreviewUnavailable, playing)
     : { component: VerticalTextStory, inputProps: { document } };
 }

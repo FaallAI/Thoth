@@ -53,6 +53,8 @@ class ProjectPromptBindingRow(EditorBase):
 
     project_id: Mapped[str] = mapped_column(Text, primary_key=True)
     stage_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    #: Editor migration 0029: a style_script binding per style template; '' otherwise.
+    variant: Mapped[str] = mapped_column(Text, primary_key=True, default="")
     template_id: Mapped[str] = mapped_column(Text)
     template_revision: Mapped[int] = mapped_column(Integer)
     project_override: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -299,6 +301,10 @@ class NarrationRow(EditorBase):
     voices: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     stale_beats: Mapped[Any] = mapped_column(JSONB, server_default="[]")
     failure_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Editor migration 0030: the finished narration a restart replaced, for a style's undo.
+    previous: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    #: Editor migration 0030: a styled script's title card frames, for its cut preview.
+    intro_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 
@@ -321,4 +327,16 @@ class SfxLibraryRow(EditorBase):
     checksum: Mapped[str] = mapped_column(Text)
     duration_seconds: Mapped[float] = mapped_column(Double)
     labels: Mapped[Any] = mapped_column(JSONB, server_default="{}")
+    created_at: Mapped[datetime] = _created_at()
+
+
+class StyleTemplateRow(EditorBase):
+    """Editor migration 0028: a workspace's style template revisions (spec 2026-11-10)."""
+
+    __tablename__ = "style_templates"
+
+    workspace_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    template_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[Any] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created_at()

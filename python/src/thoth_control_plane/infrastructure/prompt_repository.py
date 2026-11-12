@@ -41,6 +41,7 @@ BINDING_ROW_KEYS = (
     "template_revision",
     "project_override",
     "revision",
+    "variant",
 )
 
 #: Typed outcomes the application maps to fixed safe codes; never redacted.
@@ -174,10 +175,10 @@ class PostgresPromptLabRepository:
         return await self._run(write)
 
     async def get_binding(
-        self, *, project_id: str, stage_id: PromptStageId
+        self, *, project_id: str, stage_id: PromptStageId, variant: str = ""
     ) -> ProjectPromptBinding | None:
         def read(session: Session) -> ProjectPromptBinding | None:
-            row = session.get(ProjectPromptBindingRow, (project_id, stage_id))
+            row = session.get(ProjectPromptBindingRow, (project_id, stage_id, variant))
             return _binding(row) if row else None
 
         return await self._run(read)
@@ -188,14 +189,19 @@ class PostgresPromptLabRepository:
         project_id: str,
         stage_id: PromptStageId,
         request: SaveProjectPromptBindingRequest,
+        variant: str = "",
     ) -> ProjectPromptBinding:
         def write(session: Session) -> ProjectPromptBinding:
-            advisory_xact_lock(session, project_id, stage_id)
+            # A plain stage locks the key its proposals lock; a style locks its own variant.
+            advisory_xact_lock(
+                session, project_id, f"{stage_id}:{variant}" if variant else stage_id
+            )
             row = session.scalar(
                 select(ProjectPromptBindingRow)
                 .where(
                     ProjectPromptBindingRow.project_id == project_id,
                     ProjectPromptBindingRow.stage_id == stage_id,
+                    ProjectPromptBindingRow.variant == variant,
                 )
                 .with_for_update()
             )
@@ -215,6 +221,7 @@ class PostgresPromptLabRepository:
                     ProjectPromptBindingRow(
                         project_id=project_id,
                         stage_id=stage_id,
+                        variant=variant,
                         template_id=request.template_id,
                         template_revision=request.template_revision,
                         project_override=request.project_override,
@@ -237,6 +244,7 @@ class PostgresPromptLabRepository:
                     "template_revision": request.template_revision,
                     "project_override": request.project_override,
                     "revision": next_revision,
+                    "variant": variant,
                 }
             )
 

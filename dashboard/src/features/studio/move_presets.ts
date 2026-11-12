@@ -22,15 +22,17 @@ export function movePreset(
   existing: readonly Move[] = [],
 ): Move[] {
   const last = Math.max(0, duration - 1);
+  // A one-frame clip holds its first keyframe: two keyframes on one frame are refused.
+  const span = (moves: Move[]) => (last > 0 ? moves : moves.slice(0, 1));
   switch (kind) {
     case "push_in":
-      return [key(0, 1, "linear"), key(last, 1.12, "linear")];
+      return span([key(0, 1, "linear"), key(last, 1.12, "linear")]);
     case "pan_across":
-      return [key(0, 1.15, "linear", 0.06), key(last, 1.15, "linear", -0.06)];
+      return span([key(0, 1.15, "linear", 0.06), key(last, 1.15, "linear", -0.06)]);
     case "scroll_down":
-      return [key(0, 1.6, "ease_in_out", 0, 0.3), key(last, 1.6, "ease_in_out", 0, -0.3)];
+      return span([key(0, 1.6, "ease_in_out", 0, 0.3), key(last, 1.6, "ease_in_out", 0, -0.3)]);
     case "pull_out":
-      return [key(0, 1.2, "ease_out"), key(last, 1, "ease_out")];
+      return span([key(0, 1.2, "ease_out"), key(last, 1, "ease_out")]);
     case "punch_in": {
       // About a quarter second from the word to 35% closer, then held to the end: Style A's punchline
       // push. It starts from where the moves already are, so nothing jumps; moves after it give way.

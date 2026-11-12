@@ -29,7 +29,6 @@ from thoth_control_plane.domain.studio_layout import (
     CARD_CENTER_Y,
     CARD_GAP,
     card_position,
-    post_card_slot,
     profile_slot,
     reaction_beat,
     reading_seconds,
@@ -313,7 +312,11 @@ def open_style_a(database: str, tmp_path: Path, data: dict):
     return project, service
 
 
-async def test_post_card_then_profile_card_then_beat(database: str, tmp_path: Path) -> None:
+async def test_the_post_card_stays_off_the_timeline_and_the_profile_card_leads(
+    database: str, tmp_path: Path
+) -> None:
+    # Operator, 2026-11-12: the post's screenshot is no content; it stays in Materials, and the
+    # profile card no longer waits out the post's reading time.
     data = carded_set()
     data["main"] |= {"description": LONG, "post_card": card("post")}
     data["style_a"] = True
@@ -323,25 +326,22 @@ async def test_post_card_then_profile_card_then_beat(database: str, tmp_path: Pa
 
     clips, _ = clips_of(database, project, opened.draft.document_id)
     fps = 30
-    post_at, post_len = post_card_slot(30.0, reading_seconds(LONG))
-    post = clips["clip_post_card_000"]
-    assert (post["track_id"], post["from_frame"], post["duration_in_frames"]) == (
-        "track_b_roll",
-        0,
-        round(post_len * fps),
-    )
-    assert post["fit"] == "contain"
-    start, length = profile_slot(30.0, not_before=post_at + post_len + CARD_GAP)
-    assert start > 3.0
+    assert "clip_post_card_000" not in clips
+    start, length = profile_slot(30.0, not_before=0.0)
     profile = clips["clip_profile_card_000"]
     assert profile["from_frame"] == round(start * fps)
     slots = reaction_beat(
         30.0, [reading_seconds(t) for t in TEXTS], not_before=start + length + CARD_GAP
     )
     assert clips["clip_comment_card_000"]["from_frame"] == round(slots[0][0] * fps)
+    materials = await service.materials(project, opened.draft.document_id)
+    post = next(item for item in materials.items if item.item_id == "post_card_000")
+    assert post.disposition == "excluded"
 
 
-async def test_profile_page_and_photos_hold_three_seconds(database: str, tmp_path: Path) -> None:
+async def test_a_photo_holds_three_seconds_and_the_profile_page_stays_off(
+    database: str, tmp_path: Path
+) -> None:
     photo = {
         "source": "creator",
         "url": "https://www.tiktok.com/@creator/photo/7600000000000000001",
@@ -357,11 +357,12 @@ async def test_profile_page_and_photos_hold_three_seconds(database: str, tmp_pat
     opened = await service.open(project, WF, ACTOR, "open-page")
 
     clips, _ = clips_of(database, project, opened.draft.document_id)
-    for clip_id in ("clip_profile_page_000", "clip_creator_photo_000"):
-        clip = clips[clip_id]
-        assert (clip["track_id"], clip["duration_in_frames"], clip["fit"]) == (
-            "track_b_roll",
-            90,
-            "contain",
-        )
-    assert clips["clip_profile_page_000"]["scene_id"] == "scene_002"
+    clip = clips["clip_creator_photo_000"]
+    assert (clip["track_id"], clip["duration_in_frames"], clip["fit"]) == (
+        "track_b_roll",
+        90,
+        "contain",
+    )
+    # Operator, 2026-11-12: the profile page stays in Materials, off the timeline.
+    assert "clip_profile_page_000" not in clips
+    assert clip["scene_id"] == "scene_002"

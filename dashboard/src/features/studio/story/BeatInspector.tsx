@@ -210,7 +210,10 @@ export function BeatInspector({
       : [];
   const moving = cards.length ? cards : photos;
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
-  const headingClip = clips.find((clip) => clip.kind === "text");
+  // A credit keeps its lower corner: it is no heading (2026-11-12).
+  const headingClip = clips.find(
+    (clip): clip is Extract<(typeof clips)[number], { kind: "text" }> => clip.kind === "text" && clip.style_slot !== "credit",
+  );
   const reading = longestReading(beat, inventory);
 
   // Spec 2026-11-08 §5.2: the Shown item's own edits, the same helpers the buttons below use.

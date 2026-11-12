@@ -1,0 +1,157 @@
+[
+  {
+    "name": "push_in over 90 frames",
+    "kind": "push_in",
+    "duration": 90,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "ease": "linear"
+      },
+      {
+        "frame": 89,
+        "scale": 1.12,
+        "x": 0,
+        "y": 0,
+        "ease": "linear"
+      }
+    ]
+  },
+  {
+    "name": "pan_across over 90 frames",
+    "kind": "pan_across",
+    "duration": 90,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.15,
+        "x": 0.06,
+        "y": 0,
+        "ease": "linear"
+      },
+      {
+        "frame": 89,
+        "scale": 1.15,
+        "x": -0.06,
+        "y": 0,
+        "ease": "linear"
+      }
+    ]
+  },
+  {
+    "name": "scroll_down over 90 frames",
+    "kind": "scroll_down",
+    "duration": 90,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.6,
+        "x": 0,
+        "y": 0.3,
+        "ease": "ease_in_out"
+      },
+      {
+        "frame": 89,
+        "scale": 1.6,
+        "x": 0,
+        "y": -0.3,
+        "ease": "ease_in_out"
+      }
+    ]
+  },
+  {
+    "name": "pull_out over 90 frames",
+    "kind": "pull_out",
+    "duration": 90,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.2,
+        "x": 0,
+        "y": 0,
+        "ease": "ease_out"
+      },
+      {
+        "frame": 89,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "ease": "ease_out"
+      }
+    ]
+  },
+  {
+    "name": "push_in over 1 frames",
+    "kind": "push_in",
+    "duration": 1,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1,
+        "x": 0,
+        "y": 0,
+        "ease": "linear"
+      }
+    ]
+  },
+  {
+    "name": "pan_across over 1 frames",
+    "kind": "pan_across",
+    "duration": 1,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.15,
+        "x": 0.06,
+        "y": 0,
+        "ease": "linear"
+      }
+    ]
+  },
+  {
+    "name": "scroll_down over 1 frames",
+    "kind": "scroll_down",
+    "duration": 1,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.6,
+        "x": 0,
+        "y": 0.3,
+        "ease": "ease_in_out"
+      }
+    ]
+  },
+  {
+    "name": "pull_out over 1 frames",
+    "kind": "pull_out",
+    "duration": 1,
+    "fps": 30,
+    "expected": [
+      {
+        "frame": 0,
+        "scale": 1.2,
+        "x": 0,
+        "y": 0,
+        "ease": "ease_out"
+      }
+    ]
+  },
+  {
+    "name": "none is no moves",
+    "kind": "none",
+    "duration": 90,
+    "fps": 30,
+    "expected": []
+  }
+]

@@ -1216,3 +1216,36 @@ test("a trim start keeps the move value on the client", () => {
   const next = applyTimelineOperation(document, { kind: "trim_clip_start", operation_id: "op_trim", clip_id: "clip_main", from_frame: 15 } as never, {});
   expect(mainOf(next).moves!.map((move) => [move.frame, Number(move.scale.toFixed(6))])).toEqual([[0, 1.15], [15, 1.3]]);
 });
+
+// Style templates (spec 2026-11-10).
+test("set_document_style records and clears the draft's style", () => {
+  const styled = applyTimelineOperation(
+    documentV2(),
+    { kind: "set_document_style", operation_id: "op_style", style: { template_id: "style_a", revision: 1 } } as never,
+    {},
+  );
+  expect(styled.style).toEqual({ template_id: "style_a", revision: 1 });
+  const cleared = applyTimelineOperation(styled, { kind: "set_document_style", operation_id: "op_clear", style: null } as never, {});
+  expect(cleared.style ?? null).toBeNull();
+});
+
+test("a style's shot of a movie that ran out holds its last frame", () => {
+  // Deferred minor (2026-11-10): mirrors the server's add_clip_from_asset hold.
+  const added = applyTimelineOperation(
+    documentV2(),
+    {
+      kind: "add_clip_from_asset",
+      operation_id: "op_hold",
+      track_id: "track_main",
+      clip_id: "clip_held",
+      asset_id: "asset_new",
+      from_frame: 0,
+      duration_in_frames: 60,
+      source_from_frame: 0,
+      hold_after_source: true,
+    },
+    { asset_new: READY_ASSET },
+  );
+  const held = added.clips!.find((clip) => clip.clip_id === "clip_held");
+  expect(held && "hold_after_source" in held && held.hold_after_source).toBe(true);
+});

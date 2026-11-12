@@ -267,6 +267,16 @@ def test_the_main_video_ducks_under_speech_and_leaks_in_pauses() -> None:
     assert keyframes[-1][1] == 1.0
 
 
+def test_footage_on_the_b_roll_ducks_under_its_voice() -> None:
+    # A footage movie's own sound played at full level over its narration (stage1, 2026-11-12).
+    document = narrate_document(draft(), [*VOICES, voiced("footage", 4.0)], [], PRESET, ROLES)
+
+    footage = clip(document, "clip_footage_000")
+    assert PRESET.duck_volume in {key.volume for key in footage.volume_keyframes}
+    # A still card has no sound to duck.
+    assert clip(document, "clip_comment_card_000").volume_keyframes == []
+
+
 def test_sfx_land_on_their_word_and_voices_fade_at_their_edges() -> None:
     cue = SfxCue(sfx_id="impact", beat="main", moment="emphasis_word", word_index=2)
     sfx = PlacedSfx(cue=cue, asset=audio("asset_sfx_impact", 1.0), duration_seconds=1.0)
@@ -532,3 +542,247 @@ def test_retime_stretches_moves() -> None:
     retimed = clip(document, "clip_main")
     new = retimed.duration_in_frames
     assert [move.frame for move in retimed.moves] == [0, min((old - 1) * new // old, new - 1)]
+
+
+# Style templates (spec 2026-11-10): the narration writes captions and cuts in the draft's style.
+def test_sentence_ends_come_from_the_voice() -> None:
+    from thoth_control_plane.assembly.narration_timeline import sentence_ends
+
+    timed = [
+        WordTiming(text="Satu", start_seconds=0.0, end_seconds=0.4),
+        WordTiming(text="dua.", start_seconds=0.5, end_seconds=1.0),
+        WordTiming(text="Tiga", start_seconds=1.2, end_seconds=1.5),
+        WordTiming(text="empat?", start_seconds=1.6, end_seconds=2.0),
+    ]
+    assert sentence_ends(timed, 100, 30) == [130, 160]
+
+
+def test_a_styled_narration_uses_the_style_caption_and_cuts() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    styled = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    captions = [c for c in styled.clips if isinstance(c, TimelineCaptionClip)]
+    assert captions and {c.style_slot for c in captions} == {"kinetic"}
+    assert styled.style is not None and styled.style.template_id == "style_b"
+    shots = [
+        c
+        for c in styled.clips
+        if isinstance(c, TimelineVideoClip) and c.clip_id.startswith("clip_style_")
+    ]
+    assert shots and all(c.duration_in_frames <= 120 for c in shots)
+
+
+def test_a_styled_narration_cuts_on_real_sentence_ends() -> None:
+    from thoth_control_plane.assembly.narration_timeline import sentence_ends
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    text = "satu dua tiga. empat lima enam."
+    two = [voiced("hook", 2.0), voiced("main", 6.0, text), voiced("reactions", 4.0)]
+    styled = narrate_document(draft(), two, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_a"])
+    main_voice = clip(styled, "clip_narration_main")
+    ends = sentence_ends(words(text, 6.0), main_voice.from_frame, FPS)
+    starts = {
+        c.from_frame
+        for c in styled.clips
+        if isinstance(c, TimelineVideoClip) and c.clip_id.startswith("clip_style_main")
+    }
+    # A cut falls on the latest sentence end a shot can reach (spec 2026-11-10, 4).
+    assert set(ends) & starts
+
+
+def test_a_styled_narration_places_the_card_lines() -> None:
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    styled = narrate_document(
+        draft(),
+        VOICES,
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"hook": "Kok bisa ya?"},
+    )
+    cards = [c for c in styled.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"]
+    assert [c.heading for c in cards] == ["Kok bisa ya?"]
+
+
+def _timed(*spans: tuple[str, float, float]) -> list[WordTiming]:
+    return [WordTiming(text=t, start_seconds=a, end_seconds=b) for t, a, b in spans]
+
+
+def test_a_card_shows_when_the_voice_says_its_line() -> None:
+    # Stage1, 2026-11-12: the card came at the beat's start while the voice said something else.
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    main = VoicedBeat(
+        beat="main",
+        asset=audio("asset_voice_main", 5.0),
+        duration_seconds=5.0,
+        words=_timed(
+            ("Ternyata", 0.0, 0.4),
+            ("ini", 0.5, 0.7),
+            ("gara-gara", 0.8, 1.4),
+            ("kabar.", 1.5, 2.0),
+            ("Waduh,", 2.6, 3.0),
+            ("beneran", 3.1, 3.5),
+            ("mau", 3.6, 3.8),
+            ("mundur?", 3.9, 4.6),
+        ),
+    )
+    styled = narrate_document(
+        draft(),
+        [VOICES[0], main, VOICES[2]],
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"main": "Beneran mau mundur?", "reactions": "Tidak ada yang cocok"},
+    )
+    cards = {
+        c.heading: c.from_frame
+        for c in styled.clips
+        if isinstance(c, TimelineTextClip) and c.style_slot == "card"
+    }
+    voice = next(c for c in styled.clips if c.clip_id == "clip_narration_main")
+    # "beneran", the first word of the line the voice says.
+    assert cards["Beneran mau mundur?"] == voice.from_frame + round(3.1 * FPS)
+    # A line the voice never says keeps the old place.
+    assert "Tidak ada yang cocok" in cards
+
+
+def test_a_card_lands_on_its_closest_sentence_at_the_first_word_it_repeats() -> None:
+    # The stored draft of 2026-11-12: a long sentence shared as many words as the short reaction.
+    from thoth_control_plane.assembly.narration_timeline import spoken_at
+
+    words = _timed(
+        ("pakai", 0.0, 0.3),
+        ("dokumen", 0.4, 0.8),
+        ("dari", 0.9, 1.0),
+        ("SD", 1.1, 1.3),
+        ("sampai", 1.4, 1.7),
+        ("S1.", 1.8, 2.2),
+        ("Hah,", 2.5, 2.7),
+        ("sampai", 2.8, 3.1),
+        ("SD", 3.2, 3.4),
+        ("juga", 3.5, 3.6),
+        ("dibawa?", 3.7, 4.2),
+        ("karena", 4.5, 4.8),
+        ("menentukan", 4.9, 5.4),
+        ("siapa", 5.5, 5.8),
+        ("yang", 5.9, 6.0),
+        ("bakal", 6.1, 6.3),
+        ("bertahan.", 6.4, 7.0),
+    )
+    assert spoken_at("Sampai dokumen SD dibawa?", words, 100, FPS) == 100 + round(2.8 * FPS)
+    assert spoken_at("Siapa yang bakal bertahan?", words, 100, FPS) == 100 + round(5.5 * FPS)
+    assert spoken_at("Netizen kok curiga?", words, 100, FPS) is None
+
+
+def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
+    # Final review (operator, 2026-11-10): the style cuts once, from its first voice; a re-voice
+    # only retimes, so shots the operator changed afterwards stay as they left them.
+    from tests.domain.test_timeline_operations import op
+    from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    a = BUILT_IN_STYLES["style_a"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=a)
+    shot = next(c for c in first.clips if c.clip_id.startswith("clip_style_main"))
+    edited = apply_edit_operations(first, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.3)])
+    again = narrate_document(edited, VOICES, [], PRESET, ROLES, style=a)
+    kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
+    assert kept is not None and kept.dim == 0.3
+
+
+def test_captions_page_by_the_styles_words_per_caption() -> None:
+    # Deferred minor (2026-11-10): Style B pages its captions three words at a time.
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    fast = [voiced("main", 2.0, "satu dua tiga empat lima enam tujuh delapan")]
+    plain = clip(narrate_document(draft(), fast, [], PRESET, ROLES), "clip_caption_narration_main")
+    styled = clip(
+        narrate_document(draft(), fast, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"]),
+        "clip_caption_narration_main",
+    )
+    assert isinstance(plain, TimelineCaptionClip) and isinstance(styled, TimelineCaptionClip)
+    assert max(len(cue.words) for cue in plain.cues) == 4
+    assert max(len(cue.words) for cue in styled.cues) == 3
+
+
+# Operator, 2026-11-10: a re-voice re-cuts a beat by the style when its voice changed and none
+# of its shots were touched by hand; a beat with hand edits only stretches, and says so.
+def _longer_main() -> VoicedBeat:
+    return VoicedBeat(
+        beat="main",
+        asset=audio("asset_voice_main_v2", 12.0),
+        duration_seconds=12.0,
+        words=words("satu dua tiga. empat lima enam.", 12.0),
+    )
+
+
+def _main_beat_shots(document: EditDocumentV2) -> list[TimelineVideoClip]:
+    from thoth_control_plane.domain.story_beats import clip_beats
+
+    beats = clip_beats(document, ROLES)
+    return [
+        c
+        for c in document.clips
+        if isinstance(c, TimelineVideoClip)
+        and beats.get(c.clip_id) == "main"
+        and c.position is None
+        and not c.hidden
+    ]
+
+
+def test_a_revoice_recuts_an_untouched_beat_by_the_style() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    again = narrate_document(
+        first, [VOICES[0], _longer_main(), VOICES[2]], [], PRESET, ROLES, style=b
+    )
+    shots = _main_beat_shots(again)
+    assert shots and all(c.duration_in_frames <= 90 + 30 for c in shots)
+    assert again.style is not None and again.style.kept == []
+
+
+def test_a_revoice_stretches_a_hand_edited_beat_and_says_so() -> None:
+    from tests.domain.test_timeline_operations import op
+    from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    first = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    shot = _main_beat_shots(first)[0]
+    edited = apply_edit_operations(first, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.3)])
+    again = narrate_document(
+        edited, [VOICES[0], _longer_main(), VOICES[2]], [], PRESET, ROLES, style=b
+    )
+    kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
+    assert kept is not None and kept.dim == 0.3
+    assert again.style is not None and again.style.kept == ["main"]
+
+
+def test_the_scripts_headline_becomes_the_main_title_unless_a_person_wrote_one() -> None:
+    # Operator, 2026-11-12: the raw caption ran past the two lines the top of the video holds.
+    def titled(ownership: str) -> dict[str, Any]:
+        data = payload()
+        # An imported draft's title carries the main role (studio_imports.build_studio_draft).
+        title = next(c for c in data["clips"] if c["clip_id"] == "clip_001")
+        title.update(source_role="main", ownership=ownership)
+        return data
+
+    narrated = narrate_document(
+        draft(titled("ai_managed")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
+    )
+    assert clip(narrated, "clip_001").heading == "Judul pendek"
+    assert clip(narrated, "clip_hook").heading == clip(draft(), "clip_hook").heading
+
+    kept = narrate_document(
+        draft(titled("user_edited")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
+    )
+    assert clip(kept, "clip_001").heading == clip(draft(), "clip_001").heading

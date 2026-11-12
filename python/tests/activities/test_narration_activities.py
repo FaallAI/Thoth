@@ -74,9 +74,21 @@ class Store:
             )
         ]
 
-    async def set_script(self, _doc: str, script: Any, estimate: Any, unsupported: Any) -> None:
+    async def set_script(
+        self,
+        _doc: str,
+        script: Any,
+        estimate: Any,
+        unsupported: Any,
+        *,
+        intro_frames: int | None = None,
+    ) -> None:
         self.status.append(("awaiting_approval", None))
         self.script, self.estimate, self.unsupported = script, estimate, unsupported
+        self.intro_frames = intro_frames
+
+    async def get_intro_frames(self, _doc: str) -> int | None:
+        return getattr(self, "intro_frames", None)
 
     async def get_script(self, _doc: str) -> Any:
         return self.script
@@ -553,3 +565,63 @@ def test_beats_voiced_together_are_stitched_by_request_id() -> None:
         ["req_1"],
         ["req_1", "req_2"],
     ]
+
+
+# Style templates (spec 2026-11-10): a styled draft's script speaks in its style.
+def styled_ports(template_id: str = "style_b", **overrides: Any):  # type: ignore[no-untyped-def]
+    from thoth_control_plane.domain.edit_document_v2 import AppliedStyle
+
+    built, seen = ports(**overrides)
+    documents = seen["documents"]
+    documents.document = documents.document.model_copy(
+        update={"style": AppliedStyle(template_id=template_id, revision=1)}
+    )
+    return built, seen
+
+
+def test_write_script_uses_the_style_prompt() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    built, seen = styled_ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    system = seen["provider_requests"][0]["system"]
+    assert BUILT_IN_STYLES["style_b"].narration.starter in system
+    assert "card_line" in system
+
+
+def test_the_style_overrides_target_length_and_sfx() -> None:
+    from thoth_control_plane.domain import style_templates
+
+    a = style_templates.BUILT_IN_STYLES["style_a"]
+    longer = a.model_copy(
+        update={
+            "narration": a.narration.model_copy(update={"target_seconds": 60, "max_sfx_cues": 1})
+        }
+    )
+    original = dict(style_templates.BUILT_IN_STYLES)
+    style_templates.BUILT_IN_STYLES["style_a"] = longer
+    try:
+        built, seen = styled_ports("style_a")
+        run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    finally:
+        style_templates.BUILT_IN_STYLES.clear()
+        style_templates.BUILT_IN_STYLES.update(original)
+    user = seen["provider_requests"][0]["user"]
+    assert "(60 seconds)" in user and "at most 1" in user
+
+
+def test_an_unstyled_script_keeps_the_project_prompt() -> None:
+    built, seen = ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert "card_line" not in seen["provider_requests"][0]["system"]
+
+
+def test_a_styled_script_keeps_the_title_card_for_its_preview() -> None:
+    # Deferred minor (2026-11-10): the cut preview skips the title card the voice will skip.
+    async def intro_card(video: Path) -> float | None:
+        return 0.4375
+
+    built, seen = styled_ports(intro_card=intro_card)
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    fps = seen["documents"].document.canvas.fps
+    assert seen["store"].intro_frames == math.ceil(0.4375 * fps)

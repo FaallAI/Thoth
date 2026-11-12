@@ -1351,3 +1351,83 @@ test("at most two glances are asked for at a time", async () => {
   await act(async () => {});
   expect(getEditorAssetGlance).toHaveBeenCalledTimes(2);
 });
+
+// Style templates (spec 2026-11-10): applying a style, undoing it, and its cut preview.
+test("a style is applied from the header, one Undo undoes it and Redo applies it again", async () => {
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const { StudioImportRequestError } = await import("@/api/control-plane");
+  const document = timelineDocument() as EditDocument;
+  const styled = { ...document, revision: document.revision + 1, style: { template_id: "style_a", revision: 1 } } as EditDocument;
+  const undoStyle = mock(async () => ({ kind: "saved" as const, document: { ...document, revision: document.revision + 2 } }));
+  const restoreEditDocument = mock(async () => ({ kind: "saved" as const, document }));
+  const client = {
+    ...promptClientBase,
+    ...advancedClientBase,
+    ...narrationCalls,
+    getNarration: mock(async () => {
+      throw new StudioImportRequestError(404);
+    }),
+    getEditDocument: mock(async () => document),
+    patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+    restoreEditDocument,
+    listStyles: mock(async () => [
+      { template_id: "style_a", name: "Style A", revision: 1 },
+      { template_id: "style_b", name: "Style B", revision: 1 },
+    ]),
+    applyStyle: mock(async () => ({ document: styled, previous_revision: document.revision, narration: null, narration_refused: "prompt_not_configured" })),
+    undoStyle,
+  };
+  render(<GuidedStudio client={client as never} projectId="project_001" documentId="document_002" onBack={() => {}} />);
+  await screen.findByRole("option", { name: "Style A" });
+  fireEvent.change(screen.getByLabelText("Style"), { target: { value: "style_a" } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Apply style" }));
+  });
+  await waitFor(() => expect((screen.getByLabelText("Style") as HTMLSelectElement).value).toBe("style_a"));
+  const undo = screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement;
+  await waitFor(() => expect(undo.disabled).toBe(false));
+  await act(async () => {
+    fireEvent.click(undo);
+  });
+  expect(undoStyle).toHaveBeenCalledWith("project_001", "document_002", {
+    base_revision: document.revision + 1,
+    revision: document.revision,
+  });
+  // Deferred minor (2026-11-10): Redo goes through the style again, so its narration starts.
+  const redo = screen.getByRole("button", { name: "Redo" }) as HTMLButtonElement;
+  await waitFor(() => expect(redo.disabled).toBe(false));
+  await act(async () => {
+    fireEvent.click(redo);
+  });
+  expect(client.applyStyle).toHaveBeenLastCalledWith("project_001", "document_002", {
+    template_id: "style_a",
+    base_revision: document.revision + 2,
+  });
+  expect(restoreEditDocument).not.toHaveBeenCalled();
+});
+
+test("while a styled draft's script waits, the preview plays its cut preview", async () => {
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const document = { ...(timelineDocument() as EditDocument), style: { template_id: "style_b", revision: 1 } } as EditDocument;
+  const getNarrationPreview = mock(async () => document);
+  const client = {
+    ...promptClientBase,
+    ...advancedClientBase,
+    ...narrationCalls,
+    getNarration: mock(async () => ({
+      document_id: "document_002",
+      workflow_id: "narration/document_002/1",
+      status: "awaiting_approval",
+      script: { beats: [{ beat: "main", text: "Satu dua tiga." }], sfx_cues: [] },
+      unsupported: {},
+      stale_beats: [],
+    })),
+    getEditDocument: mock(async () => document),
+    patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+    getNarrationPreview,
+  };
+  render(<GuidedStudio client={client as never} projectId="project_001" documentId="document_002" onBack={() => {}} />);
+  await waitFor(() => expect(getNarrationPreview).toHaveBeenCalledWith("project_001", "document_002"));
+});

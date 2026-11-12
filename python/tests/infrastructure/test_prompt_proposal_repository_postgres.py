@@ -409,7 +409,7 @@ async def test_an_improvement_writes_a_template_revision_binding_and_provenance(
     assert result.proposal.status == "applied"
     assert stored().status == "applied"
     with editor_sessions(DATABASE_URL)() as session:
-        binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE))
+        binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE, ""))
         template = session.get(PromptTemplateRevisionRow, (PROJECT, "ptpl_001", 3))
         application = session.get(PromptProposalApplicationRow, "proposal_1")
     assert binding is not None and (binding.template_revision, binding.revision) == (3, 2)
@@ -453,7 +453,7 @@ async def test_an_improvement_fails_closed_without_any_write(
     await succeeded(proposals)
     if prepare == "binding_moved":
         with editor_sessions(DATABASE_URL).begin() as session:
-            binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE))
+            binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE, ""))
             assert binding is not None
             binding.revision = 9
     if prepare == "template_locked":
@@ -493,7 +493,7 @@ async def test_a_translation_creates_a_new_template_identity(
     assert result.resulting_template_id != "ptpl_001"
     assert (result.resulting_template_revision, result.resulting_binding_revision) == (1, 2)
     with editor_sessions(DATABASE_URL)() as session:
-        binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE))
+        binding = session.get(ProjectPromptBindingRow, (PROJECT, STAGE, ""))
     assert binding is not None
     assert (binding.template_id, binding.project_override) == (
         result.resulting_template_id,

@@ -453,6 +453,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Narration Cuts
+         * @description A styled draft's cuts from its waiting script, before any voice (spec 2026-11-10).
+         */
+        get: operations["preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
         parameters: {
             query?: never;
@@ -524,6 +544,40 @@ export interface paths {
         put?: never;
         /** Create Review Decision */
         post: operations["create_review_decision_api_v1_projects__project_id__edit_documents__document_id__review_decisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Style */
+        post: operations["apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Style */
+        post: operations["undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1112,6 +1166,23 @@ export interface paths {
          * @description The newest drafts made from one source, for Resume.
          */
         get: operations["list_studio_import_drafts_api_v1_projects__project_id__studio_imports__source_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/styles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Styles */
+        get: operations["list_styles_api_v1_projects__project_id__styles_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1779,6 +1850,10 @@ export interface components {
             asset_id: string;
             /** Background */
             background?: ("none" | "blur_fill") | null;
+            /** Blur Enabled */
+            blur_enabled?: boolean | null;
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["ClipBlurRegion"][] | null;
             /** Clip Id */
             clip_id: string;
             /** Duration In Frames */
@@ -1787,6 +1862,8 @@ export interface components {
             fit?: ("cover" | "contain" | "fill") | null;
             /** From Frame */
             from_frame: number;
+            /** Hold After Source */
+            hold_after_source?: boolean | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1891,6 +1968,34 @@ export interface components {
             /** Workspaces */
             workspaces: components["schemas"]["WorkspaceCostView"][];
         };
+        /**
+         * AppliedStyle
+         * @description The style template, and its revision, a draft last took (spec 2026-11-10).
+         */
+        AppliedStyle: {
+            /** Cuts */
+            cuts?: {
+                [key: string]: string;
+            };
+            /** Kept */
+            kept?: string[];
+            /** Revision */
+            revision: number;
+            /** Template Id */
+            template_id: string;
+            /** Voiced */
+            voiced?: boolean;
+        };
+        /** AppliedStyleResult */
+        AppliedStyleResult: {
+            /** Document */
+            document: components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+            narration?: components["schemas"]["NarrationState"] | null;
+            /** Narration Refused */
+            narration_refused?: string | null;
+            /** Previous Revision */
+            previous_revision: number;
+        };
         /** ApplyPromptProposalRequest */
         ApplyPromptProposalRequest: {
             /**
@@ -1902,6 +2007,13 @@ export interface components {
             source_binding_revision: number;
             /** Source Template Revision */
             source_template_revision: number;
+        };
+        /** ApplyStyleRequest */
+        ApplyStyleRequest: {
+            /** Base Revision */
+            base_revision: number;
+            /** Template Id */
+            template_id: string;
         };
         /** ApprovalRequest */
         ApprovalRequest: {
@@ -2223,7 +2335,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Target Language */
             target_language?: string | null;
             /** Target Layer */
@@ -2377,7 +2489,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetDocumentStyle"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -2429,6 +2541,7 @@ export interface components {
              * @constant
              */
             schema_version: 2;
+            style?: components["schemas"]["AppliedStyle"] | null;
             template: components["schemas"]["TemplateRef"];
             /** Tracks */
             tracks: components["schemas"]["TimelineTrack"][];
@@ -2870,6 +2983,8 @@ export interface components {
         NarrationScript: {
             /** Beats */
             beats: components["schemas"]["ScriptBeat"][];
+            /** Headline */
+            headline?: string | null;
             /** Sfx Cues */
             sfx_cues?: components["schemas"]["SfxCue"][];
         };
@@ -2877,6 +2992,8 @@ export interface components {
         NarrationState: {
             /** Document Id */
             document_id: string;
+            /** Edited Beats */
+            edited_beats?: ("hook" | "main" | "evidence" | "reactions" | "footage" | "outro")[];
             estimate?: components["schemas"]["VoiceEstimate"] | null;
             /** Failure Code */
             failure_code?: string | null;
@@ -3089,11 +3206,13 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id: string;
             /** Template Revision */
             template_revision: number;
+            /** Variant */
+            variant?: string;
         };
         /** ProjectPromptLayerLock */
         ProjectPromptLayerLock: {
@@ -3112,7 +3231,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Updated At
              * Format: date-time
@@ -3133,7 +3252,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Updated At
              * Format: date-time
@@ -3187,7 +3306,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Started At */
             started_at?: string | null;
             /**
@@ -3282,12 +3401,14 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Status
              * @enum {string}
              */
             status: "draft_only" | "proposal_ready";
+            /** Variant */
+            variant?: string | null;
         };
         /** PromptStarterDefinition */
         PromptStarterDefinition: {
@@ -3314,7 +3435,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id: string;
         };
@@ -3592,7 +3713,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Visible Text */
             visible_text: string;
         };
@@ -3771,7 +3892,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id?: string | null;
         };
@@ -3798,6 +3919,8 @@ export interface components {
              * @enum {string}
              */
             beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            /** Card Line */
+            card_line?: string | null;
             /** Text */
             text: string;
         };
@@ -4099,6 +4222,20 @@ export interface components {
             operation_id: string;
             /** Volume */
             volume: number;
+        };
+        /**
+         * SetDocumentStyle
+         * @description Record (or clear) the style template a draft took (spec 2026-11-10).
+         */
+        SetDocumentStyle: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_document_style";
+            /** Operation Id */
+            operation_id: string;
+            style: components["schemas"]["AppliedStyle"] | null;
         };
         /** SetMarker */
         SetMarker: {
@@ -4476,7 +4613,7 @@ export interface components {
         /** StoryAssistProposal */
         StoryAssistProposal: {
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["SetClipMoves"] | components["schemas"]["SetClipBackground"] | components["schemas"]["SetClipDim"] | components["schemas"]["SetDocumentStyle"] | components["schemas"]["SetClipMarks"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["AddMarker"] | components["schemas"]["SetMarker"] | components["schemas"]["RemoveMarker"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
             /** Proposal Id */
             proposal_id: string;
             /** Reason */
@@ -4747,6 +4884,15 @@ export interface components {
             label: string;
             /** Preset Id */
             preset_id: string;
+        };
+        /** StyleSummary */
+        StyleSummary: {
+            /** Name */
+            name: string;
+            /** Revision */
+            revision: number;
+            /** Template Id */
+            template_id: string;
         };
         /** TemplateRef */
         TemplateRef: {
@@ -6595,6 +6741,40 @@ export interface operations {
             };
         };
     };
+    preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentV2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post: {
         parameters: {
             query?: never;
@@ -6831,6 +7011,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyStyleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppliedStyleResult"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
                 };
             };
             /** @description Validation Error */
@@ -7146,13 +7420,15 @@ export interface operations {
     };
     get_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7180,13 +7456,15 @@ export interface operations {
     };
     save_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7571,13 +7849,15 @@ export interface operations {
     };
     get_resolved_prompt_api_v1_projects__project_id__prompt_lab_resolved__stage_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7606,7 +7886,7 @@ export interface operations {
     list_prompt_templates_api_v1_projects__project_id__prompt_lab_templates_get: {
         parameters: {
             query: {
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             header?: {
                 Authorization?: string | null;
@@ -8256,6 +8536,39 @@ export interface operations {
             };
         };
     };
+    list_styles_api_v1_projects__project_id__styles_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StyleSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_project_workflows_api_v1_projects__project_id__workflows_get: {
         parameters: {
             query?: {
@@ -8466,7 +8779,9 @@ export interface operations {
     };
     get_prompt_starter_api_v1_prompt_stages__stage_id__starter_get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string | null;
+            };
             header?: {
                 Authorization?: string | null;
             };

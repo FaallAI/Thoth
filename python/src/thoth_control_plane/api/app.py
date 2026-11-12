@@ -36,6 +36,7 @@ from thoth_control_plane.api.routes.render_jobs import router as render_job_rout
 from thoth_control_plane.api.routes.source_accounts import router as source_account_router
 from thoth_control_plane.api.routes.studio_imports import router as studio_import_router
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
+from thoth_control_plane.api.routes.styles import router as style_router
 from thoth_control_plane.api.routes.usage import router as usage_router
 from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
 from thoth_control_plane.api.routes.workflow_studio_imports import router as workflow_studio_router
@@ -244,6 +245,19 @@ def _story_assist_service(app: FastAPI, gateway: Any) -> StoryAssistService:
     )
 
 
+def _style_templates(settings: Settings) -> Any:
+    """Style templates (spec 2026-11-10): the built-in ones even without the editor database."""
+    from thoth_control_plane.infrastructure.style_template_repository import (
+        MemoryStyleTemplateRepository,
+        PostgresStyleTemplateRepository,
+    )
+
+    database = settings.THOTH_EDITOR_DATABASE_URL
+    if database is None:
+        return MemoryStyleTemplateRepository()
+    return PostgresStyleTemplateRepository(database.get_secret_value())
+
+
 def _narration_service(app: FastAPI, settings: Settings, gateway: Any) -> NarrationService:
     """Narration (spec 2026-10-31): unavailable without the editor database or Temporal."""
     database = settings.THOTH_EDITOR_DATABASE_URL
@@ -255,10 +269,18 @@ def _narration_service(app: FastAPI, settings: Settings, gateway: Any) -> Narrat
             return None
         return inventory.source_workflow_id
 
+    async def roles(project_id: str, document_id: str) -> dict[str, str]:
+        try:
+            inventory = await app.state.studio_import_service.get_inventory(project_id, document_id)
+        except Exception:  # a draft made in Studio names its beats itself
+            return {}
+        return {item.item_id: item.role for item in inventory.items if item.role}
+
     return NarrationService(
         store=NarrationStore(database.get_secret_value()) if database is not None else None,
         documents=app.state.edit_document_service,
         source_run=source_run,
+        roles=roles,
         preferences=app.state.prompt_proposal_service,
         gateway=gateway,
         sfx_assets=getattr(app.state, "sfx_assets", None),
@@ -432,6 +454,7 @@ def create_app(
     app.state.render_job_service = render_service
     app.state.studio_review_service = StudioReviewService(studio_review_repository)
     app.state.studio_import_service = StudioImportService(studio_import_repository)
+    app.state.style_templates = _style_templates(settings)
     app.state.source_account_store = source_account_store or _source_account_store(settings)
     app.state.account_profiles = account_profiles or _account_profiles(settings)
     # A missing database only makes report downloads answer 503; the rest still serves.
@@ -653,6 +676,7 @@ def create_app(
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(narration_router, prefix="/api/v1")
+    app.include_router(style_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")
     app.include_router(prompt_lab_router, prefix="/api/v1")
     app.include_router(prompt_proposal_router, prefix="/api/v1")

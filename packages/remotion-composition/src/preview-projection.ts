@@ -46,9 +46,10 @@ export function timelineComposition(
   document: EditDocumentV2,
   previewSources?: PreviewSources,
   onPreviewUnavailable?: (assetId: string) => void,
+  premount = false,
 ) {
   return {
     component: AdvancedTimelineComposition,
-    inputProps: { document, previewSources, onPreviewUnavailable },
+    inputProps: { document, previewSources, onPreviewUnavailable, premount },
   };
 }

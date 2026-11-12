@@ -238,28 +238,23 @@ def test_projection_orders_the_new_roles() -> None:
     ]
     assert items[1].reading_seconds == reading_seconds("judul panjang")
     scenes = {i.item_id: i.scene_id for i in inventory(projected.projection)}
+    # The post and profile page stay in Materials, off the timeline (operator, 2026-11-12).
     assert scenes == {
         "main_000": "scene_001",
-        "post_card_000": "scene_001",
-        "profile_page_000": "scene_002",
-        "creator_footage_000": "scene_003",
-        "creator_photo_000": "scene_004",
-        "footage_000": "scene_005",
+        "post_card_000": None,
+        "profile_page_000": None,
+        "creator_footage_000": "scene_002",
+        "creator_photo_000": "scene_003",
+        "footage_000": "scene_004",
     }
     assert projected.projection.unsupported == []
     assert projected.media["post_card_000"].location.as_posix() == POST["location"]
 
 
-def test_a_missing_post_card_is_reported_in_the_gate() -> None:
+def test_a_missing_post_card_or_profile_page_holds_nothing_up() -> None:
+    # Neither is content any more (operator, 2026-11-12): its absence is no gap for the gate.
     projected = project_content_set(parse(content_set() | {"style_a": True}))
-    reported = {(u.field, u.reason) for u in projected.projection.unsupported}
-    assert reported == {
-        ("main.post_card", "Not captured: post card"),
-        ("main.profile_page", "Not captured: profile page"),
-    }
-    youtube = content_set(platform="youtube", url="https://www.youtube.com/shorts/abcdefghijk")
-    projected = project_content_set(parse(youtube | {"style_a": True}))
-    assert {u.field for u in projected.projection.unsupported} == {"main.profile_page"}
+    assert projected.projection.unsupported == []
 
 
 def test_an_old_content_set_places_as_before() -> None:

@@ -46,8 +46,10 @@ from thoth_control_plane.domain.prompt_proposals import (
 from thoth_control_plane.domain.prompts import (
     PROMPT_STAGES,
     PROMPT_STARTERS,
+    STYLE_STAGE,
     PromptStarterDefinition,
 )
+from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
 
 PASSTHROUGH_REPO_ERRORS = (
     PromptIdempotencyConflict,
@@ -88,7 +90,21 @@ class PromptProposalService:
         """Return only enabled providers from the server-owned catalog."""
         return tuple(provider for provider in self._catalog if provider.enabled)
 
-    def get_starter(self, stage_id: str) -> PromptStarterDefinition | None:
+    def get_starter(
+        self, stage_id: str, variant: str | None = None
+    ) -> PromptStarterDefinition | None:
+        if stage_id == STYLE_STAGE:
+            # A style's script starts from that style's own starter (spec 2026-11-10). Only the
+            # built-in styles exist until the style editor.
+            style = BUILT_IN_STYLES.get(variant or "")
+            if style is None:
+                return None
+            return PromptStarterDefinition(
+                starter_id=f"starter_{style.template_id}_v{style.revision}",
+                label=f"{style.name} starter",
+                language="id-ID",
+                body=style.narration.starter,
+            )
         self._require_stage(stage_id)
         return PROMPT_STARTERS.get(stage_id)  # type: ignore[return-value]
 

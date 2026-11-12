@@ -358,6 +358,24 @@ class TimelineMarker(StrictModel):
     label: Annotated[str, Field(max_length=60)] = ""
 
 
+class AppliedStyle(StrictModel):
+    """The style template, and its revision, a draft last took (spec 2026-11-10)."""
+
+    template_id: OpaqueId
+    revision: Annotated[int, Field(gt=0)]
+    #: The style's cuts came from a voice: a re-voice re-cuts only untouched beats.
+    voiced: bool = Field(default_factory=lambda: False, exclude_if=lambda voiced: not voiced)
+    #: Per beat, a fingerprint of its shots as the last narration write left them; a beat whose
+    #: shots still match was not touched by hand (operator, 2026-11-10).
+    cuts: Annotated[dict[str, Annotated[str, Field(max_length=64)]], Field(max_length=16)] = Field(
+        default_factory=dict, exclude_if=lambda cuts: not cuts
+    )
+    #: Beats the last re-voice only stretched, because they hold hand edits.
+    kept: Annotated[list[Annotated[str, Field(max_length=32)]], Field(max_length=16)] = Field(
+        default_factory=list, exclude_if=lambda kept: not kept
+    )
+
+
 class EditDocumentV2(StrictModel):
     """A complete, validated, immutable schema-v2 multi-track document revision."""
 
@@ -376,6 +394,8 @@ class EditDocumentV2(StrictModel):
     markers: Annotated[list[TimelineMarker], Field(max_length=100)] = Field(
         default_factory=list, exclude_if=lambda markers: not markers
     )
+    #: The style the draft took; absent when none, so a rollback stays safe (spec 2026-11-10).
+    style: AppliedStyle | None = Field(default_factory=lambda: None, exclude_if=lambda s: s is None)
 
     @model_validator(mode="after")
     def validate_structure(self) -> EditDocumentV2:

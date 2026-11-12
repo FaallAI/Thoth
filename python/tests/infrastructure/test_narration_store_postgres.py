@@ -122,3 +122,61 @@ def test_a_changed_file_replaces_its_library_entry(store: NarrationStore) -> Non
     assert run(store.upsert_sfx(first)) is True
     assert run(store.upsert_sfx(changed)) is True
     assert run(store.list_sfx()) == [changed]
+
+
+# Style templates, final review (2026-11-10): a style's undo brings the earlier narration back.
+def _completed(store: NarrationStore, workflow_id: str, text: str) -> None:
+    run(store.start("project_001", "edoc_1", workflow_id, NarrationPreset()))
+    run(
+        store.set_script(
+            "edoc_1",
+            NarrationScript.model_validate(
+                {"beats": [{"beat": "main", "text": text}], "sfx_cues": []}
+            ),
+            VoiceEstimate(characters=4, provider="elevenlabs", voice_id="v", usd=None),
+            {},
+        )
+    )
+    run(store.set_status("edoc_1", "completed"))
+
+
+def test_a_restart_keeps_the_completed_narration_to_restore(store: NarrationStore) -> None:
+    _completed(store, "narration/edoc_1/1", "Narasi lama.")
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/2", NarrationPreset()))
+    assert run(store.restore_previous("edoc_1")) is True
+    state = run(store.get("project_001", "edoc_1"))
+    assert state is not None
+    assert (state.status, state.workflow_id) == ("completed", "narration/edoc_1/1")
+    assert state.script is not None and state.script.beats[0].text == "Narasi lama."
+    assert run(store.restore_previous("edoc_1")) is False
+
+
+def test_a_cancelled_workflow_cannot_close_a_restored_narration(store: NarrationStore) -> None:
+    _completed(store, "narration/edoc_1/1", "Narasi lama.")
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/2", NarrationPreset()))
+    run(store.restore_previous("edoc_1"))
+    run(store.close("edoc_1", "narration/edoc_1/2", "cancelled"))
+    state = run(store.get("project_001", "edoc_1"))
+    assert state is not None and state.status == "completed"
+    run(store.close("edoc_1", "narration/edoc_1/1", "failed", failure_code="narration_failed"))
+    assert run(store.get("project_001", "edoc_1")).status == "failed"
+
+
+def test_a_scripts_title_card_is_kept_until_the_next_narration(store: NarrationStore) -> None:
+    # Deferred minor (2026-11-10): the cut preview reads the title card the script step found.
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/1", NarrationPreset()))
+    run(
+        store.set_script(
+            "edoc_1",
+            NarrationScript.model_validate(
+                {"beats": [{"beat": "main", "text": "Satu."}], "sfx_cues": []}
+            ),
+            VoiceEstimate(characters=5, provider="elevenlabs", voice_id="v", usd=None),
+            {},
+            intro_frames=27,
+        )
+    )
+    assert run(store.get_intro_frames("edoc_1")) == 27
+    run(store.set_status("edoc_1", "completed"))
+    run(store.start("project_001", "edoc_1", "narration/edoc_1/2", NarrationPreset()))
+    assert run(store.get_intro_frames("edoc_1")) is None

@@ -34,13 +34,21 @@ mock.module("remotion", () => ({
     from,
     durationInFrames,
     name,
+    premountFor,
   }: {
     children?: ReactNode;
     from: number;
     durationInFrames: number;
     name?: string;
+    premountFor?: number;
   }) => (
-    <div data-testid="sequence" data-name={name} data-from={from} data-duration={durationInFrames}>
+    <div
+      data-testid="sequence"
+      data-name={name}
+      data-from={from}
+      data-duration={durationInFrames}
+      data-premount={premountFor}
+    >
       {children}
     </div>
   ),
@@ -325,6 +333,96 @@ test("a heading in the old slots draws as it always has, so old drafts and golde
     expect(screen.getByRole("heading", { level: 1 }).getAttribute("style")).not.toContain("line-clamp");
     cleanup();
   }
+});
+
+// Operator, 2026-11-12: a source's @account read as a big mid-frame title; it belongs in a corner.
+const withText = (slot: string, heading: string, body: string) => {
+  const document = documentV2();
+  const text = document.clips!.find((clip) => clip.kind === "text") as { style_slot: string; heading: string; body: string };
+  Object.assign(text, { style_slot: slot, heading, body });
+  return document;
+};
+
+test("a credit sits small in a lower corner, an old draft's bare @account too", () => {
+  for (const [slot, heading] of [["credit", "@kompastv"], ["source", "@cnnindonesia"]] as const) {
+    render(<AdvancedTimelineComposition document={withText(slot, heading, "")} previewSources={SOURCES} />);
+    const credit = screen.getByTestId("credit");
+    expect(credit.textContent).toBe(heading);
+    expect(credit.getAttribute("style")).toContain("justify-content: flex-end");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    cleanup();
+  }
+});
+
+test("a credit stays clear of TikTok's bottom band and above two lines of low captions", () => {
+  // Side review, 2026-11-12: at 12% from the bottom TikTok's name and description covered it.
+  render(<AdvancedTimelineComposition document={withText("credit", "@kompastv", "")} previewSources={SOURCES} />);
+  const bottom = Number.parseFloat(screen.getByTestId("credit").style.paddingBottom);
+  // The safe zone ends at 18%; a two-line caption in the low lane reaches about 26%.
+  expect(bottom).toBeGreaterThanOrEqual(1920 * 0.26);
+  expect(bottom).toBeLessThan(1920 * 0.33);
+});
+
+test("a quote under an @account keeps the middle", () => {
+  render(<AdvancedTimelineComposition document={withText("source", "@viewer", "A quote")} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("credit")).toBeNull();
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("@viewer");
+});
+
+test("captions give way while a narrator card fills the frame", () => {
+  // Stage1, 2026-11-12: Style B's kinetic words ran over its white card.
+  const document = withText("card", "Beneran mau mundur?", "");
+  const text = document.clips!.find((clip) => clip.kind === "text")!;
+  Object.assign(text, { from_frame: 0, duration_in_frames: 60 });
+  document.tracks!.find((track) => track.track_id === "track_hidden")!.hidden = false;
+
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.getByTestId("text-card")).toBeDefined();
+  expect(screen.queryAllByTestId("caption-cue")).toHaveLength(0);
+  cleanup();
+
+  currentFrame.value = 70;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.getAllByTestId("caption-cue")).toHaveLength(1);
+});
+
+test("kinetic words step down to the low lane while a heading holds the middle", () => {
+  // Carried since effects-v1 (2026-11-10): Style B's centred words ran over a Middle heading.
+  const document = withText("title", "Judul di tengah", "");
+  Object.assign(document.clips!.find((clip) => clip.kind === "text")!, { from_frame: 0, duration_in_frames: 60 });
+  document.tracks!.find((track) => track.track_id === "track_hidden")!.hidden = false;
+  Object.assign(document.clips!.find((clip) => clip.kind === "caption")!, { style_slot: "kinetic" });
+  const lane = () => screen.getByTestId("caption-lane").getAttribute("data-lane");
+
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("low");
+  cleanup();
+
+  currentFrame.value = 70;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("middle");
+  cleanup();
+
+  // A heading at the top leaves the middle to the words.
+  Object.assign(document.clips!.find((clip) => clip.kind === "text")!, { style_slot: "title_top" });
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("middle");
+});
+
+test("while playing, a video mounts a second before its cut so the preview never stops to load it", () => {
+  const premount = (name: string) =>
+    screen.getAllByTestId("sequence").find((node) => node.getAttribute("data-name") === name)!.getAttribute("data-premount");
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} premount />);
+  expect(premount("clip_video")).toBe("30");
+  expect(premount("clip_text")).toBeNull();
+  cleanup();
+  // A held frame mounts nothing early: a hidden copy of a playing movie shifted its pixels, and
+  // the template release parity gate caught it (CI, 2026-11-12).
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  expect(premount("clip_video")).toBeNull();
 });
 
 test("two lines of heading hold about as many characters as the canvas is wide", () => {

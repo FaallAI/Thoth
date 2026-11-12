@@ -19,10 +19,12 @@ from pydantic import Field
 from thoth_control_plane.domain.clip_moves import shift_moves, split_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     TRACK_CLIP_KINDS,
+    AppliedStyle,
     AssetRef,
     Background,
     CaptionCue,
     CaptionStyle,
+    ClipBlurRegion,
     Crop,
     Dim,
     EditDocumentV2,
@@ -95,6 +97,14 @@ class AddClipFromAsset(StrictModel):
     source_role: StoryRole | None = None
     #: Blur-fill for full-frame media of another shape (spec 2026-11-09, 3.8).
     background: Background | None = Field(default=None, exclude_if=lambda value: value is None)
+    #: A style's shot keeps its source clip's subtitle blur, in source frames (spec 2026-11-10).
+    blur_enabled: bool | None = Field(default=None, exclude_if=lambda value: value is None)
+    # The clip's own cap: OCR gives a long video many timed regions.
+    blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=200)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    #: A style's shot of a movie that has run out holds its last frame.
+    hold_after_source: bool | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ReorderScene(StrictModel):
@@ -255,6 +265,14 @@ class SetClipBackground(StrictModel):
     operation_id: OpaqueId
     clip_id: OpaqueId
     background: Background
+
+
+class SetDocumentStyle(StrictModel):
+    """Record (or clear) the style template a draft took (spec 2026-11-10)."""
+
+    kind: Literal["set_document_style"]
+    operation_id: OpaqueId
+    style: AppliedStyle | None
 
 
 class SetClipDim(StrictModel):
@@ -423,6 +441,7 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipMoves
     | SetClipBackground
     | SetClipDim
+    | SetDocumentStyle
     | SetClipMarks
     | ReplaceClipAsset
     | AddTextClip
@@ -524,6 +543,8 @@ def apply_timeline_operation(
                 clip.fit = "contain"
         case SetClipDim():
             _unlocked_video_clip(document, operation.clip_id).dim = operation.dim
+        case SetDocumentStyle():
+            document.style = operation.style
         case SetClipMarks():
             clip = _unlocked_video_clip(document, operation.clip_id)
             clip.emphasis = clip.emphasis.model_copy(update={"marks": list(operation.marks)})
@@ -760,6 +781,12 @@ def _add_clip_from_asset(
         layout: dict[str, object] = {"fit": operation.fit} if operation.fit is not None else {}
         if operation.background is not None:
             layout["background"] = operation.background
+        if operation.blur_enabled is not None:
+            layout["blur_enabled"] = operation.blur_enabled
+        if operation.blur_regions is not None:
+            layout["blur_regions"] = [region.model_copy() for region in operation.blur_regions]
+        if operation.hold_after_source is not None:
+            layout["hold_after_source"] = operation.hold_after_source
         clip = TimelineVideoClip(kind="video", position=operation.position, **layout, **fields)
     clip.source_role = operation.source_role
     document.clips.append(clip)

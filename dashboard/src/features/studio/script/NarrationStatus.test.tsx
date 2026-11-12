@@ -316,3 +316,16 @@ test("a refusal nobody named still shows no code", async () => {
   expect(text).not.toContain("something_new");
   expect(text.length).toBeGreaterThan(0);
 });
+
+test("before a paid re-voice, a styled beat with hand edits is named as only stretched", () => {
+  // Operator, 2026-11-10: the warning shows before the voice is paid for, not after.
+  mount({ ...completed, stale_beats: ["main", "footage"], edited_beats: ["main", "hook"] });
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 2 changed beats" }));
+  expect(screen.getByText(/^Main has your edits/)).toBeDefined();
+});
+
+test("no stretch warning when the changed beats were not edited", () => {
+  mount({ ...completed, stale_beats: ["main"], edited_beats: ["hook"] });
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 1 changed beats" }));
+  expect(screen.queryByText(/has your edits/)).toBeNull();
+});

@@ -89,6 +89,22 @@ test('1440 Timeline: a video clip shows the Effects section', async ({ app, brow
   }
 });
 
+test('1440: the Style control asks before applying, and Cancel changes nothing', async ({ app, browser, screen }) => {
+  // Style templates (spec 2026-11-10): looked at only; the read scope never applies a style.
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await expect(screen.getByRole('option', 'Style A')).toHaveCount(1);
+  // Read once the draft has loaded: right after open, the revision is not on the page yet.
+  const before = await browser.evaluate(() => document.body.innerText.match(/Saved revision \d+/)?.[0] ?? '');
+  await screen.getByLabel('Style').selectOption('Style A');
+  await expect(screen.getByText('Apply Style A?')).toBeVisible();
+  await expect(screen.getByText(/replaces every edit you made by hand/)).toBeVisible();
+  await screen.getByRole('button', 'Cancel').tap();
+  await expect(screen.getByText('Apply Style A?')).toHaveCount(0);
+  const after = await browser.evaluate(() => document.body.innerText.match(/Saved revision \d+/)?.[0] ?? '');
+  expect(after).toBe(before);
+});
+
 test('1440 Timeline: a video clip shows its filmstrip and narration its waveform', async ({ app, browser, screen }) => {
   // Tier 3b: the glance is a GET, so the read scope sees it; the first look may build it.
   await browser.setViewport({ width: 1440, height: 900 });

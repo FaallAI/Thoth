@@ -666,3 +666,38 @@ test("removes the offline listeners on unmount", async () => {
     callsBefore,
   );
 });
+
+// Style templates (spec 2026-11-10): one style stage, its binding kept per style template.
+test("a style's script prompt reads and saves its own binding", async () => {
+  const { PromptLab } = await import("./PromptLab");
+  const user = userEvent.setup();
+  const styleStages = [
+    ...stages,
+    { stage_id: "style_script", label: "Style A script", status: "draft_only", variant: "style_a" },
+    { stage_id: "style_script", label: "Style B script", status: "draft_only", variant: "style_b" },
+  ] satisfies PromptStageDefinition[];
+  const reads: unknown[][] = [];
+  const saves: unknown[][] = [];
+  const promptClient = client({
+    listPromptStages: mock(async () => styleStages),
+    getPromptBinding: mock(async (...args: unknown[]) => {
+      reads.push(args);
+      return { ...binding, stage_id: "style_script", variant: args[2] as string };
+    }),
+    savePromptBinding: mock(async (...args: unknown[]) => {
+      saves.push(args);
+      return { kind: "saved" as const, value: { ...binding, stage_id: "style_script", revision: 2 } };
+    }),
+  } as Partial<PromptLabClient>);
+  render(<PromptLab client={promptClient} projectId="project_a" />);
+
+  await user.click(await screen.findByRole("button", { name: "Style A script" }));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(reads.at(-1)).toEqual(["project_a", "style_script", "style_a"]);
+  const override = await screen.findByLabelText("Project override");
+  fireEvent.change(override, { target: { value: "Lebih banyak pertanyaan" } });
+  await user.click(await screen.findByRole("button", { name: "Save binding" }));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(saves.at(-1)?.slice(0, 2)).toEqual(["project_a", "style_script"]);
+  expect(saves.at(-1)?.[3]).toBe("style_a");
+});

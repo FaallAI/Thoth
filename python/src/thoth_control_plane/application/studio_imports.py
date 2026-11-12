@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from uuid import uuid4
 
 from thoth_control_plane.application.edit_documents import (
@@ -21,7 +22,7 @@ from thoth_control_plane.application.ports import (
     StudioImportSourceMismatch,
 )
 from thoth_control_plane.domain.edit_document_upgrade import upgrade_edit_document_v1
-from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
+from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2, TimelineTextClip
 from thoth_control_plane.domain.models import OpaqueId, ProjectId
 from thoth_control_plane.domain.studio_imports import (
     DRAFT_LIST_LIMIT,
@@ -55,12 +56,30 @@ PASSTHROUGH = (
 HEADING_ONLY_ROLES = frozenset({"main", "footage", "creator_footage"})
 
 
+#: Two lines of the top heading at 1080 wide, as the composition's headingFitChars counts them.
+HEADING_FIT_CHARS = 58
+
+
+def _fit(title: str) -> str:
+    """The caption cut on a whole word to the top's two lines until narration writes a headline
+    (operator, 2026-11-12); one endless word can only be cut."""
+    short = textwrap.shorten(title, HEADING_FIT_CHARS, placeholder="…")
+    return title[: HEADING_FIT_CHARS - 1] + "…" if short == "…" else short
+
+
 def _heading(item: StudioSourceItem) -> str:
     if item.title:
-        return item.title
+        return _fit(item.title) if item.role == "main" else item.title
     if item.role == "main":
         return "Untitled video"
     return f"{item.role.capitalize()} {item.order + 1}"
+
+
+def _slot(item: StudioSourceItem, body: str, default: str) -> str:
+    # A source's bare @account is a credit in a lower corner (operator, 2026-11-12).
+    if item.role != "main" and not body and _heading(item).startswith("@"):
+        return "credit"
+    return "title_top" if item.role in HEADING_ONLY_ROLES else default
 
 
 def build_studio_draft(
@@ -81,22 +100,40 @@ def build_studio_draft(
         for index, item in enumerate(items, start=1)
     ]
     document = upgrade_edit_document_v1(document_from_text_clips(project_id, document_id, clips))
-    return document.model_copy(
-        update={
-            "clips": [
-                clip.model_copy(
-                    update={
-                        "source_role": item.role,
-                        # A lone title goes above the action; quoted text keeps the middle.
-                        "style_slot": (
-                            "title_top" if item.role in HEADING_ONLY_ROLES else clip.style_slot
-                        ),
-                    }
-                )
-                for clip, item in zip(document.clips, items, strict=True)
-            ]
-        }
+    placed = [
+        clip.model_copy(
+            update={
+                "source_role": item.role,
+                # A lone title goes above the action; quoted text keeps the middle.
+                "style_slot": _slot(item, clip.body, clip.style_slot),
+            }
+        )
+        for clip, item in zip(document.clips, items, strict=True)
+    ]
+    # The post and profile page stay off the timeline; their @account rides over the main scene
+    # as its credit (operator, 2026-11-12).
+    handle = next(
+        (
+            item.title
+            for item in projection.items
+            if item.role in ("post_card", "profile_page", "profile_card")
+            and (item.title or "").startswith("@")
+        ),
+        None,
     )
+    tracks = document.tracks
+    if handle and placed and isinstance(placed[0], TimelineTextClip):
+        credit = placed[0].model_copy(
+            update={"clip_id": "clip_credit", "heading": handle, "body": "", "style_slot": "credit"}
+        )
+        placed.insert(1, credit)
+        tracks = [
+            track.model_copy(update={"clip_ids": [*track.clip_ids, credit.clip_id]})
+            if track.track_id == credit.track_id
+            else track
+            for track in tracks
+        ]
+    return document.model_copy(update={"clips": placed, "tracks": tracks})
 
 
 class StudioImportService:

@@ -47,6 +47,9 @@ export type StudioMaterial = StudioMaterials["items"][number];
 export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
 // Auto-draft narration (spec 2026-10-31).
 export type NarrationState = components["schemas"]["NarrationState"];
+/** Style templates (spec 2026-11-10). */
+export type StyleSummary = components["schemas"]["StyleSummary"];
+export type AppliedStyleResult = components["schemas"]["AppliedStyleResult"];
 export type NarrationScript = components["schemas"]["NarrationScript"];
 export type NarrationDecision = components["schemas"]["NarrationDecision"];
 export type NarrationPreset = components["schemas"]["NarrationPreset"];
@@ -92,6 +95,11 @@ const PROMPT_STAGE_IDS: readonly PromptStageId[] = [
   "visual_plan",
   "caption_copy",
 ];
+/** The style template of a `style_script` binding, as a query (spec 2026-11-10). */
+function variantQuery(variant?: string): string {
+  return variant ? `?variant=${encodeURIComponent(variant)}` : "";
+}
+
 export function isPromptStageId(value: string): value is PromptStageId {
   return (PROMPT_STAGE_IDS as readonly string[]).includes(value);
 }
@@ -275,6 +283,21 @@ export type ControlPlaneClient = {
   requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
   /** Narration: start, read, decide, edit a beat, re-voice; the preset; the SFX library. */
   startNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  /** Style templates (spec 2026-11-10). */
+  listStyles: (projectId: string) => Promise<StyleSummary[]>;
+  applyStyle: (
+    projectId: string,
+    documentId: string,
+    request: { template_id: string; base_revision: number },
+  ) => Promise<AppliedStyleResult>;
+  /** A style's undo: stops its narration before any voice, then restores the revision. */
+  undoStyle: (
+    projectId: string,
+    documentId: string,
+    request: { base_revision: number; revision: number },
+  ) => Promise<EditDocumentPatchResult>;
+  /** The cut preview while a styled draft's script waits; never saved. */
+  getNarrationPreview: (projectId: string, documentId: string) => Promise<EditDocumentV2>;
   getNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
   decideNarration: (projectId: string, documentId: string, decision: NarrationDecision) => Promise<NarrationState>;
   editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
@@ -327,15 +350,17 @@ export type ControlPlaneClient = {
     projectId: string,
     request: SavePromptTemplateRequest,
   ) => Promise<PromptTemplateSaveResult>;
-  getPromptBinding: (projectId: string, stageId: string) => Promise<ProjectPromptBinding | null>;
+  /** `variant` names the style template of a `style_script` binding (spec 2026-11-10). */
+  getPromptBinding: (projectId: string, stageId: string, variant?: string) => Promise<ProjectPromptBinding | null>;
   savePromptBinding: (
     projectId: string,
     stageId: string,
     request: SaveProjectPromptBindingRequest,
+    variant?: string,
   ) => Promise<PromptBindingSaveResult>;
-  getResolvedPrompt: (projectId: string, stageId: string) => Promise<ResolvedPromptDraft>;
+  getResolvedPrompt: (projectId: string, stageId: string, variant?: string) => Promise<ResolvedPromptDraft>;
   listPromptProviders: () => Promise<PromptProvider[]>;
-  getPromptStarter: (stageId: string) => Promise<PromptStarter>;
+  getPromptStarter: (stageId: string, variant?: string) => Promise<PromptStarter>;
   getPromptPreference: (
     projectId: string,
     stageId: string,
@@ -699,6 +724,19 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         request,
       ),
     startNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId), {}),
+    listStyles: (projectId) => importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/styles`),
+    applyStyle: (projectId, documentId, body) =>
+      importPost(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/style`,
+        body,
+      ),
+    undoStyle: (projectId, documentId, body) =>
+      documentWrite(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/style/undo`,
+        "POST",
+        body,
+      ),
+    getNarrationPreview: (projectId, documentId) => importCall(narrationPath(projectId, documentId, "/preview")),
     getNarration: (projectId, documentId) => importCall(narrationPath(projectId, documentId)),
     decideNarration: (projectId, documentId, decision) =>
       importPost(narrationPath(projectId, documentId, "/decision"), decision),
@@ -797,27 +835,27 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         "POST",
         request,
       ),
-    getPromptBinding: (projectId, stageId) =>
+    getPromptBinding: (projectId, stageId, variant) =>
       request<ProjectPromptBinding | null>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
       ).catch((error: unknown) => {
         if (error instanceof Error && error.message.endsWith("(404)")) return null;
         throw error;
       }),
-    savePromptBinding: (projectId, stageId, request) =>
+    savePromptBinding: (projectId, stageId, request, variant) =>
       saveWithConflict<ProjectPromptBinding>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
         "PUT",
         request,
       ),
-    getResolvedPrompt: (projectId, stageId) =>
+    getResolvedPrompt: (projectId, stageId, variant) =>
       request<ResolvedPromptDraft>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/resolved/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/resolved/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
       ),
     listPromptProviders: () => request<PromptProvider[]>("/api/v1/prompt-providers"),
-    getPromptStarter: (stageId) =>
+    getPromptStarter: (stageId, variant) =>
       request<PromptStarter>(
-        `/api/v1/prompt-stages/${encodeURIComponent(stageId)}/starter`,
+        `/api/v1/prompt-stages/${encodeURIComponent(stageId)}/starter${variantQuery(variant)}`,
       ),
     getPromptPreference: (projectId, stageId) =>
       request<PromptModelPreference | null>(

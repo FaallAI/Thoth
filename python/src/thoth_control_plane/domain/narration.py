@@ -55,6 +55,10 @@ class NarrationPreset(StrictModel):
 class ScriptBeat(StrictModel):
     beat: BeatId
     text: ScriptText
+    #: A style's short card line for the beat, shown on a white card, never voiced (2026-11-10).
+    card_line: Annotated[str, Field(max_length=80)] | None = Field(
+        default_factory=lambda: None, exclude_if=lambda line: line is None
+    )
 
 
 class SfxCue(StrictModel):
@@ -68,6 +72,10 @@ class SfxCue(StrictModel):
 class NarrationScript(StrictModel):
     beats: Annotated[list[ScriptBeat], Field(min_length=1, max_length=len(BEAT_ORDER))]
     sfx_cues: Annotated[list[SfxCue], Field(max_length=10)] = Field(default_factory=list)
+    #: A short headline for the top of the video, from the same facts (operator, 2026-11-12).
+    headline: Annotated[str, Field(max_length=80)] | None = Field(
+        default=None, exclude_if=lambda line: line is None
+    )
 
     @model_validator(mode="after")
     def beats_in_story_order(self) -> NarrationScript:
@@ -114,6 +122,9 @@ class NarrationState(StrictModel):
     unsupported: dict[BeatId, list[str]] = Field(default_factory=dict)
     stale_beats: list[BeatId] = Field(default_factory=list)
     failure_code: str | None = None
+    #: A styled draft's beats with hand edits since the last write: a re-voice only stretches
+    #: them. Computed on read, never stored (operator, 2026-11-10).
+    edited_beats: list[BeatId] = Field(default_factory=list)
 
 
 def estimate_voice(
@@ -201,3 +212,5 @@ class NarrationMark(StrictModel):
     #: `completed` closes a re-voice that could not finish; the draft keeps its narration.
     status: Literal["failed", "cancelled", "completed"]
     failure_code: str | None = None
+    #: The workflow marking itself; a row since given to another narration is left alone.
+    workflow_id: str | None = None

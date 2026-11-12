@@ -13,11 +13,13 @@ which is how one beat is re-voiced. Clip IDs derive from beats, so the result is
 from __future__ import annotations
 
 import math
+import re
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from thoth_control_plane.domain.clip_moves import stretch_moves
+from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
 from thoth_control_plane.domain.edit_document_v2 import (
     AssetRef,
     CaptionCue,
@@ -25,6 +27,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     EditDocumentV2,
     TimelineAudioClip,
     TimelineCaptionClip,
+    TimelineTextClip,
     TimelineTrack,
     TimelineVideoClip,
     VolumeKeyframe,
@@ -32,6 +35,8 @@ from thoth_control_plane.domain.edit_document_v2 import (
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
+from thoth_control_plane.domain.style_apply import beat_fingerprints, style_operations
+from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
 NARRATION_PREFIX = "clip_narration_"
@@ -86,10 +91,16 @@ def narrate_document(
     *,
     place_sfx: bool | None = None,
     intro_frames: int = 0,
+    style: StyleTemplate | None = None,
+    card_lines: Mapping[BeatId, str] | None = None,
+    headline: str | None = None,
 ) -> EditDocumentV2:
     """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
     recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
-    places them only on a draft that has no narration yet."""
+    places them only on a draft that has no narration yet. `headline`, the script's, becomes
+    the main title unless a person wrote that title (operator, 2026-11-12)."""
+    if headline:
+        document = _with_headline(document, roles_by_item, headline)
     fps = document.canvas.fps
     lead = math.ceil(preset.lead_in_seconds * fps)
     voices = {voice.beat: voice for voice in voiced}
@@ -235,10 +246,17 @@ def narrate_document(
             and caption_before.duration_in_frames == length
         )
         # An unchanged voice keeps the operator's caption fixes; a new one is paged again.
-        cues = caption_before.cues if same_voice else _pages(voice.words, fps, length)  # type: ignore[union-attr]
-        style = (
+        page_words = style.captions.words_per_caption if style is not None else PAGE_WORDS
+        cues = (
+            caption_before.cues  # type: ignore[union-attr]
+            if same_voice
+            else _pages(voice.words, fps, length, page_words)
+        )
+        caption_style = (
             caption_before.style_slot
             if isinstance(caption_before, TimelineCaptionClip)
+            else style.captions.style
+            if style is not None
             else "word_highlight"
         )
         if cues:
@@ -251,7 +269,7 @@ def narrate_document(
                     duration_in_frames=length,
                     ownership="ai_managed",
                     source_role=role,  # type: ignore[arg-type]
-                    style_slot=style,
+                    style_slot=caption_style,
                     cues=cues,
                 )
             )
@@ -289,7 +307,8 @@ def narrate_document(
     curve = _duck_curve(speech, preset, fps)
     ducked = []
     for clip in clips:
-        under = (isinstance(clip, TimelineVideoClip) and clip.track_id in main_tracks) or (
+        # Every movie with sound ducks, footage on the b-roll too (stage1, 2026-11-12).
+        under = _sounding(clip, assets) or (
             isinstance(clip, TimelineAudioClip) and not clip.clip_id.startswith(_LAYER_PREFIXES)
         )
         if under and curve:
@@ -324,7 +343,109 @@ def narrate_document(
             for marker in document.markers
         ],
     )
-    return EditDocumentV2.model_validate(payload)
+    narrated_document = EditDocumentV2.model_validate(payload)
+    applied = narrated_document.style
+    if style is None:
+        return narrated_document
+    only: set[str] | None = None
+    kept: list[str] = []
+    if applied is not None and applied.voiced:
+        # A re-voice re-cuts a beat whose voice changed only when its shots are as the last
+        # write left them; a beat with hand edits only stretches (operator, 2026-11-10).
+        changed = [
+            beat
+            for beat, voice in voices.items()
+            if not (
+                isinstance(old := previous.get(f"{NARRATION_PREFIX}{beat}"), TimelineAudioClip)
+                and old.asset_id == voice.asset.asset_id
+            )
+        ]
+        before = beat_fingerprints(document, roles_by_item)
+        only = {b for b in changed if b in applied.cuts and applied.cuts[b] == before.get(b)}
+        kept = [b for b in changed if b not in only]
+        if not only:
+            return _recorded(narrated_document, roles_by_item, kept)
+    # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
+    ends = {
+        beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
+        for beat, start in starts.items()
+    }
+    # A card shows while the voice says its line, when it says it.
+    card_at = {
+        beat: frame
+        for beat, line in (card_lines or {}).items()
+        if beat in starts
+        and (frame := spoken_at(line, voices[beat].words, starts[beat], fps)) is not None
+    }
+    operations = style_operations(
+        narrated_document, style, roles_by_item, ends, card_lines, recut=only, card_at=card_at
+    )
+    styled = apply_edit_operations(
+        narrated_document,
+        operations,
+        resolved_assets={asset.asset_id: asset for asset in narrated_document.asset_refs},
+    )
+    if not curve:
+        return _recorded(styled, roles_by_item, kept)
+    # New shots of a movie duck under the voice like the clip they replaced.
+    restyled = styled.model_dump(mode="python")
+    restyled["clips"] = [
+        (
+            clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
+            if _sounding(clip, assets)
+            else clip
+        ).model_dump(mode="python")
+        for clip in styled.clips
+    ]
+    return _recorded(EditDocumentV2.model_validate(restyled), roles_by_item, kept)
+
+
+def _recorded(
+    document: EditDocumentV2, roles_by_item: dict[str, str] | None, kept: list[str]
+) -> EditDocumentV2:
+    """The style record after a write: each beat's shots as left, and the beats kept."""
+    if document.style is None:
+        return document
+    style = document.style.model_copy(
+        update={
+            "voiced": True,
+            "cuts": beat_fingerprints(document, roles_by_item),
+            "kept": [beat for beat in BEAT_ORDER if beat in kept],
+        }
+    )
+    return document.model_copy(update={"style": style})
+
+
+def sentence_ends(words: Sequence[WordTiming], start: int, fps: float) -> list[int]:
+    """The frames a voice's sentences end on: a word ending in `.`, `?`, `!` or an ellipsis."""
+    return [
+        start + round(word.end_seconds * fps)
+        for word in words
+        if word.text.rstrip().endswith((".", "?", "!", "\u2026"))
+    ]
+
+
+def _tokens(text: str) -> list[str]:
+    return [token for token in re.split(r"[^\w-]+", text.casefold()) if token]
+
+
+def spoken_at(line: str, words: Sequence[WordTiming], start: int, fps: float) -> int | None:
+    """The frame the voice first says a word of the sentence a card line repeats: the sentence
+    holding most of the line's words (at least half; on a tie the shorter, closer one), or None
+    when no sentence does (stage1, 2026-11-12)."""
+    wanted = set(_tokens(line))
+    best: tuple[int, float, int] | None = None  # (shared words, closeness, frame)
+    sentence: list[WordTiming] = []
+    for word in words:
+        sentence.append(word)
+        if word.text.rstrip().endswith((".", "?", "!", "…")) or word is words[-1]:
+            said = [w for w in sentence if wanted & set(_tokens(w.text))]
+            shared = len(wanted & {t for w in said for t in _tokens(w.text)})
+            score = (shared, shared / len(sentence))
+            if 2 * shared >= len(wanted) > 0 and (best is None or score > best[:2]):
+                best = (*score, start + round(said[0].start_seconds * fps))
+            sentence = []
+    return None if best is None else best[2]
 
 
 def _old_windows(
@@ -501,15 +622,17 @@ def _word_frames(word: WordTiming, fps: float, length: int) -> tuple[int, int]:
     return start, end
 
 
-def _pages(words: Sequence[WordTiming], fps: float, length: int) -> list[CaptionCue]:
-    """Pages of at most four words or 1.2 s, each word timed relative to its page."""
+def _pages(
+    words: Sequence[WordTiming], fps: float, length: int, page_words: int = PAGE_WORDS
+) -> list[CaptionCue]:
+    """Pages of at most `page_words` words or 1.2 s, each word timed relative to its page."""
     pages: list[list[WordTiming]] = []
     for word in words:
         if not word.text.strip():
             continue
         if (
             pages
-            and len(pages[-1]) < PAGE_WORDS
+            and len(pages[-1]) < page_words
             and word.end_seconds - pages[-1][0].start_seconds <= PAGE_SECONDS
         ):
             pages[-1].append(word)
@@ -561,6 +684,42 @@ def _speech(words: Sequence[WordTiming], start: int, length: int, fps: float) ->
         else:
             windows.append(window)
     return windows
+
+
+def _with_headline(
+    document: EditDocumentV2, roles_by_item: dict[str, str] | None, headline: str
+) -> EditDocumentV2:
+    """The main title, the first heading of the main beat, reads `headline`; a title a person
+    edited stays theirs."""
+    beats = clip_beats(document, roles_by_item)
+    title = next(
+        (
+            clip
+            for clip in sorted(document.clips, key=lambda clip: clip.from_frame)
+            if isinstance(clip, TimelineTextClip)
+            and beats.get(clip.clip_id) == "main"
+            and clip.style_slot not in ("credit", "card")
+        ),
+        None,
+    )
+    if title is None or title.ownership == "user_edited" or title.heading == headline:
+        return document
+    return document.model_copy(
+        update={
+            "clips": [
+                clip.model_copy(update={"heading": headline}) if clip is title else clip
+                for clip in document.clips
+            ]
+        }
+    )
+
+
+def _sounding(clip: object, assets: Mapping[str, AssetRef]) -> bool:
+    """A video clip whose media carries sound: it ducks under the narration."""
+    if not isinstance(clip, TimelineVideoClip):
+        return False
+    asset = assets.get(clip.asset_id)
+    return asset is not None and asset.kind == "video" and asset.has_audio
 
 
 def _duck_curve(

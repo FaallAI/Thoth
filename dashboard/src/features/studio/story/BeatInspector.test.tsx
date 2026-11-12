@@ -51,6 +51,31 @@ function mount(id: string, { locale = "en" as "en" | "id", attach = mock(async (
   return { dispatch, attach, committed };
 }
 
+test("a credit is no heading: its beat offers no heading position for it", () => {
+  // 2026-11-12: a footage beat's @account credit must keep its corner.
+  const place = (slot: string) => {
+    const document = storyDocument();
+    Object.assign(document.clips!.find((clip) => clip.clip_id === "clip_source")!, { style_slot: slot });
+    const own = computeBeats(document, inventory);
+    render(
+      <BeatInspector
+        beat={own.find((beat) => beat.id === "footage")!}
+        beats={own}
+        document={document}
+        inventory={inventory}
+        materials={materials}
+        dispatch={mock(() => {})}
+        attachMaterial={mock(async () => fresh)}
+      />,
+    );
+    const found = screen.queryByRole("group", { name: "Heading position" });
+    cleanup();
+    return found;
+  };
+  expect(place("title")).not.toBeNull();
+  expect(place("credit")).toBeNull();
+});
+
 test("the header names the beat, its place, its length and what is missing", () => {
   mount("reactions");
 

@@ -52,6 +52,10 @@ export type EditorState = EditorSnapshot & {
   /** Revisions this session's saves replaced: Undo restores them once the snapshots are gone. */
   savedUndo: number[];
   savedRedo: number[];
+  /** Saved revisions that undo a style (spec 2026-11-10); undone through the style route. */
+  styleUndos?: number[];
+  /** Styled revisions a style's undo left behind, by template: Redo applies the style again. */
+  styleRedos?: Record<number, string>;
   saveStatus: EditorSaveStatus;
   /** The failed save was refused by the document's rules, so retrying it cannot help. */
   saveRefused: boolean;
@@ -85,6 +89,8 @@ export type EditorAction =
   | { type: "save_succeeded"; document: EditDocument; operationIds?: string[] }
   | { type: "save_failed"; refused?: boolean }
   | { type: "restored"; document: EditDocument; direction: "undo" | "redo" }
+  /** A style applied on the server (spec 2026-11-10): one undo step, undone through the style. */
+  | { type: "style_applied"; document: EditDocument; previousRevision: number }
   | { type: "retry_save" }
   | { type: "went_offline" }
   | { type: "went_online" }
@@ -590,10 +596,24 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
         savedUndo,
       };
     }
+    case "style_applied": {
+      const saved = createEditorState(action.document, state.assets);
+      return {
+        ...saved,
+        ...sessionAfterSave(state, action.document, saved),
+        isOffline: state.isOffline,
+        saveStatus: state.isOffline ? "offline" : saved.saveStatus,
+        savedUndo: [...state.savedUndo, action.previousRevision],
+        styleUndos: [...(state.styleUndos ?? []), action.previousRevision],
+      };
+    }
     case "restored": {
       const saved = createEditorState(action.document, state.assets);
       const undoing = action.direction === "undo";
+      const styled = "style" in state.base ? state.base.style?.template_id : undefined;
+      const styleUndo = undoing && styled && (state.styleUndos ?? []).includes(state.savedUndo.at(-1) ?? -1);
       return {
+        ...(styleUndo ? { styleRedos: { ...state.styleRedos, [state.base.revision]: styled } } : {}),
         ...saved,
         ...sessionAfterSave(state, action.document, saved),
         isOffline: state.isOffline,
@@ -751,4 +771,22 @@ export function toEditDocumentPatch(
   state: Pick<EditorState, "base" | "pendingOperations">,
 ): EditDocumentPatch {
   return { base_revision: state.base.revision, operations: state.pendingOperations };
+}
+
+/**
+ * The saved revision an Undo or Redo goes to, and whether it undoes a style: a style's undo also
+ * stops the narration the style started (spec 2026-11-10), which a plain restore cannot.
+ */
+export function restoreTarget(
+  state: EditorState,
+  direction: "undo" | "redo",
+): { revision: number; style: boolean; template?: string } | null {
+  const revision = direction === "undo" ? state.savedUndo.at(-1) : state.savedRedo[0];
+  if (revision === undefined) return null;
+  if (direction === "redo") {
+    // A style's redo applies the style again, so its narration starts too (2026-11-10).
+    const template = state.styleRedos?.[revision];
+    return template ? { revision, style: true, template } : { revision, style: false };
+  }
+  return { revision, style: (state.styleUndos ?? []).includes(revision) };
 }

@@ -194,6 +194,32 @@
             ],
             "title": "Background"
           },
+          "blur_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blur Enabled"
+          },
+          "blur_regions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ClipBlurRegion"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blur Regions"
+          },
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",
@@ -224,6 +250,17 @@
             "minimum": 0.0,
             "title": "From Frame",
             "type": "integer"
+          },
+          "hold_after_source": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold After Source"
           },
           "kind": {
             "const": "add_clip_from_asset",
@@ -509,6 +546,98 @@
         "title": "AdminUsageView",
         "type": "object"
       },
+      "AppliedStyle": {
+        "additionalProperties": false,
+        "description": "The style template, and its revision, a draft last took (spec 2026-11-10).",
+        "properties": {
+          "cuts": {
+            "additionalProperties": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxProperties": 16,
+            "title": "Cuts",
+            "type": "object"
+          },
+          "kept": {
+            "items": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Kept",
+            "type": "array"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          },
+          "voiced": {
+            "title": "Voiced",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "template_id",
+          "revision"
+        ],
+        "title": "AppliedStyle",
+        "type": "object"
+      },
+      "AppliedStyleResult": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditDocumentV1"
+              },
+              {
+                "$ref": "#/components/schemas/EditDocumentV2"
+              }
+            ],
+            "title": "Document"
+          },
+          "narration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NarrationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "narration_refused": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narration Refused"
+          },
+          "previous_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Previous Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document",
+          "previous_revision"
+        ],
+        "title": "AppliedStyleResult",
+        "type": "object"
+      },
       "ApplyPromptProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -537,6 +666,27 @@
           "source_binding_revision"
         ],
         "title": "ApplyPromptProposalRequest",
+        "type": "object"
+      },
+      "ApplyStyleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "base_revision"
+        ],
+        "title": "ApplyStyleRequest",
         "type": "object"
       },
       "ApprovalRequest": {
@@ -1518,7 +1668,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -1952,6 +2103,7 @@
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_document_style": "#/components/schemas/SetDocumentStyle",
                   "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
@@ -2050,6 +2202,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetDocumentStyle"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipMarks"
@@ -2267,6 +2422,16 @@
             "const": 2,
             "title": "Schema Version",
             "type": "integer"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "template": {
             "$ref": "#/components/schemas/TemplateRef"
@@ -3368,6 +3533,18 @@
             "title": "Beats",
             "type": "array"
           },
+          "headline": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
           "sfx_cues": {
             "items": {
               "$ref": "#/components/schemas/SfxCue"
@@ -3389,6 +3566,21 @@
           "document_id": {
             "title": "Document Id",
             "type": "string"
+          },
+          "edited_beats": {
+            "items": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ],
+              "type": "string"
+            },
+            "title": "Edited Beats",
+            "type": "array"
           },
           "estimate": {
             "anyOf": [
@@ -4012,7 +4204,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4026,6 +4219,10 @@
             "exclusiveMinimum": 0.0,
             "title": "Template Revision",
             "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
           }
         },
         "required": [
@@ -4069,7 +4266,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4120,7 +4318,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4284,7 +4483,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4587,7 +4787,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4599,6 +4800,18 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
           }
         },
         "required": [
@@ -4674,7 +4887,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5449,7 +5663,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5942,7 +6157,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -6029,6 +6245,18 @@
             ],
             "title": "Beat",
             "type": "string"
+          },
+          "card_line": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Line"
           },
           "text": {
             "maxLength": 2000,
@@ -6729,6 +6957,39 @@
           "volume"
         ],
         "title": "SetClipVolume",
+        "type": "object"
+      },
+      "SetDocumentStyle": {
+        "additionalProperties": false,
+        "description": "Record (or clear) the style template a draft took (spec 2026-11-10).",
+        "properties": {
+          "kind": {
+            "const": "set_document_style",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "style"
+        ],
+        "title": "SetDocumentStyle",
         "type": "object"
       },
       "SetMarker": {
@@ -7811,6 +8072,7 @@
                   "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_document_style": "#/components/schemas/SetDocumentStyle",
                   "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
@@ -7909,6 +8171,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipDim"
+                },
+                {
+                  "$ref": "#/components/schemas/SetDocumentStyle"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipMarks"
@@ -8907,6 +9172,34 @@
           "description"
         ],
         "title": "StylePreset",
+        "type": "object"
+      },
+      "StyleSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "template_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "name",
+          "revision"
+        ],
+        "title": "StyleSummary",
         "type": "object"
       },
       "TemplateRef": {
@@ -12962,6 +13255,74 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/preview": {
+      "get": {
+        "description": "A styled draft's cuts from its waiting script, before any voice (spec 2026-11-10).",
+        "operationId": "preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditDocumentV2"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Narration Cuts",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
       "post": {
         "description": "Write a finished narration again from the draft as it is now (a new script, approved\nagain before any voice); new beats such as an added Hook are included.",
@@ -13481,6 +13842,182 @@
           }
         },
         "summary": "Create Review Decision"
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style": {
+      "post": {
+        "operationId": "apply_style_api_v1_projects__project_id__edit_documents__document_id__style_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyStyleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedStyleResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Style"
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/style/undo": {
+      "post": {
+        "operationId": "undo_style_api_v1_projects__project_id__edit_documents__document_id__style_undo_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV2"
+                    }
+                  ],
+                  "title": "Response Undo Style Api V1 Projects  Project Id  Edit Documents  Document Id  Style Undo Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Undo Style"
       }
     },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/upgrade-timeline": {
@@ -14113,9 +14650,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -14182,9 +14732,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -14944,9 +15507,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -15015,7 +15591,8 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -16272,6 +16849,65 @@
         "summary": "List Studio Import Drafts"
       }
     },
+    "/api/v1/projects/{project_id}/styles": {
+      "get": {
+        "operationId": "list_styles_api_v1_projects__project_id__styles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StyleSummary"
+                  },
+                  "title": "Response List Styles Api V1 Projects  Project Id  Styles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Styles"
+      }
+    },
     "/api/v1/projects/{project_id}/workflows": {
       "get": {
         "operationId": "list_project_workflows_api_v1_projects__project_id__workflows_get",
@@ -16739,6 +17375,24 @@
             "schema": {
               "title": "Stage Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_-]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant"
             }
           },
           {

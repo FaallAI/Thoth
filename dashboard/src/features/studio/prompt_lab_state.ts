@@ -164,10 +164,10 @@ export function promptLabReducer(state: PromptLabState, action: PromptLabAction)
   switch (action.type) {
     case "stages_loaded": {
       const withStages = { ...state, stages: action.stages };
-      if (action.stages.some((stage) => stage.stage_id === state.selectedStageId)) {
+      if (action.stages.some((stage) => stageKey(stage) === state.selectedStageId)) {
         return withStages;
       }
-      const fallbackStageId = action.stages[0]?.stage_id ?? "";
+      const fallbackStageId = action.stages[0] ? stageKey(action.stages[0]) : "";
       if (fallbackStageId) {
         return promptLabReducer(withStages, { type: "select_stage", stageId: fallbackStageId });
       }
@@ -242,7 +242,7 @@ export function promptLabReducer(state: PromptLabState, action: PromptLabAction)
       return { ...state, resolved: action.resolved };
     case "select_stage": {
       if (action.stageId === state.selectedStageId) return state;
-      if (!state.stages.some((stage) => stage.stage_id === action.stageId)) return state;
+      if (!state.stages.some((stage) => stageKey(stage) === action.stageId)) return state;
       const restored =
         !state.selectedStageId && hasDirtyDraft(state)
           ? snapshot(state)
@@ -417,4 +417,18 @@ export function promptLabReducer(state: PromptLabState, action: PromptLabAction)
     default:
       return state;
   }
+}
+
+/**
+ * A stage's key in this screen: its id, or `style_script:<template>` for a style's script prompt,
+ * which shares one stage id across style templates (spec 2026-11-10).
+ */
+export function stageKey(stage: { stage_id: string; variant?: string | null }): string {
+  return stage.variant ? `${stage.stage_id}:${stage.variant}` : stage.stage_id;
+}
+
+/** The stage id and style template a key names. */
+export function splitStageKey(key: string): { stageId: string; variant?: string } {
+  const at = key.indexOf(":");
+  return at < 0 ? { stageId: key } : { stageId: key.slice(0, at), variant: key.slice(at + 1) };
 }

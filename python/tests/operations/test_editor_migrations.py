@@ -58,6 +58,9 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0025_story_assist_prompt_stage.sql",
         "0026_access_token_creator.sql",
         "0027_narration.sql",
+        "0028_style_templates.sql",
+        "0029_style_script_stage.sql",
+        "0030_narration_previous.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()

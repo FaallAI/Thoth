@@ -13,8 +13,15 @@ from pydantic import Field, field_validator, model_validator
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 
 PromptStageId: TypeAlias = Literal[
-    "narrative_plan", "visual_plan", "caption_copy", "story_assist", "narration_script"
+    "narrative_plan",
+    "visual_plan",
+    "caption_copy",
+    "story_assist",
+    "narration_script",
+    "style_script",
 ]
+#: Style templates (spec 2026-11-10): one stage, its project binding kept per template (variant).
+STYLE_STAGE: PromptStageId = "style_script"
 
 PROMPT_LANGUAGE_PATTERN = r"^[a-z]{2}(?:-[A-Z]{2})?$"
 PROMPT_TEXT_MAX_LENGTH = 12_000
@@ -30,6 +37,8 @@ class PromptStageDefinition(StrictModel):
     stage_id: PromptStageId
     label: Annotated[str, Field(min_length=1, max_length=200)]
     status: Literal["draft_only", "proposal_ready"]
+    #: The style template a `style_script` entry is for; none for every other stage.
+    variant: OpaqueId | None = Field(default_factory=lambda: None, exclude_if=lambda v: v is None)
 
 
 class PromptStarterDefinition(StrictModel):
@@ -59,6 +68,8 @@ class ProjectPromptBinding(StrictModel):
     template_revision: Annotated[int, Field(gt=0)]
     project_override: Annotated[str | None, Field(max_length=PROMPT_TEXT_MAX_LENGTH)] = None
     revision: Annotated[int, Field(gt=0)]
+    #: The style template a `style_script` binding is for; '' for every other stage.
+    variant: str = Field(default_factory=str)
 
 
 class SavePromptTemplateRequest(StrictModel):
