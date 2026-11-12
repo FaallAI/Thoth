@@ -446,8 +446,16 @@ def _overlay(
     seconds = scene.duration_in_frames / canvas.fps
     position = card_position(asset.width, asset.height, (canvas.width, canvas.height))
     track = "track_b_roll"
-    # The post opens the video for its reading time, then who posted it (spec 5c-2, G5).
-    post = next((item for item in current.items if item.role == "post_card"), None)
+    # A post on screen opens the video for its reading time, then who posted it (spec 5c-2, G5).
+    # One left in Materials takes no time (operator, 2026-11-12).
+    post = next(
+        (
+            item
+            for item in current.items
+            if item.role == "post_card" and item.disposition == "attached"
+        ),
+        None,
+    )
     after_post = (
         sum(post_card_slot(seconds, post.reading_seconds or READING_MIN)) + CARD_GAP
         if post is not None

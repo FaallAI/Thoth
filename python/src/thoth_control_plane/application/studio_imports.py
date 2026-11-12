@@ -21,7 +21,7 @@ from thoth_control_plane.application.ports import (
     StudioImportSourceMismatch,
 )
 from thoth_control_plane.domain.edit_document_upgrade import upgrade_edit_document_v1
-from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
+from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2, TimelineTextClip
 from thoth_control_plane.domain.models import OpaqueId, ProjectId
 from thoth_control_plane.domain.studio_imports import (
     DRAFT_LIST_LIMIT,
@@ -88,20 +88,40 @@ def build_studio_draft(
         for index, item in enumerate(items, start=1)
     ]
     document = upgrade_edit_document_v1(document_from_text_clips(project_id, document_id, clips))
-    return document.model_copy(
-        update={
-            "clips": [
-                clip.model_copy(
-                    update={
-                        "source_role": item.role,
-                        # A lone title goes above the action; quoted text keeps the middle.
-                        "style_slot": _slot(item, clip.body, clip.style_slot),
-                    }
-                )
-                for clip, item in zip(document.clips, items, strict=True)
-            ]
-        }
+    placed = [
+        clip.model_copy(
+            update={
+                "source_role": item.role,
+                # A lone title goes above the action; quoted text keeps the middle.
+                "style_slot": _slot(item, clip.body, clip.style_slot),
+            }
+        )
+        for clip, item in zip(document.clips, items, strict=True)
+    ]
+    # The post and profile page stay off the timeline; their @account rides over the main scene
+    # as its credit (operator, 2026-11-12).
+    handle = next(
+        (
+            item.title
+            for item in projection.items
+            if item.role in ("post_card", "profile_page", "profile_card")
+            and (item.title or "").startswith("@")
+        ),
+        None,
     )
+    tracks = document.tracks
+    if handle and placed and isinstance(placed[0], TimelineTextClip):
+        credit = placed[0].model_copy(
+            update={"clip_id": "clip_credit", "heading": handle, "body": "", "style_slot": "credit"}
+        )
+        placed.insert(1, credit)
+        tracks = [
+            track.model_copy(update={"clip_ids": [*track.clip_ids, credit.clip_id]})
+            if track.track_id == credit.track_id
+            else track
+            for track in tracks
+        ]
+    return document.model_copy(update={"clips": placed, "tracks": tracks})
 
 
 class StudioImportService:

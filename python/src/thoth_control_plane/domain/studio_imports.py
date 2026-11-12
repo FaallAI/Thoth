@@ -45,6 +45,9 @@ ROLE_ORDER: tuple[SourceRole, ...] = (
 )
 #: Placed over the main scene, never a scene of their own (spec 2026-10-21 5c-1, 4.1).
 OVERLAY_ROLES: frozenset[str] = frozenset({"slide", "post_card", "profile_card", "comment_card"})
+#: Listed in Materials, never placed on the timeline: a post's screenshot and the profile page read
+#: badly in a video (operator, 2026-11-12). A person can still add one from Materials.
+UNPLACED_ROLES: frozenset[str] = frozenset({"post_card", "profile_page"})
 #: Roles a Content Set holds at most once.
 SINGLE_ROLES: frozenset[str] = frozenset(
     {"main", "main_footage", "post_card", "profile_page", "profile_card"}
@@ -302,6 +305,7 @@ def scene_items(projection: StudioSourceProjection) -> list[StudioSourceItem]:
         for item in projection.items
         if item.role != "main_footage"
         and item.role not in OVERLAY_ROLES
+        and item.role not in UNPLACED_ROLES
         and not (item.role == "comment" and item.media_kind == "none")
         and (item.role == "main" or item.title or item.text or item.media_kind != "none")
     ]
@@ -324,7 +328,7 @@ def inventory(projection: StudioSourceProjection) -> list[StudioImportItem]:
     }
     scenes[("main_footage", 0)] = "scene_001"
     for item in projection.items:
-        if item.role in OVERLAY_ROLES:
+        if item.role in OVERLAY_ROLES and item.role not in UNPLACED_ROLES:
             scenes[(item.role, item.order)] = "scene_001"
     media = [
         StudioImportItem(
@@ -336,7 +340,7 @@ def inventory(projection: StudioSourceProjection) -> list[StudioImportItem]:
             media_kind=item.media_kind,
             scene_id=scenes.get((item.role, item.order)),
             reason=None,
-            disposition="unresolved",
+            disposition="excluded" if item.role in UNPLACED_ROLES else "unresolved",
             trim_start_seconds=item.trim_start_seconds,
             mute_audio=item.mute_audio,
             blur_regions=item.blur_regions,
