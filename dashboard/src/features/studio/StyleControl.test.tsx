@@ -133,3 +133,28 @@ test("a note floats over the studio until it is dismissed", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Got it" }));
   expect(screen.queryByText(/Main kept your edits/)).toBeNull();
 });
+
+test("in the narrow menu the confirmation flows under the control instead of floating off-screen", async () => {
+  // Live at 430 (2026-11-12): the floating 20rem confirmation ran past the phone's right edge.
+  const client = { listStyles: mock(async () => STYLES), applyStyle: mock(async () => ({}) as AppliedStyleResult) };
+  const choose = async (variant?: "chip" | "block") => {
+    render(
+      <StyleControl
+        client={client}
+        projectId="project_001"
+        documentId="edoc_1"
+        document={upgradedTextDocument()}
+        disabled={false}
+        onApplied={mock(() => {})}
+        {...(variant ? { variant } : {})}
+      />,
+    );
+    await screen.findByRole("option", { name: "Style A" });
+    fireEvent.change(screen.getByLabelText("Style"), { target: { value: "style_a" } });
+    const dialog = screen.getByRole("alertdialog").className;
+    cleanup();
+    return dialog;
+  };
+  expect(await choose()).toContain("absolute");
+  expect(await choose("block")).not.toContain("absolute");
+});

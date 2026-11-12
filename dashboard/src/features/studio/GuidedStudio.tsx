@@ -890,6 +890,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             documentId={documentId}
             document={timeline}
             disabled={isNarrationActive(narration) || saveStatus !== "saved"}
+            variant={viewport === "full_desktop" ? "chip" : "block"}
             onApplied={(result) => {
               dispatch({ type: "style_applied", document: result.document, previousRevision: result.previous_revision });
               if (result.narration) {

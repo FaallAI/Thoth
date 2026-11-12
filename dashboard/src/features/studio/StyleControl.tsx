@@ -18,6 +18,7 @@ export function StyleControl({
   document,
   disabled,
   onApplied,
+  variant = "chip",
 }: {
   client: {
     listStyles: (projectId: string) => Promise<StyleSummary[]>;
@@ -32,6 +33,8 @@ export function StyleControl({
   document: EditDocumentV2;
   disabled: boolean;
   onApplied: (result: AppliedStyleResult) => void;
+  /** "chip" in the wide header, "block" inside the narrower menu, as NarrationChecking does. */
+  variant?: "chip" | "block";
 }) {
   const { t } = useLocale();
   const id = useId();
@@ -86,7 +89,10 @@ export function StyleControl({
 
   const keptNote = keptKey && dismissed !== keptKey;
   // The header is one row: the confirmation and the notes float under the control (e2e, 2026-11-10).
-  const floating = "absolute left-0 top-full z-50 mt-2 w-80 rounded-md border border-hairline bg-surface p-2 text-xs text-muted-ink shadow-lg";
+  // In the menu they flow under it instead: floating, they ran past a phone's edge (e2e, 2026-11-12).
+  const panel = "rounded-md border border-hairline bg-surface p-2 text-xs text-muted-ink";
+  const floating =
+    variant === "chip" ? `absolute left-0 top-full z-50 mt-2 w-80 shadow-lg ${panel}` : panel;
   return (
     <div className="relative flex flex-col gap-2">
       <div className="flex items-center gap-2">
