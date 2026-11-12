@@ -152,8 +152,25 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
 - **Checks:**
   - Python 4860 passed, 233 skipped; ruff clean;
   - dashboard 2009 passed, `tsc -b` clean, build OK;
-  - the release goldens hold no card and no `@` credit, so their pixels do not move.
-- **Not yet pushed or deployed.**
+  - no release golden holds an `@` credit. The earlier note here, that no golden holds a card, was wrong: `effects-v1` does (see below).
+- **CI parity gate on the push of `84cf4a2b` (run 43083333453): failed.**
+  - Template release parity: `vertical_text_story-v1` frame 30 previewed off its golden and its own render by at most 2 levels on 1135 pixels; `story_mode-v1` frame 30 by 1 level on 1165 pixels. Renders were unchanged.
+  - The operator chose to investigate before deploying.
+  - Local F1 A/B (`D:/thoth-tmp/fixes/f1_verify.sh`):
+    - HEAD failed both releases at frame 30;
+    - HEAD without premount passed both.
+  - Cause: frame 30 is where `clip_motion` (from 60) starts premounting. A premounted copy of a movie already on screen (`clip_spare`, same asset) shifts that movie's preview pixels. Remotion hides the premounted Sequence with `display: none`, so it is not compositing; the two players decode the same file.
+  - `@remotion/media` `<Video>` always holds the Player while it buffers, and its docs offer premounting as the remedy.
+  - Fix (`ffeb3f48`): Studio's Player passes `premount` only while it plays. A held frame (Studio paused, the parity harness) mounts nothing early and matches the render. Playback still loads the next video a second ahead. Tests: dashboard 2010 passed, renderer 262 passed, renderer typecheck clean.
+- **`effects-v1` golden re-approved (operator, 2026-11-12: "ya di setujui").**
+  - With the fix, `effects-v1` frame 119 no longer matched its 2026-11-10 golden: that golden drew the boxed caption "Small subtitles on a solid box." over the white card, the very overlap the operator reported. The candidate hides it; preview and render still match exactly.
+  - The candidate frame was shown side by side with the old golden before promotion.
+  - Promotion (`D:/thoth-tmp/fixes/f6_promote.sh`):
+    - redrawn at `ffeb3f48` with no network;
+    - every redrawn frame byte-identical to the frames shown;
+    - promoted from `run_87f98e836e96312d` to golden set `sha256-56f91f71…`, committed in `9b226703`;
+    - all three releases then passed twice on fresh roots.
+  - The first build attempt failed on the network, before any code ran: Docker Hub was unreachable over IPv6 and reachable over IPv4. The retry built.
 
 **Next steps** (each its own gate):
 - push and redeploy, then the operator looks at the same draft again;
