@@ -373,3 +373,25 @@ def test_a_headline_naming_what_the_facts_lack_is_dropped() -> None:
 
     assert kept("Kucing oren curi 3 ikan di Pasar Minggu") is not None
     assert kept("Kucing Joko curi 9 ikan") is None
+
+
+def test_the_headline_asks_for_sentence_case_so_the_name_check_holds() -> None:
+    # Side review, 2026-11-12: a Title Case headline reads every word as a name, and one word
+    # the facts lack would drop the whole headline.
+    _, user = _request()
+    assert "sentence case" in user
+    assert "capital only for the first word and for names" in user
+
+
+def test_a_dropped_headline_is_logged_with_what_the_facts_lack(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    script = parse_script(
+        answer(headline="Kucing Joko curi ikan"),
+        beats=BEATS,
+        preset=NarrationPreset(),
+        sfx_ids={"whoosh"},
+    )  # type: ignore[arg-type]
+    with caplog.at_level("WARNING"):
+        assert supported_headline(script, FACTS, TRANSCRIPT).headline is None
+    assert "Joko" in caplog.text

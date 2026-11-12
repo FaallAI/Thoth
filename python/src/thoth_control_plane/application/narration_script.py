@@ -8,6 +8,7 @@ because the operator reads the script before any voice is made.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from typing import Any
@@ -25,6 +26,8 @@ from thoth_control_plane.domain.narration import (
     SfxEntry,
     TranscriptSegment,
 )
+
+logger = logging.getLogger(__name__)
 
 STAGE = "narration_script"
 #: Always asked for, whatever a project's saved prompt says, so the answer stays parseable.
@@ -140,7 +143,8 @@ def build_script_request(
     # The raw caption ran past the two lines the top of the video holds (operator, 2026-11-12).
     lines.append(
         f"Headline: write one news headline of at most {HEADLINE_MAX} characters for the top "
-        "of the video, in the narration's language, from the facts only, with no account handle."
+        "of the video, in the narration's language, from the facts only, with no account handle, "
+        "in sentence case: a capital only for the first word and for names."
     )
     contract = f"{ANSWER_CONTRACT} {HEADLINE_CONTRACT}"
     if card_lines:
@@ -305,8 +309,13 @@ def supported_headline(
 ) -> NarrationScript:
     """`script` without its headline when the headline names what the facts lack: unlike a
     beat, nobody reviews it before it shows (2026-11-12)."""
-    if script.headline is None or not _missing(script.headline, *_evidence(facts, transcript)):
+    if script.headline is None:
         return script
+    missing = _missing(script.headline, *_evidence(facts, transcript))
+    if not missing:
+        return script
+    # Shown, never silent: the draft falls back to its caption cut to fit (side review, 2026-11-12).
+    logger.warning("headline dropped, the facts lack: %s", ", ".join(missing))
     return script.model_copy(update={"headline": None})
 
 
