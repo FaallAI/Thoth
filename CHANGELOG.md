@@ -171,9 +171,16 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
     - promoted from `run_87f98e836e96312d` to golden set `sha256-56f91f71…`, committed in `9b226703`;
     - all three releases then passed twice on fresh roots.
   - The first build attempt failed on the network, before any code ran: Docker Hub was unreachable over IPv6 and reachable over IPv4. The retry built.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh").
+  - `cbec24f5` went to PR #128. CI run 43154585344 is green, Template release parity included.
+  - Deploy: no workflow was running, `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-af10fb5a.env`.
+  - After the deploy, api and worker showed 0 restarts, 0 api 5xx and 0 worker error lines.
+  - Read-only e2e at `w1440` on the operator's draft (revision 27, unchanged), safe zone on:
+    - at 0:23.3 the white card "Beneran mau mundur?" shows alone, with no caption over it;
+    - at 0:26.3, `@cnnindonesia` sits small in the lower left, above TikTok's band, and the caption "PIHAK ISTANA" stays mid-frame.
 
 **Next steps** (each its own gate):
-- push and redeploy, then the operator looks at the same draft again;
+- the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
 - merge.
 
