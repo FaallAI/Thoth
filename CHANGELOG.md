@@ -241,10 +241,11 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - dashboard 2013 passed, `tsc -b` clean, build OK;
   - renderer 262 passed, typecheck clean.
   - Local template parity (`f1_verify3.sh`): all three releases pass, so no golden moves. The first build attempt failed downloading the headless browser over the local network; the retry built.
-- **Not yet pushed or deployed.**
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - `1a59f61e` went to PR #128. PR run 43182475795 is green with Validate image build and Template release parity; push run 43182466792 is green with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-fe8d9da2.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
 
 **Next steps** (each its own gate):
-- push and redeploy the follow-ups;
 - remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
