@@ -64,7 +64,7 @@ RUN /opt/thoth/python/.venv/bin/patchright install --with-deps chromium \
 
 COPY --chown=thoth:thoth python/src/ /opt/thoth/python/src/
 COPY --chown=thoth:thoth python/migrations/ /opt/thoth/python/migrations/
-# Narration's bundled SFX and their catalog and licences (seeded by `thoth-control sfx seed`).
+# Bundled SFX and their catalog, loaded into a workspace by `thoth-control assets import`.
 COPY --chown=thoth:thoth assets/sfx/ /opt/thoth/assets/sfx/
 COPY --chown=thoth:thoth assets/asset_catalog.json /opt/thoth/assets/asset_catalog.json
 RUN cd /opt/thoth/python \
