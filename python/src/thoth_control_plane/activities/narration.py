@@ -56,6 +56,7 @@ from thoth_control_plane.domain.narration import (
 from thoth_control_plane.domain.prompts import PROMPT_STARTERS
 from thoth_control_plane.domain.story_beats import beat_spans
 from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
+from thoth_control_plane.voice.loudness import normalize_loudness
 from thoth_control_plane.voice.ports import (
     VoiceNotConfigured,
     VoiceRejected,
@@ -268,7 +269,9 @@ class NarrationActivities:
             )
             if result.request_id:
                 stitched.append(result.request_id)
-            asset = await self._ports.upload_audio(project_id, result.audio, result.media_type)
+            # One level for every beat: the voices ran 4 dB apart and sat low (2026-11-12).
+            audio = await asyncio.to_thread(normalize_loudness, result.audio, result.media_type)
+            asset = await self._ports.upload_audio(project_id, audio, result.media_type)
             await on_voice(
                 VoiceRef(
                     beat=beat.beat,

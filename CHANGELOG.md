@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-12 - Narration loudness (reference-faithful editing, step 1)
+
+Branch `feat/narration-loudness`, from master `29c7ceb3`.
+
+**Why.** The operator: "suara naration terlalu kecil". Their Style B draft `edoc_98b4…` was measured read-only:
+- **Its voices:** −18.1 (main), −16.6 (evidence), −18.9 (reactions) and −20.7 (footage) LUFS. The beats ran 4.1 dB apart.
+- **The rest of the mix:** the main video is −18.2 LUFS; the WinNews reference is −22.9 LUFS overall and very even.
+- **Where it was heard:** the draft was never rendered, so the impression came from the Studio preview. There the footage beat's own sound had also played at full level until `4487a1e7`.
+
+**Before building.** The brainstorm that led here is in `.superpowers/sdd/2026-11-12-footage-library/brainstorm-notes.md`. It is also summarised as the new "Reference-faithful editing track" in `docs/ROADMAP.md`, an addition only. The operator agreed its order: loudness, then planner stage 1, then the footage library, then stressed delivery. They approved this small change in chat.
+
+**What changed** (`5a48e3d7`, test-first):
+- **Normalisation:** every narration voice is normalised before it is stored, by `voice/loudness.py` `normalize_loudness`. It is called from `NarrationActivities._voice_beats` in a thread.
+  - It uses ffmpeg two-pass `loudnorm` in linear mode to −16 LUFS, true peak −1.5 dB, LRA 11, at 44.1 kHz, keeping the provider's format (mp3 or wav). Only the level moves; the length, and so the word timings, stay.
+- **When ffmpeg is missing:** it raises `ToolMissing("ffmpeg_missing")`.
+- **When it cannot finish:** audio ffmpeg cannot read or write, or a media type it does not know, is kept as it came, with a warning.
+- **Caught on the way:** the first build parsed ffmpeg's JSON together with the progress lines after it, so `json.loads` failed and every voice came back untouched. The level test caught it at −46 LUFS against the −16 target.
+
+**Checks:**
+- **Unit:** `tests/voice/test_loudness.py` has five tests: quiet and loud tones land within 1 LU of −16 with the same length; a missing ffmpeg is named; unreadable audio and unknown formats are kept.
+- **Activity:** an activity test checks that every voiced beat goes through `normalize_loudness` before upload.
+- **Suites:** Python 4876 passed, 233 skipped; ruff clean.
+- **On the real voices, without cost:** the four stored voices of `edoc_98b4…` were copied into memory in the api container and normalised there. Nothing was stored, and the worker's ffmpeg has `libmp3lame`.
+
+  | Beat | Before | After | Length |
+  |---|---|---|---|
+  | Main | −18.1 LUFS, peak −0.9 dB | −16.3, peak −1.7 | 21.76 s, unchanged |
+  | Evidence | −16.6, peak −0.7 | −16.2, peak −1.7 | 9.56 s, unchanged |
+  | Reactions | −18.9, peak −1.5 | −16.4, peak −1.8 | 11.94 s, unchanged |
+  | Footage | −20.7, peak −2.5 | −16.2, peak −1.7 | 9.09 s, unchanged |
+
+  The beats now sit 0.2 dB apart.
+
+**What it does not change.** Voices already stored keep their level until their draft's next narration or re-voice. The ducking curve (12 % under speech, 45 % in pauses) is unchanged.
+
+**Mix check (side review: "+1.8 dB is barely audible"; the operator: "tolong pastikan ini").** The draft's audio was rebuilt in memory from its stored media, following its clips, offsets and volume keyframes; nothing was stored. The operator granted the one command through `/permissions`.
+
+| Beat | Narration (now → normalised) | Background | Gap after normalising |
+|---|---|---|---|
+| Main | −18.1 → −16.3 | −34.5 | 18 dB |
+| Evidence | −16.6 → −16.2 | −33.3 | 17 dB |
+| Reactions | −18.9 → −16.4 | −35.9 | 19.5 dB |
+| Footage | −20.7 → −16.2 | **−16.2** (−34.6 once ducked) | **0 dB**, so the voice drowns |
+| Lead-in, 1.6 s | none | −20.3 | |
+
+- **Ducking:** the main video's ducking holds; it does not need lowering.
+- **Cause:** the "too quiet" narration comes from the Footage beat, where the footage clips' own sound played at full level. `4487a1e7`, already on stage1, ducks it to −34.6. This draft gets that fix only on its next re-voice.
+- **Normalisation:** it levels the beats but adds only +1.8 dB to Main. The whole mix lands at about −16 LUFS, a little quieter than most TikTok videos (about −14).
+
+**Target raised to −14 LUFS** (operator: "ya setarakan video tiktok pada umumnya"). Only `TARGET_LUFS` changes. On the same four voices, copied into memory as before:
+
+| Beat | Before | After | Gain | Length |
+|---|---|---|---|---|
+| Main | −18.1 | −14.7 | +3.4 dB | unchanged |
+| Evidence | −16.6 | −14.2 | +2.4 dB | unchanged |
+| Reactions | −18.9 | −14.6 | +4.3 dB | unchanged |
+| Footage | −20.7 | −14.3 | +6.4 dB | unchanged |
+
+The beats now sit 0.5 dB apart, with true peaks at −1.7 dB. The voice and narration activity tests pass (52).
+
+**Pushed and deployed, 2026-11-12** (operator: "ya boleh"):
+- **PR #129:** `42b843a8` opened it. PR run 43237976011 is green with Validate image build and Template release parity. Push run 43237959490 is green, with the images published and the non-live smoke passing.
+- **Deploy:** `make deploy` exited 0, web answered 200, and the four services run the new digests. The worker holds `TARGET_LUFS = -14.0`. The rollback copy is `pins-1a59f61e.env`.
+- **Health:** api and worker showed 0 restarts, 0 5xx and 0 error lines.
+
+**Next steps** (each its own gate):
+- the operator hears it on the next narration or re-voice of a draft (a paid voice only with their approval);
+- then planner stage 1 (roadmap step 2): a short design with the operator first.
+
+**Carried forward:**
+- the asset library on a busy project: the draft's own assets first;
+- `/understand --full`.
+
 ## 2026-11-10 - Style templates: Style A and Style B as data
 
 Branch `feat/style-templates`, stacked on `feat/studio-effects-layer` (PR #127, not yet merged).
@@ -252,6 +325,13 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
 - merge.
 
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
+
+**Merged, 2026-11-12** (operator: "lanjut poin 3"; recorded here on the next branch, `feat/narration-loudness`).
+- **Merge:** PR #128 merged into master as `29c7ceb3`, a merge commit like #125–#127.
+- **Before merge:** the record commit `eec113ad` was pushed first. Its CI was green (runs 43194354344 and 43194341182), and the PR read MERGEABLE/CLEAN.
+- **Stage1:** keeps the branch image `1a59f61e`. Outside `CHANGELOG.md` it has no diff from master.
+- **The operator's draft:** they hid the three Evidence clips themselves (the profile card and both profile-page shots, revisions 28–30). They skipped the re-voice ("sudah aman").
+- **What came next:** the operator raised two problems before the style editor: narration too quiet, and both styles too stiff against their references. The plan that followed is the "Reference-faithful editing track" in `docs/ROADMAP.md`, recorded in the entry above this one.
 
 **Carried forward:**
 - the asset library on a busy project: the draft's own assets first, so its narration does not wait for page after page of other drafts' imports;

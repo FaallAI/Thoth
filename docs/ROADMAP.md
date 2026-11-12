@@ -112,6 +112,36 @@ component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDue
 | 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
 | 6. Shared SFX and assets | SFX live in MinIO/S3 with labels; uploaded SFX follow the template gallery: private to the workspace, operator review, uploader notified and approving, then available to every workspace with the uploader credited | Bundled SFX in MinIO come with auto-draft's first milestone; uploads not started |
 
+## Reference-faithful editing track (added 2026-11-12)
+
+**Why.** After Style templates shipped (PR #128), the operator judged Style A and Style B "masih terlalu kaku": they do not yet carry the editing taste of the references. Style B was compared with the WinNews reference it copies:
+
+| | WinNews | Our Style B draft |
+|---|---|---|
+| Shots | 33 in 50.4 s, about 1.5 s each | 19 in 53.9 s, about 2.6 s each |
+| Picture sources | Clips from at least six news channels | 79 % of the time from the one main video |
+| Cuts | On phrase starts | On sentence ends |
+| Camera | Mostly still | A push-in on every shot |
+| Extras | A soundbite of the person, used as a refrain | None |
+
+The operator's narration was also too quiet: its beats measured −16.6 to −20.7 LUFS.
+
+**Decisions with the operator (2026-11-12):**
+- **Run order:** the run's order stays as it is. Narration-matched footage is added on top.
+- **Source of truth:** our own footage library, organised per event and searched by moment. It takes clips from any platform and ranks them by relevance to the narration and its context (person, discussion, topic), never by platform.
+- **Signals:** hashtags and audio are weak signals, not deciders.
+
+The full record is in `.superpowers/sdd/2026-11-12-footage-library/brainstorm-notes.md`. The research report is `reports/Indeks footage video lintas platform.md`.
+
+The operator agreed this order:
+
+| Step | Scope | Status |
+|---|---|---|
+| 1. Narration loudness | Every narration voice normalised to −14 LUFS, level with most TikTok videos (true peak −1.5 dB) when stored, by ffmpeg two-pass `loudnorm`, linear; length and word timings unchanged | Deployed to stage1 from PR #129 (`42b843a8`, 2026-11-12); merge pending |
+| 2. Planner, stage 1 | Using materials we already have: a soundbite of the person taken from the main video's transcript and used as a refrain, cuts on phrase starts, fewer camera moves, a credit per clip | Not started; a short design first |
+| 3. Footage library | Per event and searched by moment. Fed by trusted accounts on every platform, keyword search, reverse visual search from the main video's frames, OCR of source credits, and earlier runs' downloads. Copies are merged by perceptual hash, and the most original copy is kept. Each main post is read into a "context card" by a model; relevance is judged from a candidate's content, not its metadata. | Not started; needs a written design, after the research report's seven validation tests and a context-card test on three earlier random posts |
+| 4. Stressed narration delivery | The script marks stressed words, and the voice settings are tuned to be more expressive | Not started; first one short paid voice sample, with the operator's approval |
+
 ## Studio Timeline track (added 2026-11-05)
 
 The operator's audit request of 2026-11-05: every Timeline function must work, and a right click in
