@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-13 - SFX library seeding fix, and reference taste measured
+
+**PR #129 merged** (operator: "langsung lakukan opsi 2"): merge commit `d90cf8bb`, CI 43252609506 and 43252596442 green. Stage1 keeps running `42b843a8`, the same code.
+
+**The shared SFX library could never seed.**
+- **Symptom:** the operator asked to load every file in `assets/sfx` into stage1's library for testing, waiving the CC0 licence check ("hiraukan terkait license ... ini hanya untuk testing saja").
+- **Cause:** `seed_sfx` stores each file under `sfx/<checksum>.mp3`, but the media store's `checked_locator` accepts only `reports`, `uploads`, `renders`, `work`, `archive` and `glance`. The first put raised `media_locator_invalid`. It never surfaced, because `assets/sfx/LICENSES.json` is `{}`, so every file was skipped before the put.
+- **Fix:** `sfx` joins the accepted prefixes (`399ec349`), with the prefix test extended first (red, then green).
+- **Verification:** `make test` 4877 passed, 234 skipped; `make lint` clean.
+
+**Reference taste measured** for planner stage 1: six WinNews (Style B) and five Issei Nugroho (Style A) breakdowns. The numbers are in the brainstorm notes, item 15, and the operator confirmed them as the taste they mean.
+- YouTube Shorts serve no combined format, so editor-eye's `b[height<=1280]/b` download fails; they were fetched as merged streams with the latest yt-dlp.
+
+**Next steps** (each its own gate):
+- push this branch and deploy it, then seed the SFX on stage1 with the licence check waived for this test run;
+- planner stage 1 design with the operator.
+
+**Carried forward:**
+- the asset library on a busy project: the draft's own assets first;
+- workspace SFX uploads (Style template track step 6);
+- `/understand --full`.
+
 ## 2026-11-12 - Narration loudness (reference-faithful editing, step 1)
 
 Branch `feat/narration-loudness`, from master `29c7ceb3`.

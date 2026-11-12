@@ -137,7 +137,7 @@ The operator agreed this order:
 
 | Step | Scope | Status |
 |---|---|---|
-| 1. Narration loudness | Every narration voice normalised to −14 LUFS, level with most TikTok videos (true peak −1.5 dB) when stored, by ffmpeg two-pass `loudnorm`, linear; length and word timings unchanged | Deployed to stage1 from PR #129 (`42b843a8`, 2026-11-12); merge pending |
+| 1. Narration loudness | Every narration voice normalised to −14 LUFS, level with most TikTok videos (true peak −1.5 dB) when stored, by ffmpeg two-pass `loudnorm`, linear; length and word timings unchanged | Merged as `d90cf8bb` (PR #129, 2026-11-12); stage1 runs `42b843a8` |
 | 2. Planner, stage 1 | Using materials we already have: a soundbite of the person taken from the main video's transcript and used as a refrain, cuts on phrase starts, fewer camera moves, a credit per clip | Not started; a short design first |
 | 3. Footage library | Per event and searched by moment. Fed by trusted accounts on every platform, keyword search, reverse visual search from the main video's frames, OCR of source credits, and earlier runs' downloads. Copies are merged by perceptual hash, and the most original copy is kept. Each main post is read into a "context card" by a model; relevance is judged from a candidate's content, not its metadata. | Not started; needs a written design, after the research report's seven validation tests and a context-card test on three earlier random posts |
 | 4. Stressed narration delivery | The script marks stressed words, and the voice settings are tuned to be more expressive | Not started; first one short paid voice sample, with the operator's approval |
