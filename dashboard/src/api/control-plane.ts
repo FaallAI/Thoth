@@ -55,6 +55,10 @@ export type NarrationDecision = components["schemas"]["NarrationDecision"];
 export type NarrationPreset = components["schemas"]["NarrationPreset"];
 export type StoredNarrationPreset = components["schemas"]["StoredPreset"];
 export type SfxSummary = components["schemas"]["SfxSummary"];
+/** The workspace asset library (spec 2026-11-13). */
+export type WorkspaceAsset = components["schemas"]["WorkspaceAsset"];
+export type LibraryKind = WorkspaceAsset["kind"];
+export type LibraryPatch = { name?: string; labels?: Record<string, unknown>; kind?: LibraryKind };
 export type BeatName = NonNullable<NarrationState["stale_beats"]>[number];
 export type StoryAssistProposal = components["schemas"]["StoryAssistProposal"];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
@@ -307,6 +311,12 @@ export type ControlPlaneClient = {
   getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
   saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
   listSfx: () => Promise<SfxSummary[]>;
+  listLibrary: () => Promise<WorkspaceAsset[]>;
+  uploadLibraryItem: (file: File) => Promise<WorkspaceAsset>;
+  updateLibraryItem: (assetId: string, patch: LibraryPatch) => Promise<WorkspaceAsset>;
+  deleteLibraryItem: (assetId: string) => Promise<void>;
+  libraryMediaUrl: (assetId: string) => string;
+  addLibraryItemToProject: (projectId: string, assetId: string) => Promise<EditorAsset>;
   addSfxToProject: (projectId: string, sfxId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
@@ -759,6 +769,37 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         body: JSON.stringify({ base_revision: baseRevision, preset }),
       }),
     listSfx: () => importCall("/api/v1/sfx"),
+    listLibrary: () => importCall<WorkspaceAsset[]>("/api/v1/library"),
+    uploadLibraryItem: (file) =>
+      importCall<WorkspaceAsset>("/api/v1/library", {
+        method: "POST",
+        headers: { "Content-Type": file.type, "X-File-Name": encodeURIComponent(file.name) },
+        body: file,
+      }),
+    updateLibraryItem: (assetId, patch) =>
+      importCall<WorkspaceAsset>(`/api/v1/library/${encodeURIComponent(assetId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    deleteLibraryItem: async (assetId) => {
+      let response: Response;
+      try {
+        response = await doFetch(`${baseUrl}/api/v1/library/${encodeURIComponent(assetId)}`, {
+          method: "DELETE",
+          headers: headers(),
+        });
+      } catch {
+        throw new StudioImportRequestError(null);
+      }
+      if (!response.ok) throw new StudioImportRequestError(response.status);
+    },
+    libraryMediaUrl: (assetId) => `${baseUrl}/api/v1/library/${encodeURIComponent(assetId)}/media`,
+    addLibraryItemToProject: (projectId, assetId) =>
+      importPost<EditorAsset>(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/library/${encodeURIComponent(assetId)}/asset`,
+        {},
+      ),
     addSfxToProject: (projectId, sfxId) =>
       importPost(`/api/v1/projects/${encodeURIComponent(projectId)}/sfx/${encodeURIComponent(sfxId)}/asset`, {}),
     attachStudioMaterial: (projectId, documentId, itemId) =>

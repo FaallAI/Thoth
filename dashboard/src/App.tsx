@@ -20,6 +20,7 @@ import { authClient } from "@/api/auth";
 import { AuthGate } from "@/features/auth/AuthGate";
 import { useAuth } from "@/features/auth/auth-context";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import { AssetsPage } from "@/features/library/AssetsPage";
 import { UsagePage } from "@/features/usage/UsagePage";
 import { BillingPage } from "@/features/billing/BillingPage";
 import { LoginPage } from "@/features/auth/LoginPage";
@@ -34,6 +35,7 @@ const PAGES: { path: string; title: MessageKey; project?: boolean }[] = [
   { path: "/workflows", title: "nav.runs", project: true },
   { path: "/studio/presets", title: "studio.presets.title", project: true },
   { path: "/studio", title: "nav.studio", project: true },
+  { path: "/assets", title: "nav.assets" },
   { path: "/inbox", title: "nav.inbox" },
   { path: "/usage", title: "nav.usage" },
   { path: "/billing", title: "nav.billing" },
@@ -135,6 +137,7 @@ function Shell() {
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
           <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />
+          <Route path="/assets" element={<AssetsPage />} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/settings" element={<SettingsPage me={me} />} />

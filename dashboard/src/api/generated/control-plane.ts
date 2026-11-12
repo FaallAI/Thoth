@@ -198,6 +198,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Library */
+        get: operations["list_library_api_v1_library_get"];
+        put?: never;
+        /**
+         * Upload Library Item
+         * @description Accept one streamed media body; its URL-encoded name only labels it.
+         */
+        post: operations["upload_library_item_api_v1_library_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Library Item */
+        delete: operations["delete_library_item_api_v1_library__asset_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Library Item */
+        patch: operations["update_library_item_api_v1_library__asset_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/library/{asset_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Library Item */
+        get: operations["stream_library_item_api_v1_library__asset_id__media_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -679,6 +735,26 @@ export interface paths {
          * @description Mint a short-lived capability for one ready asset of one project.
          */
         post: operations["issue_editor_asset_preview_capability_api_v1_projects__project_id__editor_assets__asset_id__preview_capability_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/library/{asset_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Library Item To Project
+         * @description The draft's own copy of one library item; `current_actor` guards the project.
+         */
+        post: operations["add_library_item_to_project_api_v1_projects__project_id__library__asset_id__asset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2738,6 +2814,20 @@ export interface components {
             plan_id: string;
             /** Status */
             status: string;
+        };
+        /**
+         * LibraryPatch
+         * @description Only what the page edits; a missing field stays as it is.
+         */
+        LibraryPatch: {
+            /** Kind */
+            kind?: ("sfx" | "clip" | "backsound" | "image") | null;
+            /** Labels */
+            labels?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name?: string | null;
         };
         /** LockRevisionConflictBody */
         LockRevisionConflictBody: {
@@ -5615,6 +5705,47 @@ export interface components {
             /** Workflow Id */
             workflow_id: string;
         };
+        /**
+         * WorkspaceAsset
+         * @description The public view of one library item; its storage locator stays on the server.
+         */
+        WorkspaceAsset: {
+            /** Asset Id */
+            asset_id: string;
+            /** Checksum */
+            checksum: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /**
+             * Has Audio
+             * @default false
+             */
+            has_audio: boolean;
+            /** Height */
+            height?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sfx" | "clip" | "backsound" | "image";
+            /** Labels */
+            labels?: {
+                [key: string]: unknown;
+            };
+            /** Media Type */
+            media_type: string;
+            /** Name */
+            name: string;
+            /** Width */
+            width?: number | null;
+            /** Workspace Id */
+            workspace_id: string;
+        };
         /** WorkspaceCostView */
         WorkspaceCostView: {
             /** Complete */
@@ -6051,6 +6182,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Inbox"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_library_api_v1_library_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceAsset"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_library_item_api_v1_library_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-File-Name"?: string;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/mpeg": string;
+                "audio/wav": string;
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+                "video/mp4": string;
+                "video/webm": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_library_item_api_v1_library__asset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_library_item_api_v1_library__asset_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_library_item_api_v1_library__asset_id__media_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
                 };
             };
             /** @description Validation Error */
@@ -7335,6 +7640,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreviewCapabilityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_library_item_to_project_api_v1_projects__project_id__library__asset_id__asset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorAsset"];
                 };
             };
             /** @description Validation Error */
