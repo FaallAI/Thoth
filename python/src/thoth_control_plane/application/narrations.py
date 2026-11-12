@@ -278,6 +278,13 @@ class NarrationService:
         if self._sfx_assets is None:
             raise NarrationUnavailable()
         try:
-            return await self._sfx_assets.ensure_project_asset(project_id, entry)
+            return await self._sfx_assets.ensure_project_asset(
+                project_id,
+                location=entry.location,
+                checksum=entry.checksum,
+                media_type="audio/mpeg",
+                kind="audio",
+                suffix=".mp3",
+            )
         except Exception as error:
             raise NarrationUnavailable() from error

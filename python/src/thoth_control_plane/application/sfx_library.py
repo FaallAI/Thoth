@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from thoth_control_plane.application.editor_asset_uploads import (
@@ -171,24 +171,42 @@ class SfxAssets:
         self._probe = probe
 
     async def ensure_project_sfx(self, project_id: str, entry: SfxEntry) -> AssetRef:
-        return (await self.ensure_project_asset(project_id, entry)).to_asset_ref()
+        asset = await self.ensure_project_asset(
+            project_id,
+            location=entry.location,
+            checksum=entry.checksum,
+            media_type="audio/mpeg",
+            kind="audio",
+            suffix=".mp3",
+        )
+        return asset.to_asset_ref()
 
-    async def ensure_project_asset(self, project_id: str, entry: SfxEntry) -> Any:
-        checksum = entry.checksum.lower()
+    async def ensure_project_asset(
+        self,
+        project_id: str,
+        *,
+        location: str,
+        checksum: str,
+        media_type: str,
+        kind: Literal["image", "video", "audio"],
+        suffix: str,
+    ) -> Any:
+        """The project's copy of one stored object: reused by checksum, else copied once."""
+        checksum = checksum.lower()
         found = await self._assets.find_ready_by_checksum(project_id=project_id, checksum=checksum)
         if found is not None:
             return found.asset
-        source = await asyncio.to_thread(self._media.probe_source, entry.location)
+        source = await asyncio.to_thread(self._media.probe_source, location)
         asset = described_asset(
             asset_id=f"asset_{uuid4().hex}",
             project_id=project_id,
-            media_type="audio/mpeg",
-            kind="audio",
+            media_type=media_type,
+            kind=kind,
             checksum=checksum,
             report=await self._probe(source),
         )
-        destination = f"uploads/{project_id}/{asset.asset_id}.mp3"
-        await asyncio.to_thread(self._media.copy, entry.location, destination)
+        destination = f"uploads/{project_id}/{asset.asset_id}{suffix}"
+        await asyncio.to_thread(self._media.copy, location, destination)
         await self._assets.register_ready(
             EditorAssetRecord(asset=asset, artifact_location=destination, provenance=PROVENANCE)
         )

@@ -464,15 +464,15 @@ async def test_a_library_sfx_can_be_added_to_the_draft_project() -> None:
     added: list[tuple[str, str]] = []
 
     class Assets:
-        async def ensure_project_asset(self, project_id: str, entry: SfxEntry) -> EditorAsset:
-            added.append((project_id, entry.sfx_id))
+        async def ensure_project_asset(self, project_id: str, **source: Any) -> EditorAsset:
+            added.append((project_id, source["location"]))
             return EditorAsset(
                 asset_id="asset_sfx",
                 project_id=project_id,
                 kind="audio",
                 media_type="audio/mpeg",
                 validation_state="ready",
-                checksum=entry.checksum,
+                checksum=source["checksum"],
                 has_audio=True,
                 duration_in_frames=30,
             )
@@ -482,7 +482,7 @@ async def test_a_library_sfx_can_be_added_to_the_draft_project() -> None:
         response = await api.post("/api/v1/projects/project_001/sfx/whoosh/asset", headers=AUTH)
         missing = await api.post("/api/v1/projects/project_001/sfx/airhorn/asset", headers=AUTH)
     assert response.status_code == 200 and response.json()["asset_id"] == "asset_sfx"
-    assert added == [("project_001", "whoosh")] and missing.status_code == 404
+    assert added == [("project_001", "sfx/secret-key.mp3")] and missing.status_code == 404
 
 
 async def test_recreating_a_finished_narration_is_its_own_action() -> None:
