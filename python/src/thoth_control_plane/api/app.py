@@ -6,6 +6,7 @@ import functools
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, Response, status
@@ -41,6 +42,7 @@ from thoth_control_plane.api.routes.usage import router as usage_router
 from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
 from thoth_control_plane.api.routes.workflow_studio_imports import router as workflow_studio_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
+from thoth_control_plane.api.routes.workspace_library import router as workspace_library_router
 from thoth_control_plane.application import (
     ApprovalNotAllowed,
     ArtifactNotFound,
@@ -82,6 +84,7 @@ from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
 from thoth_control_plane.application.workflow_runs import ProjectNotFound, RunNotFailed
 from thoth_control_plane.application.workflow_studio_imports import WorkflowStudioImportService
+from thoth_control_plane.application.workspace_library import WorkspaceLibraryService
 from thoth_control_plane.auth.mailer import Mailer, mailer_from
 from thoth_control_plane.auth.providers import IdentityProvider, build_providers
 from thoth_control_plane.auth.service import SignInService
@@ -136,6 +139,9 @@ from thoth_control_plane.infrastructure.usage_store import UsageStore
 from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
+)
+from thoth_control_plane.infrastructure.workspace_asset_repository import (
+    PostgresWorkspaceAssetRepository,
 )
 from thoth_control_plane.infrastructure.xendit import XenditInvoices
 from thoth_control_plane.observability import configure_provider_logging
@@ -488,6 +494,18 @@ def create_app(
         if editor_asset_repository is not None
         else None
     )
+    app.state.workspace_library_service = (
+        WorkspaceLibraryService(
+            PostgresWorkspaceAssetRepository(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()),
+            LocalArtifactRoot(settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT, media),
+            functools.partial(probe_media, settings.THOTH_FFPROBE),
+            media,
+            app.state.sfx_assets,
+            Path(settings.THOTH_FFMPEG),
+        )
+        if settings.THOTH_EDITOR_DATABASE_URL is not None and app.state.sfx_assets is not None
+        else None
+    )
     app.state.narration_service = _narration_service(app, settings, None)
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
@@ -677,6 +695,7 @@ def create_app(
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(narration_router, prefix="/api/v1")
     app.include_router(style_router, prefix="/api/v1")
+    app.include_router(workspace_library_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")
     app.include_router(prompt_lab_router, prefix="/api/v1")
     app.include_router(prompt_proposal_router, prefix="/api/v1")

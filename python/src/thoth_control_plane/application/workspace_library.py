@@ -11,16 +11,21 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import re
 import tempfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
 from typing import Any, Literal
 from uuid import uuid4
 
-from thoth_control_plane.application.editor_asset_ports import EditorAssetMediaInvalid
+from thoth_control_plane.application.editor_asset_ports import (
+    EditorAssetMediaInvalid,
+    EditorAssetUploadTooLarge,
+)
 from thoth_control_plane.application.editor_asset_uploads import (
     UPLOAD_MAX_BYTES,
     UPLOAD_TYPES,
@@ -104,8 +109,31 @@ class WorkspaceLibraryService:
             raise LibraryUnavailable()
         return self._repository
 
+    async def _repo(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        """One repository call; a database failure reads as the library being unavailable."""
+        call = getattr(self._require(), method)
+        try:
+            return await call(*args, **kwargs)
+        except Exception as error:
+            logger.warning("library store unavailable: %s", type(error).__name__)
+            raise LibraryUnavailable() from error
+
     async def list(self, workspace_id: str) -> list[WorkspaceAsset]:
-        return await self._require().list(workspace_id)
+        return await self._repo("list", workspace_id)
+
+    async def stored(self, workspace_id: str, asset_id: str) -> tuple[WorkspaceAssetRecord, int]:
+        """One item with its stored size, for streaming its media back to the page."""
+        record = await self._repo("get", workspace_id, asset_id)
+        if record is None:
+            raise LibraryItemNotFound()
+        try:
+            size = (await asyncio.to_thread(self._media.stat, record.location)).size_bytes
+        except Exception as error:
+            raise LibraryUnavailable() from error
+        return record, size
+
+    def read(self, location: str, start: int, end: int | None) -> Iterator[bytes]:
+        return self._media.open_range(location, start, end)
 
     async def update(
         self,
@@ -117,8 +145,8 @@ class WorkspaceLibraryService:
         kind: LibraryKind | None = None,
     ) -> WorkspaceAsset:
         clean = None if name is None else display_name(name + ".x")
-        updated = await self._require().update(
-            workspace_id, asset_id, name=clean, labels=labels, kind=kind
+        updated = await self._repo(
+            "update", workspace_id, asset_id, name=clean, labels=labels, kind=kind
         )
         if updated is None:
             raise LibraryItemNotFound()
@@ -135,13 +163,18 @@ class WorkspaceLibraryService:
         upload_type = UPLOAD_TYPES.get(media_type)
         if upload_type is None:
             raise EditorAssetMediaInvalid("unsupported_media_type")
-        repository = self._require()
+        self._require()
         if self._artifacts is None:
             raise LibraryUnavailable()
         asset_id = f"lib_{uuid4().hex}"
-        received = await self._artifacts.receive_upload(
-            asset_id=asset_id, chunks=chunks, max_bytes=self._max_bytes
-        )
+        try:
+            received = await self._artifacts.receive_upload(
+                asset_id=asset_id, chunks=chunks, max_bytes=self._max_bytes
+            )
+        except EditorAssetUploadTooLarge:
+            raise
+        except Exception as error:
+            raise LibraryUnavailable() from error
         location: str | None = None
         try:
             if not upload_type.signature(received.head):
@@ -185,7 +218,7 @@ class WorkspaceLibraryService:
                 has_audio=facts.has_audio,
                 created_at=datetime.now(UTC),
             )
-            kept = await repository.add(WorkspaceAssetRecord(asset=asset, location=location))
+            kept = await self._repo("add", WorkspaceAssetRecord(asset=asset, location=location))
             if kept.asset.asset_id != asset_id:
                 # The same file is already in this workspace: keep the one stored first.
                 await asyncio.to_thread(self._media.delete, location)
@@ -197,11 +230,15 @@ class WorkspaceLibraryService:
                 kept.asset.asset_id == asset_id,
             )
             return kept.asset
-        except BaseException:
+        except BaseException as error:
             if location is not None:
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(self._media.delete, location)
-            raise
+            if isinstance(error, (EditorAssetMediaInvalid, LibraryUnavailable)) or not isinstance(
+                error, Exception
+            ):
+                raise
+            raise LibraryUnavailable() from error
         finally:
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(self._artifacts.discard, received.location)
@@ -215,7 +252,7 @@ class WorkspaceLibraryService:
         return await self.upload(workspace_id, media_type, _file_chunks(path), path.name, labels)
 
     async def delete(self, workspace_id: str, asset_id: str) -> bool:
-        location = await self._require().delete(workspace_id, asset_id)
+        location = await self._repo("delete", workspace_id, asset_id)
         if location is None:
             return False
         try:
@@ -228,7 +265,7 @@ class WorkspaceLibraryService:
     async def add_to_project(
         self, workspace_id: str, project_id: str, asset_id: str
     ) -> EditorAsset:
-        record = await self._require().get(workspace_id, asset_id)
+        record = await self._repo("get", workspace_id, asset_id)
         if record is None:
             raise LibraryItemNotFound()
         if self._assets is None:
@@ -242,3 +279,54 @@ class WorkspaceLibraryService:
             kind=upload_type.kind,
             suffix=upload_type.suffix,
         )
+
+
+@dataclass
+class ImportReport:
+    added: int = 0
+    unchanged: int = 0
+    failed: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _catalog_labels(catalog: Path | None) -> dict[str, dict[str, object]]:
+    """Labels per file name from the bundled asset catalog, without its file and curve keys."""
+    if catalog is None or not catalog.is_file():
+        return {}
+    rows = json.loads(catalog.read_text("utf-8")).get("assets", [])
+    return {
+        Path(str(row.get("file", ""))).name: {
+            key: value for key, value in row.items() if key not in ("file", "env_curve")
+        }
+        for row in rows
+    }
+
+
+async def import_directory(
+    service: WorkspaceLibraryService, workspace_id: str, directory: Path, catalog: Path | None
+) -> ImportReport:
+    """Load every file of one directory into a workspace's library; files already there stay."""
+    labels = _catalog_labels(catalog)
+    known = {item.asset_id for item in await service.list(workspace_id)}
+    report = ImportReport()
+    for path in sorted(item for item in directory.iterdir() if item.is_file()):
+        try:
+            asset = await service.import_file(workspace_id, path, labels.get(path.name, {}))
+        except EditorAssetMediaInvalid as error:
+            report.failed.append((path.name, error.code))
+            continue
+        except (EditorAssetUploadTooLarge, LibraryUnavailable) as error:
+            report.failed.append((path.name, type(error).__name__))
+            continue
+        if asset.asset_id in known:
+            report.unchanged += 1
+        else:
+            known.add(asset.asset_id)
+            report.added += 1
+    logger.info(
+        "library import workspace=%s added=%d unchanged=%d failed=%d",
+        workspace_id,
+        report.added,
+        report.unchanged,
+        len(report.failed),
+    )
+    return report

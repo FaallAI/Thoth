@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from thoth_control_plane.application.workspace_library import (
     LibraryUnavailable,
     WorkspaceLibraryService,
     display_name,
+    import_directory,
     library_kind,
 )
 from thoth_control_plane.domain.workspace_assets import WorkspaceAsset, WorkspaceAssetRecord
@@ -60,7 +62,13 @@ class MemoryLibrary:
         return record
 
     async def update(self, workspace_id: str, asset_id: str, **changes: Any) -> Any:
-        raise NotImplementedError
+        record = self.records.get((workspace_id, asset_id))
+        if record is None:
+            return None
+        kept = {key: value for key, value in changes.items() if value is not None}
+        updated = record.asset.model_copy(update=kept)
+        self.records[(workspace_id, asset_id)] = record.model_copy(update={"asset": updated})
+        return updated
 
     async def delete(self, workspace_id: str, asset_id: str) -> str | None:
         record = self.records.pop((workspace_id, asset_id), None)
@@ -224,3 +232,29 @@ def test_another_workspaces_item_is_not_found(tmp_path: Path) -> None:
     with pytest.raises(LibraryItemNotFound):
         asyncio.run(service.add_to_project("ws_b", "project_b", item.asset_id))
     assert asyncio.run(service.delete("ws_b", item.asset_id)) is False
+
+
+def test_import_directory_counts_added_unchanged_and_failed(tmp_path: Path) -> None:
+    service, _, _, _ = build(tmp_path, VIDEO_REPORT)
+    folder = tmp_path / "memes"
+    folder.mkdir()
+    (folder / "a.mp4").write_bytes(MP4)
+    (folder / "b.mp4").write_bytes(MP4 + b"\x01")
+    (folder / "notes.txt").write_text("hello", "utf-8")
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps({"assets": [{"file": "assets/meme/a.mp4", "label": "A", "env_curve": [1]}]}),
+        "utf-8",
+    )
+
+    first = asyncio.run(import_directory(service, "ws_a", folder, catalog))
+    again = asyncio.run(import_directory(service, "ws_a", folder, None))
+
+    assert (first.added, first.unchanged, first.failed) == (
+        2,
+        0,
+        [("notes.txt", "unsupported_media_type")],
+    )
+    assert (again.added, again.unchanged, len(again.failed)) == (0, 2, 1)
+    labelled = {item.name: item.labels for item in asyncio.run(service.list("ws_a"))}
+    assert labelled == {"a": {"label": "A"}, "b": {}}

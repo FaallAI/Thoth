@@ -3002,6 +3002,54 @@
         "title": "InvoiceOut",
         "type": "object"
       },
+      "LibraryPatch": {
+        "additionalProperties": false,
+        "description": "Only what the page edits; a missing field stays as it is.",
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sfx",
+                  "clip",
+                  "backsound",
+                  "image"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labels"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "LibraryPatch",
+        "type": "object"
+      },
       "LockRevisionConflictBody": {
         "additionalProperties": false,
         "properties": {
@@ -11104,6 +11152,110 @@
         "title": "WorkflowSummary",
         "type": "object"
       },
+      "WorkspaceAsset": {
+        "additionalProperties": false,
+        "description": "The public view of one library item; its storage locator stays on the server.",
+        "properties": {
+          "asset_id": {
+            "pattern": "^lib_[A-Za-z0-9_]{1,64}$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "checksum": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Checksum",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "has_audio": {
+            "default": false,
+            "title": "Has Audio",
+            "type": "boolean"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "enum": [
+              "sfx",
+              "clip",
+              "backsound",
+              "image"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "title": "Labels",
+            "type": "object"
+          },
+          "media_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "workspace_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "workspace_id",
+          "kind",
+          "name",
+          "media_type",
+          "checksum",
+          "created_at"
+        ],
+        "title": "WorkspaceAsset",
+        "type": "object"
+      },
       "WorkspaceCostView": {
         "additionalProperties": false,
         "properties": {
@@ -11971,6 +12123,324 @@
           }
         },
         "summary": "Read Inbox"
+      }
+    },
+    "/api/v1/library": {
+      "get": {
+        "operationId": "list_library_api_v1_library_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceAsset"
+                  },
+                  "title": "Response List Library Api V1 Library Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Library"
+      },
+      "post": {
+        "description": "Accept one streamed media body; its URL-encoded name only labels it.",
+        "operationId": "upload_library_item_api_v1_library_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-File-Name",
+            "required": false,
+            "schema": {
+              "default": "untitled",
+              "maxLength": 1024,
+              "title": "X-File-Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "audio/mpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "audio/wav": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "video/mp4": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "video/webm": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Library Item"
+      }
+    },
+    "/api/v1/library/{asset_id}": {
+      "delete": {
+        "operationId": "delete_library_item_api_v1_library__asset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^lib_[A-Za-z0-9_]{1,64}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Library Item"
+      },
+      "patch": {
+        "operationId": "update_library_item_api_v1_library__asset_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^lib_[A-Za-z0-9_]{1,64}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Library Item"
+      }
+    },
+    "/api/v1/library/{asset_id}/media": {
+      "get": {
+        "operationId": "stream_library_item_api_v1_library__asset_id__media_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^lib_[A-Za-z0-9_]{1,64}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Library Item"
       }
     },
     "/api/v1/me": {
@@ -14501,6 +14971,73 @@
           }
         },
         "summary": "Issue Editor Asset Preview Capability"
+      }
+    },
+    "/api/v1/projects/{project_id}/library/{asset_id}/asset": {
+      "post": {
+        "description": "The draft's own copy of one library item; `current_actor` guards the project.",
+        "operationId": "add_library_item_to_project_api_v1_projects__project_id__library__asset_id__asset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "pattern": "^lib_[A-Za-z0-9_]{1,64}$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Library Item To Project"
       }
     },
     "/api/v1/projects/{project_id}/narration-preset": {
