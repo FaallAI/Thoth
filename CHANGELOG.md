@@ -220,10 +220,12 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - Python 4868 passed, 233 skipped; Postgres-backed 213 passed;
   - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
   - the composition was not touched.
-- **Not yet pushed or deployed.** The operator's current draft keeps its long title until its next narration or re-voice, or until they edit the title in the Inspector.
+- **Pushed and redeployed, 2026-11-12** (operator: "ya boleh"):
+  - `fe8d9da2` went to PR #128. PR run 43175628200 is green with Validate image build; push run 43175620125 is green with the images published and the non-live smoke passing.
+  - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-4b3967bf.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
+  - The operator's current draft keeps its long title until its next narration or re-voice, or until they edit the title in the Inspector.
 
 **Next steps** (each its own gate):
-- push and redeploy the headline change;
 - remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
