@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import Field
@@ -17,7 +17,6 @@ from thoth_control_plane.application.narrations import (
 )
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
-from thoth_control_plane.domain.editor_assets import EditorAsset
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.narration import (
     BeatId,
@@ -40,15 +39,6 @@ class BeatText(StrictModel):
 class SavePreset(StrictModel):
     base_revision: Annotated[int, Field(ge=0)]
     preset: NarrationPreset
-
-
-class SfxSummary(StrictModel):
-    """A library entry as Studio sees it: never its storage location."""
-
-    sfx_id: str
-    file_name: str
-    duration_seconds: float
-    labels: dict[str, Any]
 
 
 def get_narration_service(request: Request) -> NarrationService:
@@ -156,25 +146,3 @@ async def save_narration_preset(
     project_id: str, body: SavePreset, _: Caller, service: Service
 ) -> StoredPreset:
     return await _answer(service.save_preset(project_id, body.preset, body.base_revision))
-
-
-@router.post("/projects/{project_id}/sfx/{sfx_id}/asset", response_model=EditorAsset)
-async def add_sfx_to_project(
-    project_id: str, sfx_id: str, _: Caller, service: Service
-) -> EditorAsset:
-    """A library sound effect as one of the project's assets, for the Timeline to place."""
-    return await _answer(service.add_sfx(project_id, sfx_id))
-
-
-@router.get("/sfx", response_model=list[SfxSummary])
-async def list_sfx(_: Caller, service: Service) -> list[SfxSummary]:
-    entries = await _answer(service.list_sfx())
-    return [
-        SfxSummary(
-            sfx_id=entry.sfx_id,
-            file_name=entry.file_name,
-            duration_seconds=entry.duration_seconds,
-            labels=entry.labels,
-        )
-        for entry in entries
-    ]

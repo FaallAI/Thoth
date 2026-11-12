@@ -13,7 +13,6 @@ from thoth_control_plane.domain.narration import (
     NarrationPresetConflict,
     NarrationScript,
     ScriptBeat,
-    SfxEntry,
     VoiceEstimate,
 )
 from thoth_control_plane.infrastructure.narration_store import NarrationStore
@@ -86,20 +85,6 @@ def test_a_preset_defaults_then_saves_with_its_revision(store: NarrationStore) -
         run(store.save_preset("project_a", NarrationPreset(), 0))
 
 
-def test_an_sfx_upsert_is_idempotent_by_checksum(store: NarrationStore) -> None:
-    entry = SfxEntry(
-        sfx_id="whoosh",
-        file_name="whoosh.mp3",
-        location="sfx/abc.mp3",
-        checksum="sha256:abc",
-        duration_seconds=1.2,
-        labels={"licence": "CC0-1.0"},
-    )
-    assert run(store.upsert_sfx(entry)) is True
-    assert run(store.upsert_sfx(entry)) is False
-    assert run(store.list_sfx()) == [entry]
-
-
 def test_a_claim_moves_the_status_once(store: NarrationStore) -> None:
     run(store.start("project_a", "edoc_1", "narration/edoc_1/1", NarrationPreset()))
     run(store.set_status("edoc_1", "awaiting_approval"))
@@ -107,21 +92,6 @@ def test_a_claim_moves_the_status_once(store: NarrationStore) -> None:
     assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is True
     assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is False
     assert run(store.get("project_a", "edoc_1")).status == "voicing"
-
-
-def test_a_changed_file_replaces_its_library_entry(store: NarrationStore) -> None:
-    first = SfxEntry(
-        sfx_id="whoosh",
-        file_name="whoosh.mp3",
-        location="sfx/a.mp3",
-        checksum="sha256:" + "a" * 64,
-        duration_seconds=1.0,
-        labels={"licence": "CC0-1.0"},
-    )
-    changed = first.model_copy(update={"location": "sfx/b.mp3", "checksum": "sha256:" + "b" * 64})
-    assert run(store.upsert_sfx(first)) is True
-    assert run(store.upsert_sfx(changed)) is True
-    assert run(store.list_sfx()) == [changed]
 
 
 # Style templates, final review (2026-11-10): a style's undo brings the earlier narration back.

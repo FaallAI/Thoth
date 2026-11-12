@@ -289,7 +289,6 @@ def _narration_service(app: FastAPI, settings: Settings, gateway: Any) -> Narrat
         roles=roles,
         preferences=app.state.prompt_proposal_service,
         gateway=gateway,
-        sfx_assets=getattr(app.state, "sfx_assets", None),
     )
 
 

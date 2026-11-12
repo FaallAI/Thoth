@@ -1091,26 +1091,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/sfx/{sfx_id}/asset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Sfx To Project
-         * @description A library sound effect as one of the project's assets, for the Timeline to place.
-         */
-        post: operations["add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/studio-imports": {
         parameters: {
             query?: never;
@@ -1353,23 +1333,6 @@ export interface paths {
         };
         /** Get Prompt Starter */
         get: operations["get_prompt_starter_api_v1_prompt_stages__stage_id__starter_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sfx": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Sfx */
-        get: operations["list_sfx_api_v1_sfx_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4449,22 +4412,6 @@ export interface components {
             sfx_id: string;
             /** Word Index */
             word_index?: number | null;
-        };
-        /**
-         * SfxSummary
-         * @description A library entry as Studio sees it: never its storage location.
-         */
-        SfxSummary: {
-            /** Duration Seconds */
-            duration_seconds: number;
-            /** File Name */
-            file_name: string;
-            /** Labels */
-            labels: {
-                [key: string]: unknown;
-            };
-            /** Sfx Id */
-            sfx_id: string;
         };
         /**
          * SlipClip
@@ -8581,40 +8528,6 @@ export interface operations {
             };
         };
     };
-    add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-                sfx_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EditorAsset"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_studio_import_api_v1_projects__project_id__studio_imports_post: {
         parameters: {
             query?: never;
@@ -9138,37 +9051,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptStarterDefinition"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_sfx_api_v1_sfx_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SfxSummary"][];
                 };
             };
             /** @description Validation Error */

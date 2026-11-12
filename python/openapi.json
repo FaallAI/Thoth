@@ -7332,37 +7332,6 @@
         "title": "SfxCue",
         "type": "object"
       },
-      "SfxSummary": {
-        "additionalProperties": false,
-        "description": "A library entry as Studio sees it: never its storage location.",
-        "properties": {
-          "duration_seconds": {
-            "title": "Duration Seconds",
-            "type": "number"
-          },
-          "file_name": {
-            "title": "File Name",
-            "type": "string"
-          },
-          "labels": {
-            "additionalProperties": true,
-            "title": "Labels",
-            "type": "object"
-          },
-          "sfx_id": {
-            "title": "Sfx Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sfx_id",
-          "file_name",
-          "duration_seconds",
-          "labels"
-        ],
-        "title": "SfxSummary",
-        "type": "object"
-      },
       "SlipClip": {
         "additionalProperties": false,
         "description": "Move the content inside a video or audio clip; the clip keeps its place (Tier 3a).",
@@ -16814,74 +16783,6 @@
         "summary": "Retry Render Job"
       }
     },
-    "/api/v1/projects/{project_id}/sfx/{sfx_id}/asset": {
-      "post": {
-        "description": "A library sound effect as one of the project's assets, for the Timeline to place.",
-        "operationId": "add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "sfx_id",
-            "required": true,
-            "schema": {
-              "title": "Sfx Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditorAsset"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Add Sfx To Project",
-        "tags": [
-          "narration"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/studio-imports": {
       "post": {
         "description": "Create one draft per key; replaying the key returns the same draft.",
@@ -17972,59 +17873,6 @@
           }
         },
         "summary": "Get Prompt Starter"
-      }
-    },
-    "/api/v1/sfx": {
-      "get": {
-        "operationId": "list_sfx_api_v1_sfx_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SfxSummary"
-                  },
-                  "title": "Response List Sfx Api V1 Sfx Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Sfx",
-        "tags": [
-          "narration"
-        ]
       }
     },
     "/api/v1/source-accounts": {

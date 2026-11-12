@@ -428,7 +428,7 @@ async function renderTimelineStudio(
   return { view, patchEditDocument };
 }
 
-test("Timeline keeps the sound effects in the asset column, never a workstation cell of their own", async () => {
+test("Timeline keeps the workspace library in the asset column, never a workstation cell of its own", async () => {
   // A fragment in the `contents` region made the SFX list a grid cell: it took the centre column,
   // and pushed the preview, timeline and inspector one cell along (audit, 2026-11-01).
   const { upgradedTextDocument } = await import("./timeline-test-fixtures");
@@ -439,7 +439,8 @@ test("Timeline keeps the sound effects in the asset column, never a workstation 
       client={{
         ...promptClientBase,
         ...advancedClientBase,
-        listSfx: mock(async () => []),
+        listLibrary: mock(async () => []),
+        addLibraryItemToProject: mock(async () => { throw new Error("unused"); }),
         getEditDocument: mock(async () => document),
         patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
       }}
@@ -449,7 +450,7 @@ test("Timeline keeps the sound effects in the asset column, never a workstation 
     />,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
-  const sfx = await screen.findByRole("region", { name: "Sound effects" });
+  const sfx = await screen.findByRole("region", { name: "Library" });
   const column = screen.getByLabelText("Asset library").parentElement!;
 
   expect(column.contains(sfx)).toBe(true);

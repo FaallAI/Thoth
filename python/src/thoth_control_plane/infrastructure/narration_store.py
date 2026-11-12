@@ -11,7 +11,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from thoth_control_plane.domain.narration import (
@@ -24,7 +24,6 @@ from thoth_control_plane.domain.narration import (
     NarrationState,
     NarrationStatus,
     NarrationStoreUnavailable,
-    SfxEntry,
     StoredPreset,
     TranscriptSegment,
     VoiceEstimate,
@@ -34,7 +33,6 @@ from thoth_control_plane.infrastructure.editor_database import editor_sessions
 from thoth_control_plane.infrastructure.editor_models import (
     NarrationPresetRow,
     NarrationRow,
-    SfxLibraryRow,
 )
 
 T = TypeVar("T")
@@ -316,42 +314,5 @@ class NarrationStore:
             row.revision = current + 1
             row.updated_at = func.current_timestamp()
             return StoredPreset(preset=preset, revision=row.revision)
-
-        return await self._run(work)
-
-    async def list_sfx(self) -> list[SfxEntry]:
-        def work(session: Session) -> list[SfxEntry]:
-            rows = session.scalars(select(SfxLibraryRow).order_by(SfxLibraryRow.sfx_id))
-            return [
-                SfxEntry(
-                    sfx_id=row.sfx_id,
-                    file_name=row.file_name,
-                    location=row.location,
-                    checksum=row.checksum,
-                    duration_seconds=row.duration_seconds,
-                    labels=row.labels or {},
-                )
-                for row in rows
-            ]
-
-        return await self._run(work)
-
-    async def upsert_sfx(self, entry: SfxEntry) -> bool:
-        """Insert one library entry; an entry with the same checksum is left as it is."""
-
-        def work(session: Session) -> bool:
-            exists = session.scalar(
-                select(SfxLibraryRow.sfx_id).where(SfxLibraryRow.checksum == entry.checksum)
-            )
-            if exists is not None:
-                return False
-            row = session.get(SfxLibraryRow, entry.sfx_id, with_for_update=True)
-            if row is not None:
-                # The same effect with a changed file: the entry follows the new file.
-                for name, value in entry.model_dump(mode="python").items():
-                    setattr(row, name, value)
-                return True
-            session.add(SfxLibraryRow(**entry.model_dump(mode="python")))
-            return True
 
         return await self._run(work)

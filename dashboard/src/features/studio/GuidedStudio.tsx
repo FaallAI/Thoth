@@ -60,7 +60,7 @@ import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
 import { NarrationChecking, NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
-import { SfxLibrary } from "./script/NarrationPresetForm";
+import { LibraryPanel } from "./LibraryPanel";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, beatOfClip, computeBeats, type BeatId } from "./story/story_beats";
@@ -106,8 +106,8 @@ type Props = {
         | "revoiceNarrationBeat"
         | "cancelNarration"
         | "restartNarration"
-        | "listSfx"
-        | "addSfxToProject"
+        | "listLibrary"
+        | "addLibraryItemToProject"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -1170,7 +1170,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               />
             ) : advanced ? (
               assetClient ? (
-                // One workstation cell: the asset list fills it, the SFX library sits under it.
+                // One workstation cell: the asset list fills it, the workspace library sits under it.
                 <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_fit-content(35%)]">
                 <AssetLibrary
                   client={assetClient}
@@ -1190,11 +1190,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }
                 />
-                {/* The shared SFX library with its labels (spec 2026-10-31, decision 8). */}
-                {client.listSfx ? (
+                {/* The workspace asset library (spec 2026-11-13). */}
+                {client.listLibrary && client.addLibraryItemToProject ? (
                   <div className="max-h-64 overflow-auto border-r border-t border-border bg-card/60 p-2">
-                  <SfxLibrary
-                    client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
+                  <LibraryPanel
+                    client={{ listLibrary: client.listLibrary, addLibraryItemToProject: client.addLibraryItemToProject }}
                     projectId={projectId}
                     onAdd={
                       timelineReadOnly

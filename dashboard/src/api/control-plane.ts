@@ -54,7 +54,6 @@ export type NarrationScript = components["schemas"]["NarrationScript"];
 export type NarrationDecision = components["schemas"]["NarrationDecision"];
 export type NarrationPreset = components["schemas"]["NarrationPreset"];
 export type StoredNarrationPreset = components["schemas"]["StoredPreset"];
-export type SfxSummary = components["schemas"]["SfxSummary"];
 /** The workspace asset library (spec 2026-11-13). */
 export type WorkspaceAsset = components["schemas"]["WorkspaceAsset"];
 export type LibraryKind = WorkspaceAsset["kind"];
@@ -310,14 +309,12 @@ export type ControlPlaneClient = {
   restartNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
   getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
   saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
-  listSfx: () => Promise<SfxSummary[]>;
   listLibrary: () => Promise<WorkspaceAsset[]>;
   uploadLibraryItem: (file: File) => Promise<WorkspaceAsset>;
   updateLibraryItem: (assetId: string, patch: LibraryPatch) => Promise<WorkspaceAsset>;
   deleteLibraryItem: (assetId: string) => Promise<void>;
   libraryMediaUrl: (assetId: string) => string;
   addLibraryItemToProject: (projectId: string, assetId: string) => Promise<EditorAsset>;
-  addSfxToProject: (projectId: string, sfxId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -768,7 +765,6 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ base_revision: baseRevision, preset }),
       }),
-    listSfx: () => importCall("/api/v1/sfx"),
     listLibrary: () => importCall<WorkspaceAsset[]>("/api/v1/library"),
     uploadLibraryItem: (file) =>
       importCall<WorkspaceAsset>("/api/v1/library", {
@@ -800,8 +796,6 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/library/${encodeURIComponent(assetId)}/asset`,
         {},
       ),
-    addSfxToProject: (projectId, sfxId) =>
-      importPost(`/api/v1/projects/${encodeURIComponent(projectId)}/sfx/${encodeURIComponent(sfxId)}/asset`, {}),
     attachStudioMaterial: (projectId, documentId, itemId) =>
       importCall(
         importPath(

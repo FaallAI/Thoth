@@ -27,7 +27,6 @@ from thoth_control_plane.domain.narration import (
     NarrationScriptInput,
     NarrationStepInput,
     NarrationWriteInput,
-    SfxEntry,
     TranscriptSegment,
 )
 from thoth_control_plane.domain.studio_imports import StudioMaterial, StudioMaterials
@@ -233,10 +232,6 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
                 "preference", SimpleNamespace(provider_id="openrouter", model_id="m")
             )
 
-    class SfxAssets:
-        async def ensure_project_sfx(self, project: str, entry: SfxEntry) -> AssetRef:
-            raise AssertionError("the global SFX library is retired")
-
     class Library:
         """ws_one holds a whoosh; ws_two holds an item ws_one must never see."""
 
@@ -281,7 +276,6 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
         transcribe=transcribe,
         voice=voice,
         upload_audio=upload_audio,
-        sfx_assets=SfxAssets(),
         library=Library(),
         workspace_of=workspace_of,
         prompts=None,

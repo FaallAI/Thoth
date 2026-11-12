@@ -82,7 +82,6 @@ class NarrationPorts:
     transcribe: Callable[[Path], Awaitable[list[TranscriptSegment]]]
     voice: Callable[[], Any]  # a VoiceSynthesizer; raises VoiceNotConfigured
     upload_audio: Callable[[str, bytes, str], Awaitable[AssetRef]]
-    sfx_assets: Any  # ensure_project_sfx(project_id, entry)
     prompts: Any | None  # get_resolved_prompt(p, stage)
     preferences: Any  # get_preference(p, stage)
     provider: Any  # complete_json(provider_id=, model_id=, system=, user=)
@@ -589,7 +588,6 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
             transcribe=transcribe,
             voice=lambda: build_voice(settings, "elevenlabs"),
             upload_audio=upload_audio,
-            sfx_assets=SfxAssets(assets=assets, media=media, probe=probe),
             prompts=PromptLabService(PostgresPromptLabRepository(database)),
             preferences=PostgresPromptProposalRepository(database),
             provider=OpenAICompatiblePromptProvider(

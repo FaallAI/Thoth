@@ -591,8 +591,6 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ),
         ("/api/v1/projects/{project_id}/narration-preset", "get"),
         ("/api/v1/projects/{project_id}/narration-preset", "put"),
-        ("/api/v1/sfx", "get"),
-        ("/api/v1/projects/{project_id}/sfx/{sfx_id}/asset", "post"),
         # Spec 2026-11-13: the workspace asset library.
         ("/api/v1/library", "get"),
         ("/api/v1/library", "post"),

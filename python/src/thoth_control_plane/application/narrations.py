@@ -80,10 +80,8 @@ class NarrationService:
         source_run: SourceRun,
         preferences: Any,
         gateway: NarrationGateway | None,
-        sfx_assets: Any | None = None,
         roles: Callable[[str, str], Awaitable[dict[str, str]]] | None = None,
     ) -> None:
-        self._sfx_assets = sfx_assets
         self._roles = roles
         self._store = store
         self._documents = documents
@@ -266,25 +264,3 @@ class NarrationService:
             return await self._require().save_preset(project_id, preset, base_revision)
         except NarrationPresetConflict as error:
             raise NarrationRefused("narration_preset_conflict") from error
-
-    async def list_sfx(self) -> list[Any]:
-        return await self._require().list_sfx()
-
-    async def add_sfx(self, project_id: str, sfx_id: str) -> Any:
-        """The project's editor asset for one library sound effect, copied on first use."""
-        entry = next((item for item in await self.list_sfx() if item.sfx_id == sfx_id), None)
-        if entry is None:
-            raise NarrationNotFound()
-        if self._sfx_assets is None:
-            raise NarrationUnavailable()
-        try:
-            return await self._sfx_assets.ensure_project_asset(
-                project_id,
-                location=entry.location,
-                checksum=entry.checksum,
-                media_type="audio/mpeg",
-                kind="audio",
-                suffix=".mp3",
-            )
-        except Exception as error:
-            raise NarrationUnavailable() from error
