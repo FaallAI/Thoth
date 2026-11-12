@@ -51,6 +51,17 @@ Branch `feat/narration-loudness`, from master `29c7ceb3`.
 - **Cause:** the "too quiet" narration comes from the Footage beat, where the footage clips' own sound played at full level. `4487a1e7`, already on stage1, ducks it to −34.6. This draft gets that fix only on its next re-voice.
 - **Normalisation:** it levels the beats but adds only +1.8 dB to Main. The whole mix lands at about −16 LUFS, a little quieter than most TikTok videos (about −14).
 
+**Target raised to −14 LUFS** (operator: "ya setarakan video tiktok pada umumnya"). Only `TARGET_LUFS` changes. On the same four voices, copied into memory as before:
+
+| Beat | Before | After | Gain | Length |
+|---|---|---|---|---|
+| Main | −18.1 | −14.7 | +3.4 dB | unchanged |
+| Evidence | −16.6 | −14.2 | +2.4 dB | unchanged |
+| Reactions | −18.9 | −14.6 | +4.3 dB | unchanged |
+| Footage | −20.7 | −14.3 | +6.4 dB | unchanged |
+
+The beats now sit 0.5 dB apart, with true peaks at −1.7 dB. The voice and narration activity tests pass (52).
+
 **Not yet pushed or deployed.**
 
 **Next steps** (each its own gate):

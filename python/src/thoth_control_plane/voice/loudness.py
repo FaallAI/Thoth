@@ -18,7 +18,8 @@ from thoth_control_plane.attribution.adapters.frames import ToolMissing
 logger = logging.getLogger(__name__)
 
 #: Integrated loudness and true-peak ceiling for every voice.
-TARGET_LUFS = -16.0
+# Level with most TikTok videos (operator, 2026-11-12: "setarakan video tiktok pada umumnya").
+TARGET_LUFS = -14.0
 TRUE_PEAK = -1.5
 LOUDNESS_RANGE = 11.0
 #: Formats the provider returns, by media type: (container suffix, encoder arguments).
