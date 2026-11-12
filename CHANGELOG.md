@@ -225,7 +225,26 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-4b3967bf.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
   - The operator's current draft keeps its long title until its next narration or re-voice, or until they edit the title in the Inspector.
 
+**Small follow-ups (operator: "oke lanjutkan", then "Tindak lanjut kecil"), fixed locally, test-first.**
+- **The Style control at 430** (`43340ed2`).
+  - Checked live on stage1 at `w430`, read-only: the control does sit at the top of the "⋯" menu.
+  - Its confirmation floated 20rem wide from the control's left edge and ran past the phone's right edge.
+  - Fix: a `variant` like NarrationChecking's. Inside the menu (below full desktop) the confirmation and notes flow under the control at the menu's width.
+  - Seen at `dev430` on the local build: the whole dialog fits the menu. Cancel left the draft at revision 27 with Style B.
+- **Kinetic captions vs a Middle heading** (`4eb0fd28`). While a heading is drawn mid-frame, Style B's kinetic words step down to the low caption lane (18%). A mid-frame heading is any visible text that is not `title_top`, `title_lower`, `card` or a credit. A placed heading leaves the middle to the words, and captions still hide under a narrator card.
+- **Headline in Title Case** (side review, operator: "ya tolonh ini"; `189589e1`).
+  - The fact check reads a mid-sentence capital as a name. In a Title Case headline every word counts as one, so a single word the facts lack dropped the whole headline silently, back to the cut caption.
+  - The request now asks for sentence case: a capital only for the first word and for names.
+  - A dropped headline is logged as a warning naming what the facts lack.
+- **Checks:**
+  - Python 4870 passed, 233 skipped; ruff clean;
+  - dashboard 2013 passed, `tsc -b` clean, build OK;
+  - renderer 262 passed, typecheck clean.
+  - Local template parity (`f1_verify3.sh`): all three releases pass, so no golden moves. The first build attempt failed downloading the headless browser over the local network; the retry built.
+- **Not yet pushed or deployed.**
+
 **Next steps** (each its own gate):
+- push and redeploy the follow-ups;
 - remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
@@ -234,8 +253,6 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
 
 **Carried forward:**
-- kinetic captions and a Middle heading share mid-frame;
-- the Style control at phone width (430);
 - the asset library on a busy project: the draft's own assets first, so its narration does not wait for page after page of other drafts' imports;
 - the understand-anything graph needs `/understand --full`.
 
