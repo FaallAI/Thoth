@@ -286,7 +286,8 @@ def test_the_production_client_verifies_tls_with_the_certifi_bundle() -> None:
 
 
 # Tier 3b: an asset's glance is kept beside it under glance/.
-@pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive", "glance"])
+# Stage1, 2026-11-13: the shared SFX library seeds into sfx/; it was refused, so none ever seeded.
+@pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive", "glance", "sfx"])
 def test_the_new_prefixes_are_valid_locators(store, tmp_path: Path, prefix: str) -> None:
     location = f"{prefix}/job_1/output.mp4"
     store.put_file(location, _file(tmp_path, "o.mp4", b"out"))
