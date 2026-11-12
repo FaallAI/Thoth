@@ -179,7 +179,30 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
     - at 0:23.3 the white card "Beneran mau mundur?" shows alone, with no caption over it;
     - at 0:26.3, `@cnnindonesia` sits small in the lower left, above TikTok's band, and the caption "PIHAK ISTANA" stays mid-frame.
 
+**The post card and profile page leave the timeline (operator, 2026-11-12: "post, dan profile page tuh sebenarnya tidak perlu masuk ke content juga! jadi jelek!").** Fixed locally, test-first.
+- Operator's choices:
+  - both stay in Materials, so a person can still add one;
+  - the main video's `@account` credit stays in its corner;
+  - the two profile-page shots come off the operator's draft after the deploy.
+- `ebd66b5a`:
+  - `UNPLACED_ROLES` (post_card, profile_page): no scene and no overlay; their inventory items start `excluded` with no scene;
+  - the first `@account` among the post, profile page and profile card rides over the main scene as `clip_credit` (slot `credit`, role `main`, the title's span);
+  - the profile and comment cards no longer wait out a post card that is not on screen: only an attached post counts. The Postgres test showed the profile card at frame 223 before the fix and frame 90 after;
+  - a run missing either no longer files a "Not captured" gate item, which would have held the render on a decision about material nobody places. The now-unused platform sets were removed.
+- `50af65cf`: a credit is never moved as a heading, neither by a style's heading place nor by Story's Heading position, which now skips credits.
+- **Evidence beat check** (side review, operator asked to confirm). The stored draft's beats were computed in memory, with no writes:
+  - Main spans 0–44.8 s, so the main video runs under Evidence and Reactions.
+  - Without the profile-page shots, Evidence (23.4–32.9 s) keeps the profile card, its voice, captions and credit.
+  - Without any evidence card, only the voice, captions and credit remain over the main video.
+  - In a new draft with no evidence card, narration asks only for the beats present, so Evidence is neither voiced nor left empty.
+- **Checks:**
+  - Python 4863 passed, 233 skipped; Postgres-backed 213 passed;
+  - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
+  - the composition was not touched.
+- **Not yet pushed or deployed.**
+
 **Next steps** (each its own gate):
+- push and redeploy; then remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
 - merge.
