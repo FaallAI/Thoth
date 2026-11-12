@@ -2983,6 +2983,8 @@ export interface components {
         NarrationScript: {
             /** Beats */
             beats: components["schemas"]["ScriptBeat"][];
+            /** Headline */
+            headline?: string | null;
             /** Sfx Cues */
             sfx_cues?: components["schemas"]["SfxCue"][];
         };

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from uuid import uuid4
 
 from thoth_control_plane.application.edit_documents import (
@@ -55,9 +56,20 @@ PASSTHROUGH = (
 HEADING_ONLY_ROLES = frozenset({"main", "footage", "creator_footage"})
 
 
+#: Two lines of the top heading at 1080 wide, as the composition's headingFitChars counts them.
+HEADING_FIT_CHARS = 58
+
+
+def _fit(title: str) -> str:
+    """The caption cut on a whole word to the top's two lines until narration writes a headline
+    (operator, 2026-11-12); one endless word can only be cut."""
+    short = textwrap.shorten(title, HEADING_FIT_CHARS, placeholder="…")
+    return title[: HEADING_FIT_CHARS - 1] + "…" if short == "…" else short
+
+
 def _heading(item: StudioSourceItem) -> str:
     if item.title:
-        return item.title
+        return _fit(item.title) if item.role == "main" else item.title
     if item.role == "main":
         return "Untitled video"
     return f"{item.role.capitalize()} {item.order + 1}"

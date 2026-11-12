@@ -5,10 +5,12 @@ from __future__ import annotations
 import pytest
 
 from thoth_control_plane.application.narration_script import (
+    HEADLINE_MAX,
     ScriptFacts,
     ScriptInvalid,
     build_script_request,
     parse_script,
+    supported_headline,
     unsupported_tokens,
 )
 from thoth_control_plane.domain.narration import (
@@ -335,3 +337,39 @@ def test_a_card_line_is_kept_and_a_too_long_one_dropped() -> None:
         value, beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}, card_line_max_words=6
     )  # type: ignore[arg-type]
     assert [beat.card_line for beat in script.beats] == ["Kok bisa ya?", None, None]
+
+
+# A headline for the top of the video (operator, 2026-11-12): the raw caption ran past two lines.
+def test_every_script_asks_for_a_short_headline() -> None:
+    system, user = _request()
+    assert '"headline"' in system
+    assert f"at most {HEADLINE_MAX} characters" in user
+
+
+def test_a_short_headline_is_kept_and_a_long_or_handled_one_dropped() -> None:
+    def parsed(headline: object) -> str | None:
+        return parse_script(
+            answer(headline=headline), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+        ).headline  # type: ignore[arg-type]
+
+    assert parsed("  Kucing oren curi ikan di pasar  ") == "Kucing oren curi ikan di pasar"
+    assert parsed("x" * (HEADLINE_MAX + 1)) is None
+    assert parsed("@pecintakucing.id viral") is None
+    assert parsed(None) is None
+    assert (
+        "headline"
+        not in parse_script(
+            answer(), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+        ).model_dump()
+    )  # type: ignore[arg-type]
+
+
+def test_a_headline_naming_what_the_facts_lack_is_dropped() -> None:
+    def kept(headline: str) -> str | None:
+        script = parse_script(
+            answer(headline=headline), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+        )  # type: ignore[arg-type]
+        return supported_headline(script, FACTS, TRANSCRIPT).headline
+
+    assert kept("Kucing oren curi 3 ikan di Pasar Minggu") is not None
+    assert kept("Kucing Joko curi 9 ikan") is None

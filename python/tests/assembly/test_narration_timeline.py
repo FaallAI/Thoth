@@ -765,3 +765,24 @@ def test_a_revoice_stretches_a_hand_edited_beat_and_says_so() -> None:
     kept = next((c for c in again.clips if c.clip_id == shot.clip_id), None)
     assert kept is not None and kept.dim == 0.3
     assert again.style is not None and again.style.kept == ["main"]
+
+
+def test_the_scripts_headline_becomes_the_main_title_unless_a_person_wrote_one() -> None:
+    # Operator, 2026-11-12: the raw caption ran past the two lines the top of the video holds.
+    def titled(ownership: str) -> dict[str, Any]:
+        data = payload()
+        # An imported draft's title carries the main role (studio_imports.build_studio_draft).
+        title = next(c for c in data["clips"] if c["clip_id"] == "clip_001")
+        title.update(source_role="main", ownership=ownership)
+        return data
+
+    narrated = narrate_document(
+        draft(titled("ai_managed")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
+    )
+    assert clip(narrated, "clip_001").heading == "Judul pendek"
+    assert clip(narrated, "clip_hook").heading == clip(draft(), "clip_hook").heading
+
+    kept = narrate_document(
+        draft(titled("user_edited")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
+    )
+    assert clip(kept, "clip_001").heading == clip(draft(), "clip_001").heading

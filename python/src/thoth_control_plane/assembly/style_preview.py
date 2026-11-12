@@ -74,6 +74,7 @@ def preview_document(
         intro_frames=intro_frames,
         style=template,
         card_lines=cards,
+        headline=script.headline,
     )
     stand_ins = {
         clip.clip_id

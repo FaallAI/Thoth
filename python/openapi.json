@@ -3533,6 +3533,18 @@
             "title": "Beats",
             "type": "array"
           },
+          "headline": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
           "sfx_cues": {
             "items": {
               "$ref": "#/components/schemas/SfxCue"

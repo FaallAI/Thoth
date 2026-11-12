@@ -27,6 +27,7 @@ from thoth_control_plane.application.narration_script import (
     build_script_request,
     facts_from_materials,
     parse_script,
+    supported_headline,
     unsupported_tokens,
 )
 from thoth_control_plane.application.prompt_lab import resolve_style_prompt
@@ -222,6 +223,8 @@ class NarrationActivities:
                     return await self._fail(step.document_id, _safe_failure_code(error))
             if script is None:
                 return await self._fail(step.document_id, "invalid_provider_output")
+            # A headline nobody reviews shows only when the facts hold it (2026-11-12).
+            script = supported_headline(script, facts, transcript)
             estimate = estimate_voice(script, preset, await ports.prices())
             # A styled draft's cut preview skips the title card the voice will skip.
             intro = await self._intro_frames(step, document) if style is not None else None
@@ -367,6 +370,7 @@ class NarrationActivities:
             intro_frames=intro,
             style=style,
             card_lines=cards,
+            headline=script.headline if script else None,
         )
         await ports.documents.write_derived_revision(
             step.project_id, step.document_id, document.revision, narrated

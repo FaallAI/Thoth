@@ -27,6 +27,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     EditDocumentV2,
     TimelineAudioClip,
     TimelineCaptionClip,
+    TimelineTextClip,
     TimelineTrack,
     TimelineVideoClip,
     VolumeKeyframe,
@@ -92,10 +93,14 @@ def narrate_document(
     intro_frames: int = 0,
     style: StyleTemplate | None = None,
     card_lines: Mapping[BeatId, str] | None = None,
+    headline: str | None = None,
 ) -> EditDocumentV2:
     """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
     recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
-    places them only on a draft that has no narration yet."""
+    places them only on a draft that has no narration yet. `headline`, the script's, becomes
+    the main title unless a person wrote that title (operator, 2026-11-12)."""
+    if headline:
+        document = _with_headline(document, roles_by_item, headline)
     fps = document.canvas.fps
     lead = math.ceil(preset.lead_in_seconds * fps)
     voices = {voice.beat: voice for voice in voiced}
@@ -679,6 +684,34 @@ def _speech(words: Sequence[WordTiming], start: int, length: int, fps: float) ->
         else:
             windows.append(window)
     return windows
+
+
+def _with_headline(
+    document: EditDocumentV2, roles_by_item: dict[str, str] | None, headline: str
+) -> EditDocumentV2:
+    """The main title, the first heading of the main beat, reads `headline`; a title a person
+    edited stays theirs."""
+    beats = clip_beats(document, roles_by_item)
+    title = next(
+        (
+            clip
+            for clip in sorted(document.clips, key=lambda clip: clip.from_frame)
+            if isinstance(clip, TimelineTextClip)
+            and beats.get(clip.clip_id) == "main"
+            and clip.style_slot not in ("credit", "card")
+        ),
+        None,
+    )
+    if title is None or title.ownership == "user_edited" or title.heading == headline:
+        return document
+    return document.model_copy(
+        update={
+            "clips": [
+                clip.model_copy(update={"heading": headline}) if clip is title else clip
+                for clip in document.clips
+            ]
+        }
+    )
 
 
 def _sounding(clip: object, assets: Mapping[str, AssetRef]) -> bool:

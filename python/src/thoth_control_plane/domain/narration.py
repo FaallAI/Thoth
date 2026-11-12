@@ -72,6 +72,10 @@ class SfxCue(StrictModel):
 class NarrationScript(StrictModel):
     beats: Annotated[list[ScriptBeat], Field(min_length=1, max_length=len(BEAT_ORDER))]
     sfx_cues: Annotated[list[SfxCue], Field(max_length=10)] = Field(default_factory=list)
+    #: A short headline for the top of the video, from the same facts (operator, 2026-11-12).
+    headline: Annotated[str, Field(max_length=80)] | None = Field(
+        default=None, exclude_if=lambda line: line is None
+    )
 
     @model_validator(mode="after")
     def beats_in_story_order(self) -> NarrationScript:

@@ -36,6 +36,9 @@ ANSWER_CONTRACT = (
 )
 #: Added when the draft's style shows narrator cards (spec 2026-11-10).
 CARD_CONTRACT = 'Each beat object also has "card_line": the short line for that beat\'s card.'
+#: The top of the video holds two lines of about 58 characters (composition headingFitChars).
+HEADLINE_MAX = 55
+HEADLINE_CONTRACT = 'The object also has "headline": the headline for the top of the video.'
 #: Always sent as well: a script that mixes up who said what reads as made up.
 SOURCE_RULES = (
     "Comments were written by viewers: never present them as said by the people in the video. "
@@ -134,7 +137,12 @@ def build_script_request(
         lines.append("No sound effects are available: sfx_cues must be [].")
     if note:
         lines.append(f"Operator note on the previous script: {_clean(note, 500)}")
-    contract = ANSWER_CONTRACT
+    # The raw caption ran past the two lines the top of the video holds (operator, 2026-11-12).
+    lines.append(
+        f"Headline: write one news headline of at most {HEADLINE_MAX} characters for the top "
+        "of the video, in the narration's language, from the facts only, with no account handle."
+    )
+    contract = f"{ANSWER_CONTRACT} {HEADLINE_CONTRACT}"
     if card_lines:
         # A style's narrator card (spec 2026-11-10): shown on a white card, never read aloud.
         lines.append(
@@ -142,7 +150,7 @@ def build_script_request(
             "the narrator's own reaction or question. It shows on a white card and is not "
             "read aloud."
         )
-        contract = f"{ANSWER_CONTRACT} {CARD_CONTRACT}"
+        contract = f"{contract} {CARD_CONTRACT}"
     system = f"{prompt}\n\n{SOURCE_RULES}\n\n{contract}"
     return system, "\n".join(line for line in lines if line)
 
@@ -165,6 +173,15 @@ def _card_line(item: dict[str, Any], max_words: int | None) -> dict[str, str]:
     if not line or len(line.split()) > max_words or len(line) > 80:
         return {}
     return {"card_line": line}
+
+
+def _headline(raw: object) -> dict[str, str]:
+    """The headline when it fits the top of the video and names no account, else nothing: the
+    draft then keeps its caption cut to fit (operator, 2026-11-12)."""
+    line = " ".join(str(raw or "").split())
+    if not line or len(line) > HEADLINE_MAX or "@" in line:
+        return {}
+    return {"headline": line}
 
 
 def parse_script(
@@ -216,6 +233,7 @@ def parse_script(
                     for item in ordered
                 ],
                 "sfx_cues": cues,
+                **_headline(answer.get("headline")),
             }
         )
     except ValidationError as error:
@@ -230,10 +248,10 @@ def _fold(text: str) -> str:
     return re.sub(r"[^\w]", "", text.lower().lstrip("@"))
 
 
-def unsupported_tokens(
-    script: NarrationScript, facts: ScriptFacts, transcript: Sequence[TranscriptSegment]
-) -> dict[BeatId, list[str]]:
-    """Per beat: every number, @handle and mid-sentence capitalised word the evidence lacks."""
+def _evidence(
+    facts: ScriptFacts, transcript: Sequence[TranscriptSegment]
+) -> tuple[set[str], set[str]]:
+    """The words and numbers the run's facts and transcript hold."""
     evidence_text = " ".join(
         [
             facts.title,
@@ -247,26 +265,49 @@ def unsupported_tokens(
     )
     words = {_fold(token) for token in evidence_text.split()} - {""}
     numbers = {re.sub(r"\D", "", token) for token in re.findall(r"\d[\d.,]*", evidence_text)}
+    return words, numbers
+
+
+def _missing(text: str, words: set[str], numbers: set[str]) -> list[str]:
+    """Every number, @handle and mid-sentence capitalised word of `text` the evidence lacks."""
+    missing: list[str] = []
+    sentence_start = True
+    for token in text.split():
+        stripped = token.strip(_QUOTES)
+        if re.fullmatch(r"\d[\d.,]*", stripped.rstrip(".!?")):
+            if re.sub(r"\D", "", stripped) not in numbers:
+                missing.append(stripped.rstrip(".!?"))
+        elif stripped.startswith("@"):
+            if _fold(stripped.rstrip(".!?")) not in words:
+                missing.append(stripped.rstrip(".!?,"))
+        elif stripped[:1].isupper() and not sentence_start:
+            name = stripped.rstrip(".!?")
+            if _fold(name) not in words:
+                missing.append(name)
+        sentence_start = bool(_SENTENCE_END.search(token))
+    return missing
+
+
+def unsupported_tokens(
+    script: NarrationScript, facts: ScriptFacts, transcript: Sequence[TranscriptSegment]
+) -> dict[BeatId, list[str]]:
+    """Per beat: every number, @handle and mid-sentence capitalised word the evidence lacks."""
+    words, numbers = _evidence(facts, transcript)
     found: dict[BeatId, list[str]] = {}
     for beat in script.beats:
-        missing: list[str] = []
-        sentence_start = True
-        for token in beat.text.split():
-            stripped = token.strip(_QUOTES)
-            if re.fullmatch(r"\d[\d.,]*", stripped.rstrip(".!?")):
-                if re.sub(r"\D", "", stripped) not in numbers:
-                    missing.append(stripped.rstrip(".!?"))
-            elif stripped.startswith("@"):
-                if _fold(stripped.rstrip(".!?")) not in words:
-                    missing.append(stripped.rstrip(".!?,"))
-            elif stripped[:1].isupper() and not sentence_start:
-                name = stripped.rstrip(".!?")
-                if _fold(name) not in words:
-                    missing.append(name)
-            sentence_start = bool(_SENTENCE_END.search(token))
-        if missing:
+        if missing := _missing(beat.text, words, numbers):
             found[beat.beat] = missing
     return found
+
+
+def supported_headline(
+    script: NarrationScript, facts: ScriptFacts, transcript: Sequence[TranscriptSegment]
+) -> NarrationScript:
+    """`script` without its headline when the headline names what the facts lack: unlike a
+    beat, nobody reviews it before it shows (2026-11-12)."""
+    if script.headline is None or not _missing(script.headline, *_evidence(facts, transcript)):
+        return script
+    return script.model_copy(update={"headline": None})
 
 
 def facts_from_materials(

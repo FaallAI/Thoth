@@ -361,3 +361,21 @@ async def test_a_keyed_draft_refuses_an_unsafe_idempotency_key() -> None:
         await StudioImportService(MemoryStudioImports()).create_keyed(
             PROJECT, "f" * 64, create_request().source, "C:\\Users\\key"
         )
+
+
+def test_a_long_caption_title_is_cut_to_the_two_lines_the_top_holds() -> None:
+    # Operator, 2026-11-12: a 116-character caption ran past the top's two lines (58 characters
+    # at 1080 wide, the composition's headingFitChars) until narration writes a headline.
+    caption = (
+        "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai disebut pihak istana telah "
+        "menyampaikan niatan pengunduran diri"
+    )
+    payload = projection_payload()
+    payload["items"] = [item("main", 0, title=caption, text="Main caption", platform="tiktok")]
+    heading = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source).clips[0]
+    assert heading.heading == "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai…"
+    assert len(heading.heading) <= 58
+
+    payload["items"] = [item("main", 0, title="Banjir di Bekasi", platform="tiktok")]
+    short = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source).clips[0]
+    assert short.heading == "Banjir di Bekasi"
