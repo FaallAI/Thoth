@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -96,3 +97,12 @@ async def test_delete_returns_the_location_and_is_scoped(
     assert len(await library.list("ws_a")) == 1
     assert await library.delete("ws_a", "lib_1") == "library/ws_a/lib_1.mp3"
     assert await library.list("ws_a") == []
+
+
+async def test_parallel_adds_of_one_file_all_return_the_one_item(
+    library: PostgresWorkspaceAssetRepository,
+) -> None:
+    # The page uploads three files at once; the same bytes twice in one batch race to insert.
+    kept = await asyncio.gather(*(library.add(record("ws_a", f"lib_{n}")) for n in range(12)))
+    assert len({item.asset.asset_id for item in kept}) == 1
+    assert len(await library.list("ws_a")) == 1

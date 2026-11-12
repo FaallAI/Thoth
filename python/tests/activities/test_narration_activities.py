@@ -691,3 +691,12 @@ def test_a_placed_cue_is_copied_from_the_workspace_library() -> None:
     document = narrate_once(built, seen)
     assert seen["library_adds"] == [("ws_one", "project_001", "lib_whoosh")]
     assert any(clip.clip_id == "clip_sfx_0" for clip in document.clips)
+
+
+def test_only_audio_is_offered_as_an_sfx() -> None:
+    built, seen = ports()
+    image = library_item("lib_paper", "paper").model_copy(update={"media_type": "image/png"})
+    built.library.items = {"ws_one": [library_item("lib_whoosh", "swipe"), image]}
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    user = seen["provider_requests"][0]["user"]
+    assert "lib_whoosh" in user and "lib_paper" not in user

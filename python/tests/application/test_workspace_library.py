@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from thoth_control_plane.application.editor_asset_ports import EditorAssetMediaI
 from thoth_control_plane.application.sfx_library import SfxAssets
 from thoth_control_plane.application.workspace_library import (
     LibraryItemNotFound,
+    LibraryKindRefused,
     LibraryUnavailable,
     WorkspaceLibraryService,
     display_name,
@@ -258,3 +260,37 @@ def test_import_directory_counts_added_unchanged_and_failed(tmp_path: Path) -> N
     assert (again.added, again.unchanged, len(again.failed)) == (0, 2, 1)
     labelled = {item.name: item.labels for item in asyncio.run(service.list("ws_a"))}
     assert labelled == {"a": {"label": "A"}, "b": {}}
+
+
+def stored(
+    library: MemoryLibrary, asset_id: str, kind: str, media_type: str, seconds: float | None
+):
+    asset = WorkspaceAsset(
+        asset_id=asset_id,
+        workspace_id="ws_a",
+        kind=kind,  # type: ignore[arg-type]
+        name=asset_id,
+        media_type=media_type,
+        checksum=f"sha256:{asset_id}",
+        duration_seconds=seconds,
+        created_at=datetime(2026, 11, 13, tzinfo=UTC),
+    )
+    library.records[("ws_a", asset_id)] = WorkspaceAssetRecord(
+        asset=asset, location=f"library/ws_a/{asset_id}.bin"
+    )
+
+
+def test_a_kind_change_stays_inside_the_media_family(tmp_path: Path) -> None:
+    service, library, _, _ = build(tmp_path, VIDEO_REPORT)
+    stored(library, "lib_png", "image", "image/png", None)
+    stored(library, "lib_clip", "clip", "video/mp4", 3.0)
+    stored(library, "lib_bed", "backsound", "audio/mpeg", 40.0)
+    stored(library, "lib_hit", "sfx", "audio/mpeg", 1.2)
+
+    for asset_id, kind in [("lib_png", "sfx"), ("lib_clip", "backsound"), ("lib_bed", "sfx")]:
+        with pytest.raises(LibraryKindRefused):
+            asyncio.run(service.update("ws_a", asset_id, kind=kind))
+    # Short audio was normalised when it arrived, so it may move between sfx and backsound.
+    assert asyncio.run(service.update("ws_a", "lib_hit", kind="backsound")).kind == "backsound"
+    assert asyncio.run(service.update("ws_a", "lib_hit", kind="sfx")).kind == "sfx"
+    assert asyncio.run(service.update("ws_a", "lib_png", name="Paper")).name == "Paper"

@@ -12153,7 +12153,6 @@
             "required": false,
             "schema": {
               "default": "untitled",
-              "maxLength": 1024,
               "title": "X-File-Name",
               "type": "string"
             }

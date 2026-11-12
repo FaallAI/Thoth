@@ -58,6 +58,23 @@ class LibraryItemNotFound(Exception):
     """No such item in this workspace; another workspace's item answers the same way."""
 
 
+class LibraryKindRefused(Exception):
+    """The kind does not fit the media: an image stays an image, a video a clip, and only
+    short audio, which was loudness-normalised when it arrived, may be an SFX."""
+
+
+def allowed_kinds(media_type: str, duration_seconds: float | None) -> set[LibraryKind]:
+    family = UPLOAD_TYPES[media_type].kind if media_type in UPLOAD_TYPES else None
+    if family == "image":
+        return {"image"}
+    if family == "video":
+        return {"clip"}
+    if family == "audio":
+        short = (duration_seconds or 0.0) <= SFX_MAX_SECONDS
+        return {"sfx", "backsound"} if short else {"backsound"}
+    return set()
+
+
 def library_kind(
     upload_kind: Literal["image", "video", "audio"], duration_seconds: float | None
 ) -> LibraryKind:
@@ -145,6 +162,12 @@ class WorkspaceLibraryService:
         kind: LibraryKind | None = None,
     ) -> WorkspaceAsset:
         clean = None if name is None else display_name(name + ".x")
+        if kind is not None:
+            record = await self._repo("get", workspace_id, asset_id)
+            if record is None:
+                raise LibraryItemNotFound()
+            if kind not in allowed_kinds(record.asset.media_type, record.asset.duration_seconds):
+                raise LibraryKindRefused()
         updated = await self._repo(
             "update", workspace_id, asset_id, name=clean, labels=labels, kind=kind
         )

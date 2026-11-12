@@ -81,11 +81,16 @@ async def test_upload_list_patch_delete_round_trip(api) -> None:
         assert [entry["asset_id"] for entry in listed] == [item["asset_id"]]
         patched = await api.patch(
             f"/api/v1/library/{item['asset_id']}",
-            json={"name": "Boom", "labels": {"mood": "hype"}, "kind": "backsound"},
+            json={"name": "Boom", "labels": {"mood": "hype"}},
             headers=A,
         )
         assert patched.status_code == 200
-        assert (patched.json()["name"], patched.json()["kind"]) == ("Boom", "backsound")
+        assert (patched.json()["name"], patched.json()["labels"]) == ("Boom", {"mood": "hype"})
+        # A video stays a clip: it never becomes sound the script writer places.
+        refused = await api.patch(
+            f"/api/v1/library/{item['asset_id']}", json={"kind": "sfx"}, headers=A
+        )
+        assert refused.status_code == 422 and refused.json()["detail"]["code"] == "kind_mismatch"
         gone = await api.delete(f"/api/v1/library/{item['asset_id']}", headers=A)
         assert gone.status_code == 204
         assert (await api.get("/api/v1/library", headers=A)).json() == []
@@ -170,3 +175,15 @@ async def test_library_unavailable_answers_503(api) -> None:
         )
         made = await api.post("/api/v1/library", content=MP4, headers=A | UPLOAD)
         assert made.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_a_long_emoji_file_name_is_trimmed_not_refused(api) -> None:
+    from urllib.parse import quote
+
+    name = "🎬" * 300 + ".mp4"
+    headers = A | {"Content-Type": "video/mp4", "X-File-Name": quote(name)}
+    async with api:
+        made = await api.post("/api/v1/library", content=MP4, headers=headers)
+    assert made.status_code == 201
+    assert made.json()["name"] == "🎬" * 120

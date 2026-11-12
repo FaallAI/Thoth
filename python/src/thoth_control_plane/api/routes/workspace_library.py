@@ -21,6 +21,7 @@ from thoth_control_plane.application.editor_asset_ports import (
 from thoth_control_plane.application.editor_asset_uploads import UPLOAD_MAX_BYTES, UPLOAD_TYPES
 from thoth_control_plane.application.workspace_library import (
     LibraryItemNotFound,
+    LibraryKindRefused,
     LibraryUnavailable,
     WorkspaceLibraryService,
 )
@@ -67,6 +68,8 @@ async def _answer(work):  # type: ignore[no-untyped-def]
         return await work
     except LibraryItemNotFound as error:
         raise _refused(status.HTTP_404_NOT_FOUND, "library_item_not_found") from error
+    except LibraryKindRefused as error:
+        raise _refused(status.HTTP_422_UNPROCESSABLE_CONTENT, "kind_mismatch") from error
     except LibraryUnavailable as error:
         raise _refused(status.HTTP_503_SERVICE_UNAVAILABLE, "library_unavailable") from error
 
@@ -94,7 +97,8 @@ async def upload_library_item(
     request: Request,
     actor: Caller,
     service: Service,
-    file_name: Annotated[str, Header(alias="X-File-Name", max_length=1024)] = "untitled",
+    # No length limit: an encoded emoji name runs long, and `display_name` trims it anyway.
+    file_name: Annotated[str, Header(alias="X-File-Name")] = "untitled",
 ) -> WorkspaceAsset:
     """Accept one streamed media body; its URL-encoded name only labels it."""
     declared = request.headers.get("content-length", "")

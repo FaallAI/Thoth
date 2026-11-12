@@ -127,7 +127,8 @@ async def workspace_sfx(
             },
         )
         for item in items
-        if item.kind == "sfx"
+        # Audio only: a kind is checked on edit, but a stored row is never trusted to be sound.
+        if item.kind == "sfx" and item.media_type.startswith("audio/")
     ]
 
 

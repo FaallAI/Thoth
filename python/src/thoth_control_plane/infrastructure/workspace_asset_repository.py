@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from thoth_control_plane.domain.workspace_assets import (
@@ -80,32 +81,33 @@ class PostgresWorkspaceAssetRepository:
         asset = record.asset
 
         def work(session: Session) -> WorkspaceAssetRecord:
-            # ponytail: check-then-insert; two parallel uploads of one file hit the UNIQUE key.
-            existing = session.scalar(
+            # Parallel uploads of one file race here: the key decides, and the loser reads the
+            # winner's row (READ COMMITTED gives this statement a fresh snapshot).
+            session.execute(
+                insert(WorkspaceAssetRow)
+                .values(
+                    workspace_id=asset.workspace_id,
+                    asset_id=asset.asset_id,
+                    kind=asset.kind,
+                    name=asset.name,
+                    labels=asset.labels,
+                    media_type=asset.media_type,
+                    location=record.location,
+                    checksum=asset.checksum,
+                    duration_seconds=asset.duration_seconds,
+                    width=asset.width,
+                    height=asset.height,
+                    has_audio=asset.has_audio,
+                    created_at=asset.created_at,
+                )
+                .on_conflict_do_nothing(index_elements=["workspace_id", "checksum"])
+            )
+            row = session.scalars(
                 select(WorkspaceAssetRow).where(
                     WorkspaceAssetRow.workspace_id == asset.workspace_id,
                     WorkspaceAssetRow.checksum == asset.checksum,
                 )
-            )
-            if existing is not None:
-                return _record(existing)
-            row = WorkspaceAssetRow(
-                workspace_id=asset.workspace_id,
-                asset_id=asset.asset_id,
-                kind=asset.kind,
-                name=asset.name,
-                labels=asset.labels,
-                media_type=asset.media_type,
-                location=record.location,
-                checksum=asset.checksum,
-                duration_seconds=asset.duration_seconds,
-                width=asset.width,
-                height=asset.height,
-                has_audio=asset.has_audio,
-                created_at=asset.created_at,
-            )
-            session.add(row)
-            session.flush()
+            ).one()
             return _record(row)
 
         return await self._run(work)
