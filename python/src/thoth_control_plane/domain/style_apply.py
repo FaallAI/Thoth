@@ -330,7 +330,10 @@ def style_operations(
                     style_slot=look.heading_place,
                 )
                 for clip in in_beat
-                if isinstance(clip, TimelineTextClip) and not clip.locked
+                # A credit keeps its corner: it is no heading (2026-11-12).
+                if isinstance(clip, TimelineTextClip)
+                and not clip.locked
+                and clip.style_slot != "credit"
             )
 
     operations.extend(

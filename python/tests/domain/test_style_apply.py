@@ -146,6 +146,15 @@ def test_a_style_keeps_the_main_videos_subtitle_blur() -> None:
     assert all(s.blur_enabled and [r.y for r in s.blur_regions] == [0.65] for s in shots)
 
 
+def test_a_styles_heading_place_leaves_a_credit_in_its_corner() -> None:
+    # A credit is no heading: Style A's title_top for the hook must not lift it (2026-11-12).
+    data = payload()
+    hook = next(c for c in data["clips"] if c["clip_id"] == "clip_hook")
+    hook["style_slot"] = "credit"
+    after = styled(narrated(data))
+    assert next(c for c in after.clips if c.clip_id == "clip_hook").style_slot == "credit"
+
+
 def test_a_style_keeps_a_long_videos_many_subtitle_blurs() -> None:
     # A real draft's OCR gave its main video 22 timed blur regions (stage1, 2026-11-12).
     data = payload()
