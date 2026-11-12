@@ -21,6 +21,7 @@ import {
 } from "./story_effects";
 
 type OverlayClip = Extract<TimelineClip, { kind: "overlay" }>;
+type TextClip = Extract<TimelineClip, { kind: "text" }>;
 type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 type VideoClip = Extract<TimelineClip, { kind: "video" }>;
 
@@ -137,6 +138,10 @@ const CAPTION_LANE: CSSProperties = {
 const CAPTION_SAFE_BOTTOM = 0.18;
 /** A [from, to) frame range on the canvas. */
 type Span = readonly [number, number];
+/** When narrator cards and middle headings are on screen, for the caption lanes to give way. */
+type Cover = { readonly cards: readonly Span[]; readonly middles: readonly Span[] };
+/** Text slots drawn away from the middle: placed headings and the narrator card. */
+const PLACED_SLOTS = new Set(["title_top", "title_lower", "card"]);
 /**
  * A source credit, small in the lower left. TikTok's name and description cover the bottom 18%
  * and its buttons the right edge; the low caption lane starts at 18% and two lines reach about
@@ -285,12 +290,18 @@ export function AdvancedTimelineComposition({
   // validated asset reference, never from a preview URL or its suffix.
   const refs = new Map((document.asset_refs ?? []).map((ref) => [ref.asset_id, ref]));
   const lanes = visibleLanes(document).filter(({ track }) => !track.hidden);
-  // A narrator card fills the frame with its own words; captions wait until it ends.
-  const cards: Span[] = lanes.flatMap(({ clips }) =>
-    clips
-      .filter((clip) => !clip.hidden && clip.kind === "text" && clip.style_slot === "card")
-      .map((clip): Span => [clip.from_frame, clip.from_frame + clip.duration_in_frames]),
-  );
+  const spans = (keep: (clip: TextClip) => boolean): Span[] =>
+    lanes.flatMap(({ clips }) =>
+      clips
+        .filter((clip): clip is TextClip => !clip.hidden && clip.kind === "text" && keep(clip))
+        .map((clip): Span => [clip.from_frame, clip.from_frame + clip.duration_in_frames]),
+    );
+  const cover: Cover = {
+    // A narrator card fills the frame with its own words; captions wait until it ends.
+    cards: spans((clip) => clip.style_slot === "card"),
+    // A heading in the middle keeps it: kinetic words step down to the low lane meanwhile.
+    middles: spans((clip) => !PLACED_SLOTS.has(clip.style_slot) && !isCredit(clip)),
+  };
   return (
     <AbsoluteFill style={CANVAS}>
       {/* Lanes are editor rows, so a hidden track still has one; the composition drops it. */}
@@ -315,7 +326,7 @@ export function AdvancedTimelineComposition({
                   document.canvas,
                   previewSources,
                   onPreviewUnavailable,
-                  cards,
+                  cover,
                 )}
               </Sequence>
             )),
@@ -331,7 +342,7 @@ function renderClip(
   canvas: EditDocumentV2["canvas"],
   sources: PreviewSources,
   onPreviewUnavailable: ((assetId: string) => void) | undefined,
-  cards: readonly Span[],
+  cover: Cover,
 ): ReactNode {
   switch (clip.kind) {
     case "text":
@@ -385,12 +396,10 @@ function renderClip(
     case "caption": {
       const style = trustedStyle(clip.style_slot, CAPTION_STYLES, CAPTION_STYLES.caption_default!);
       // Kinetic words sit in the middle, a little above it; every other style stays in the low lane.
-      const lane =
-        style.name === "kinetic"
-          ? { ...CAPTION_LANE, justifyContent: "center", paddingBottom: canvas.height * 0.1 }
-          : { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM };
+      const low = { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM };
+      const middle = { ...CAPTION_LANE, justifyContent: "center", paddingBottom: canvas.height * 0.1 };
       return (
-        <CaptionLane start={clip.from_frame} cards={cards} style={lane}>
+        <CaptionLane start={clip.from_frame} cover={cover} low={low} middle={style.name === "kinetic" ? middle : null}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -455,22 +464,32 @@ function renderClip(
   }
 }
 
-/** Style B's words, one group at a time: each group stays until the next one starts. */
-/** A caption clip's lane, drawn only while no narrator card covers the frame. */
+/**
+ * A caption clip's lane, drawn only while no narrator card covers the frame. Kinetic words take
+ * the middle (`middle`) unless a heading holds it; every other style keeps the low lane.
+ */
 function CaptionLane({
   start,
-  cards,
-  style,
+  cover,
+  low,
+  middle,
   children,
 }: {
   start: number;
-  cards: readonly Span[];
-  style: CSSProperties;
+  cover: Cover;
+  low: CSSProperties;
+  middle: CSSProperties | null;
   children: ReactNode;
 }) {
   const frame = start + useCurrentFrame();
-  if (cards.some(([from, to]) => frame >= from && frame < to)) return null;
-  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+  const during = (spans: readonly Span[]) => spans.some(([from, to]) => frame >= from && frame < to);
+  if (during(cover.cards)) return null;
+  const centred = middle !== null && !during(cover.middles);
+  return (
+    <AbsoluteFill data-testid="caption-lane" data-lane={centred ? "middle" : "low"} style={centred ? middle : low}>
+      {children}
+    </AbsoluteFill>
+  );
 }
 
 /** A credit: the slot itself, or an older draft's bare @account left in the old middle slot. */
@@ -478,6 +497,7 @@ function isCredit(clip: { style_slot: string; heading: string; body: string }): 
   return clip.style_slot === "credit" || (clip.style_slot === "source" && !clip.body && clip.heading.startsWith("@"));
 }
 
+/** Style B's words, one group at a time: each group stays until the next one starts. */
 function KineticCue({
   words,
   style,

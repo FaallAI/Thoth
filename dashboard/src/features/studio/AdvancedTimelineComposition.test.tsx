@@ -387,6 +387,31 @@ test("captions give way while a narrator card fills the frame", () => {
   expect(screen.getAllByTestId("caption-cue")).toHaveLength(1);
 });
 
+test("kinetic words step down to the low lane while a heading holds the middle", () => {
+  // Carried since effects-v1 (2026-11-10): Style B's centred words ran over a Middle heading.
+  const document = withText("title", "Judul di tengah", "");
+  Object.assign(document.clips!.find((clip) => clip.kind === "text")!, { from_frame: 0, duration_in_frames: 60 });
+  document.tracks!.find((track) => track.track_id === "track_hidden")!.hidden = false;
+  Object.assign(document.clips!.find((clip) => clip.kind === "caption")!, { style_slot: "kinetic" });
+  const lane = () => screen.getByTestId("caption-lane").getAttribute("data-lane");
+
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("low");
+  cleanup();
+
+  currentFrame.value = 70;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("middle");
+  cleanup();
+
+  // A heading at the top leaves the middle to the words.
+  Object.assign(document.clips!.find((clip) => clip.kind === "text")!, { style_slot: "title_top" });
+  currentFrame.value = 10;
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(lane()).toBe("middle");
+});
+
 test("while playing, a video mounts a second before its cut so the preview never stops to load it", () => {
   const premount = (name: string) =>
     screen.getAllByTestId("sequence").find((node) => node.getAttribute("data-name") === name)!.getAttribute("data-premount");
