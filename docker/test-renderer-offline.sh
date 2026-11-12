@@ -772,11 +772,16 @@ def studio_import():
         "comment_card_000",
         "comment_card_001",
     ]
+    # The post and profile page stay in Materials, decided at import (operator, 2026-11-12).
+    unplaced = {"post_card_000", "profile_page_000"}
     if (
         status != 201
         or [item_id for item_id, _, _ in found] != expected
         or found[0][1] != "copied"
-        or any(outcome not in {"copied", "reused"} for _, outcome, _ in found)
+        or any(
+            outcome != "decided" if item_id in unplaced else outcome not in {"copied", "reused"}
+            for item_id, outcome, _ in found
+        )
     ):
         raise SystemExit(f"open returned {status} {found}")
     document_id = opened["draft"]["document_id"]
@@ -797,21 +802,22 @@ def studio_import():
     main_clip = clips["clip_main_000"]
     main_track = next(t for t in document["tracks"] if t["track_id"] == "track_main_video")
     if (
-        len(cards) != 7
+        len(cards) != 5
         or len(main_clip.get("blur_regions", [])) != 1
         or main_clip.get("blur_enabled") is not False
         or main_track.get("muted") is not False
     ):
         raise SystemExit(f"the draft does not hold the 5c-1 layout: {len(cards)} b-roll clips")
-    # Spec 5c-2, G5: the post opens the video; the page, the creator clip and photo follow.
-    scenes = [
-        clips[f"clip_{item}_000"]["scene_id"]
-        for item in ("profile_page", "creator_footage", "creator_photo")
-    ]
+    # Spec 5c-2, as of 2026-11-12: no post or profile page on the timeline; the creator clip
+    # and photo follow the main, and the main's @account rides over it as its credit.
+    scenes = [clips[f"clip_{item}_000"]["scene_id"] for item in ("creator_footage", "creator_photo")]
+    credit = clips.get("clip_credit", {})
     if (
-        clips["clip_post_card_000"]["from_frame"] != 0
-        or clips["clip_profile_card_000"]["from_frame"] < 90
-        or scenes != ["scene_002", "scene_003", "scene_004"]
+        {"clip_post_card_000", "clip_profile_page_000"} & set(clips)
+        or "clip_profile_card_000" not in clips
+        or scenes != ["scene_002", "scene_003"]
+        or credit.get("style_slot") != "credit"
+        or not str(credit.get("heading", "")).startswith("@")
     ):
         raise SystemExit(f"the draft does not hold the 5c-2 layout: {scenes}")
     status, again = call("POST", path, idempotency_key="smoke-studio-1")
