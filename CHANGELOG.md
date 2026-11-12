@@ -205,7 +205,25 @@ The draft is at revision 27, Style B, voiced. The operator wrote: "teks backgrou
   - CI: PR run 43168191649 green (Validate image build included); push run 43168186380 green, with the images published and the non-live smoke passing.
   - Deploy: `make deploy` exited 0, web answered 200, and the four services run the new digests. The rollback copy is `pins-cbec24f5.env`. api and worker showed 0 restarts, 0 5xx and 0 error lines.
 
+**The main title ran past the frame (operator, 2026-11-12: "kenapa mengenerate heading terlalu panjang jadinya head di video tidak tampil semua").** Fixed locally, test-first (`ab5b6094`). The operator chose a headline written by the narration model.
+- **Cause:** the title was never written by a model. It was the TikTok caption cut to `TITLE_CHARS = 120` on a whole word (`assembly/service.py`). The top heading clamps to two lines, about 58 characters at 1080 wide (`headingFitChars`). Studio already warned "Too long for the frame: 116 characters", but nothing shortened the title.
+- **Script:**
+  - every script request now asks for a `"headline"` of at most `HEADLINE_MAX = 55` characters, in the narration's language, from the facts only, with no handle;
+  - `NarrationScript.headline` is optional, so stored scripts still decode, and `openapi.json` and the dashboard types are regenerated;
+  - the parser drops a headline that is too long or holds an `@`;
+  - `supported_headline` drops one naming a number or name the facts lack, because nobody reviews it before it shows. The fact check was split out of `unsupported_tokens` (`_evidence`, `_missing`), so beats and headline share one rule.
+- **Draft:**
+  - `narrate_document(headline=…)` sets the main beat's first heading (not a credit or card) to the headline, unless a person edited that title (`ownership == "user_edited"`, set by `ReplaceText`);
+  - the narration write and the style preview both pass it.
+- **Fallback:** until narration writes one, a new draft's main title is the caption cut on a whole word to `HEADING_FIT_CHARS = 58`. The 116-character caption becomes "Wakil Presiden RI Gibran Rakabuming Raka buka suara usai…".
+- **Checks:**
+  - Python 4868 passed, 233 skipped; Postgres-backed 213 passed;
+  - dashboard 2011 passed, `tsc -b` clean, build OK; ruff clean;
+  - the composition was not touched.
+- **Not yet pushed or deployed.** The operator's current draft keeps its long title until its next narration or re-voice, or until they edit the title in the Inspector.
+
 **Next steps** (each its own gate):
+- push and redeploy the headline change;
 - remove the two profile-page shots (`clip_style_evidence_2`, `clip_style_evidence_3`) from the operator's draft as one revision, which Undo reverses;
 - the operator looks at the same draft again: card and credit now; card timing and footage ducking take effect on its next narration or re-voice (a paid voice only with their approval);
 - the operator tries Style on a real narrated draft (a paid voice only when they approve a script);
