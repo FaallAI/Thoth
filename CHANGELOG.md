@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-13 - Workspace asset library
+
+The operator asked for one place to keep their own reusable media for every draft: "mending gini deh di dashboard nya berikan page terkait management asset yang nanti bisa diakses ke semua draft". The brainstorm record is `.superpowers/sdd/2026-11-12-footage-library/brainstorm-notes.md`, items 17-23. The spec and plan were approved on 2026-11-13 (`docs/superpowers/specs/2026-11-13-workspace-asset-library-design.md`, `docs/superpowers/plans/2026-11-13-workspace-asset-library.md`, both local).
+
+**What it is:**
+- **Assets page** (`/assets`, a nav entry after Studio). It holds SFX, clips, backsound and images, and belongs to one workspace only.
+  - Bulk upload: three uploads at a time, each with its own progress or error. One refused file never stops the rest.
+  - A kind filter, search over names and labels, inline rename, labels and kind, a preview, and multi-select delete behind a confirm.
+- **No licence gate** on a workspace's own uploads (operator: "hiraukan terkait license").
+- **SFX:** audio up to 15 s is an SFX and is loudness-normalised (−16 LUFS, −1 dBTP); longer audio is backsound.
+- **Studio:** the Library panel replaces the global "Sound effects" panel. Adding an item copies it into the draft, reused by checksum, so deleting it from the library never breaks the draft.
+- **Script writer:** it picks SFX from the draft's own workspace. When the worker cannot tell the workspace, it offers no SFX, never the bootstrap's.
+- **Bulk load from the backend:**
+  - `thoth-control assets import --workspace <id> --dir <path> [--catalog]` imports a directory, reusing the catalog labels.
+  - It is idempotent by checksum and prints `added/unchanged/failed`.
+- **Retired:**
+  - the global seed-only SFX list: `GET /sfx`, the per-project SFX add route, `sfx seed`, the CC0 gate and the store methods;
+  - the `sfx_library` table is left in place, empty as it always was.
+
+**Built:**
+- **Storage:**
+  - editor migration 0031 creates `workspace_assets`, keyed `(workspace_id, asset_id)` with `UNIQUE (workspace_id, checksum)`;
+  - media lives under the new `library/<workspace>/` prefix.
+- **API:** `GET/POST /library`, `PATCH/DELETE /library/{id}`, `GET /library/{id}/media` (ranged) and `POST /projects/{p}/library/{id}/asset`.
+
+| Commit | What |
+|---|---|
+| `de37a940` | Table, prefix, model and repository |
+| `962ec816` | Wrap the prefix test parameters |
+| `bac5f5ff` | Library service |
+| `b037abf0` | Routes and the import command |
+| `9e2fee20` | Script writer uses the workspace's SFX |
+| `a05e6206` | Assets page |
+| `0942f6bd` | Studio panel; global SFX retired |
+| `c11e2a94` | Dockerfile comment |
+| `30def622` | Read-only e2e check |
+
+**Verification:**
+- `make test`: 4896 passed, 239 skipped, plus the trimmed preset test green. `make lint` is clean.
+- Postgres: the repository and migration tests pass (29), and so do the narration store tests.
+- Dashboard: `bun test` 2020 pass, `tsc -b` clean, `bun run build` ok.
+- `rg "list_sfx|seed_sfx|listSfx|addSfxToProject"` over `python/src` and `dashboard/src` finds nothing.
+- Isolation is tested at every seam: repository, service, routes and script writer. Another workspace's item answers 404, and read scope cannot upload or delete.
+
+**Not run:** the e2e check `e2e/tests/assets-page.e2e.ts` targets stage1, which does not serve `/library` until this branch is deployed.
+
+**Next steps** (each its own gate):
+- push `feat/workspace-assets` and open its PR;
+- deploy to stage1;
+- import `assets/sfx`, `assets/meme` and `assets/ui` into the operator's workspace (`docker cp` for meme and ui, which are not in the image);
+- run the e2e check;
+- the operator's look at the Assets page and one draft;
+- merge;
+- then planner stage 1 (roadmap: Reference-faithful editing track, step 2).
+
+**Carried forward:**
+- the `sfx_library` table drop;
+- automatic placement of clips and backsound, after Styles A/B match their references (brainstorm item 19);
+- the asset library on a busy project;
+- `/understand --full`.
+
 ## 2026-11-13 - SFX library seeding fix, and reference taste measured
 
 **PR #129 merged** (operator: "langsung lakukan opsi 2"): merge commit `d90cf8bb`, CI 43252609506 and 43252596442 green. Stage1 keeps running `42b843a8`, the same code.

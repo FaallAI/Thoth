@@ -111,6 +111,7 @@ component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDue
 | 4. Template gallery | Templates are private to their workspace; the operator can see, use and copy every template; a template the operator verifies can be published to every workspace with its creator credited, **only after the creator approves**; published versions are frozen snapshots; reference videos are never published | Not started |
 | 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
 | 6. Shared SFX and assets | SFX live in MinIO/S3 with labels; uploaded SFX follow the template gallery: private to the workspace, operator review, uploader notified and approving, then available to every workspace with the uploader credited | Bundled SFX in MinIO come with auto-draft's first milestone; uploads not started |
+| 6a. Workspace asset library (added 2026-11-13) | An Assets page per workspace: bulk upload, rename, labels, preview and delete of SFX, clips, backsound and images, private to the workspace and with no licence gate; Studio's Library panel copies an item into the draft; the script writer picks SFX from the draft's own workspace; the global seed-only SFX list retired | Built on `feat/workspace-assets` (spec and plan 2026-11-13); push, deploy and the import of `assets/` into the operator's workspace pending |
 
 ## Reference-faithful editing track (added 2026-11-12)
 
