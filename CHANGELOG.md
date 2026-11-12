@@ -37,6 +37,20 @@ Branch `feat/narration-loudness`, from master `29c7ceb3`.
 
 **What it does not change.** Voices already stored keep their level until their draft's next narration or re-voice. The ducking curve (12 % under speech, 45 % in pauses) is unchanged.
 
+**Mix check (side review: "+1.8 dB is barely audible"; the operator: "tolong pastikan ini").** The draft's audio was rebuilt in memory from its stored media, following its clips, offsets and volume keyframes; nothing was stored. The operator granted the one command through `/permissions`.
+
+| Beat | Narration (now → normalised) | Background | Gap after normalising |
+|---|---|---|---|
+| Main | −18.1 → −16.3 | −34.5 | 18 dB |
+| Evidence | −16.6 → −16.2 | −33.3 | 17 dB |
+| Reactions | −18.9 → −16.4 | −35.9 | 19.5 dB |
+| Footage | −20.7 → −16.2 | **−16.2** (−34.6 once ducked) | **0 dB**, so the voice drowns |
+| Lead-in, 1.6 s | none | −20.3 | |
+
+- **Ducking:** the main video's ducking holds; it does not need lowering.
+- **Cause:** the "too quiet" narration comes from the Footage beat, where the footage clips' own sound played at full level. `4487a1e7`, already on stage1, ducks it to −34.6. This draft gets that fix only on its next re-voice.
+- **Normalisation:** it levels the beats but adds only +1.8 dB to Main. The whole mix lands at about −16 LUFS, a little quieter than most TikTok videos (about −14).
+
 **Not yet pushed or deployed.**
 
 **Next steps** (each its own gate):
