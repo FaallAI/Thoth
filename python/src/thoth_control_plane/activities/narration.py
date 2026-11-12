@@ -49,6 +49,7 @@ from thoth_control_plane.domain.narration import (
     NarrationStepInput,
     NarrationStepResult,
     NarrationWriteInput,
+    SfxEntry,
     TranscriptSegment,
     VoiceRef,
     estimate_voice,
@@ -88,6 +89,47 @@ class NarrationPorts:
     prices: Callable[[], Awaitable[Mapping[tuple[str, str, str], float]]]
     #: Where a title card the main video opens on ends, in seconds; None when there is none.
     intro_card: Callable[[Path], Awaitable[float | None]] | None = None
+    #: The workspace asset library: list(workspace) and add_to_project(workspace, project, id).
+    library: Any | None = None
+    #: The workspace a project belongs to; None when it cannot be told (spec 2026-11-13).
+    workspace_of: Callable[[str], Awaitable[str | None]] | None = None
+
+
+async def workspace_sfx(
+    ports: NarrationPorts, project_id: str
+) -> tuple[str | None, list[SfxEntry]]:
+    """The SFX of the draft's own workspace; none at all when the workspace is unknown.
+
+    There is no fallback to another workspace: a draft never hears another customer's files.
+    """
+    if ports.library is None or ports.workspace_of is None:
+        return None, []
+    workspace = await ports.workspace_of(project_id)
+    if workspace is None:
+        logger.warning("narration has no workspace for its project; no sound effects offered")
+        return None, []
+    try:
+        items = await ports.library.list(workspace)
+    except Exception:
+        logger.warning("workspace library unavailable; no sound effects offered")
+        return workspace, []
+    return workspace, [
+        SfxEntry(
+            sfx_id=item.asset_id,
+            file_name=item.name,
+            location=item.asset_id,
+            checksum=item.checksum,
+            duration_seconds=item.duration_seconds or 1.0,
+            labels=item.labels
+            | {
+                "description": item.labels.get("description")
+                or item.labels.get("meaning_id")
+                or item.name
+            },
+        )
+        for item in items
+        if item.kind == "sfx"
+    ]
 
 
 def _style_of(document: Any) -> StyleTemplate | None:
@@ -173,7 +215,7 @@ class NarrationActivities:
             present = {span.beat for span in beat_spans(document, _roles(materials))}
             beats = [beat for beat in BEAT_ORDER if beat in present] or ["main"]
             transcript = await ports.store.get_transcript(step.document_id)
-            sfx = await ports.store.list_sfx()
+            _, sfx = await workspace_sfx(ports, step.project_id)
             style = _style_of(document)
             prompt = PROMPT_STARTERS[STAGE].body
             if style is not None:
@@ -341,14 +383,20 @@ class NarrationActivities:
         preset = await ports.store.get_preset_of(step.document_id)
         document = await ports.documents.get_latest(step.project_id, step.document_id)
         materials = await ports.studio.materials(step.project_id, step.document_id)
-        library = {entry.sfx_id: entry for entry in await ports.store.list_sfx()}
+        cues = script.sfx_cues if script and place_sfx else []
+        workspace, entries = await workspace_sfx(ports, step.project_id) if cues else (None, [])
+        library = {entry.sfx_id: entry for entry in entries}
         placed = []
-        for cue in script.sfx_cues if script and place_sfx else []:
+        for cue in cues:
             entry = library.get(cue.sfx_id)
-            if entry is None:
+            if entry is None or workspace is None:
                 continue
-            asset = await ports.sfx_assets.ensure_project_sfx(step.project_id, entry)
-            placed.append(PlacedSfx(cue=cue, asset=asset, duration_seconds=entry.duration_seconds))
+            copied = await ports.library.add_to_project(workspace, step.project_id, cue.sfx_id)
+            placed.append(
+                PlacedSfx(
+                    cue=cue, asset=copied.to_asset_ref(), duration_seconds=entry.duration_seconds
+                )
+            )
         stored = await ports.store.get_intro_frames(step.document_id)
         intro = stored if stored is not None else await self._intro_frames(step, document)
         style = _style_of(document)
@@ -434,6 +482,7 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
     from thoth_control_plane.application.workflow_studio_imports import (
         WorkflowStudioImportService,
     )
+    from thoth_control_plane.application.workspace_library import WorkspaceLibraryService
     from thoth_control_plane.attribution.adapters.speech import WhisperTranscriber
     from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
     from thoth_control_plane.infrastructure.editor_asset_repository import (
@@ -455,6 +504,9 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
     )
     from thoth_control_plane.infrastructure.usage_store import UsageStore
     from thoth_control_plane.infrastructure.workflow_run_store import WorkflowRunStore
+    from thoth_control_plane.infrastructure.workspace_asset_repository import (
+        PostgresWorkspaceAssetRepository,
+    )
     from thoth_control_plane.voice.factory import build_voice
 
     database = settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
@@ -511,6 +563,13 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
         rows = await asyncio.to_thread(usage.prices)
         return {(row.kind, row.key, row.unit): row.usd_per_unit for row in rows}
 
+    async def workspace_of(project_id: str) -> str | None:
+        try:
+            return await asyncio.to_thread(usage.workspace_of_project, project_id)
+        except Exception:
+            logger.warning("project workspace lookup unavailable")
+            return None
+
     async def intro_card(video: Path) -> float | None:
         # The assembly activity's local readers: no provider, nothing written.
         from thoth_control_plane.assembly.intro_card import intro_card_end
@@ -539,5 +598,14 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
             ),
             prices=prices,
             intro_card=intro_card,
+            library=WorkspaceLibraryService(
+                PostgresWorkspaceAssetRepository(database),
+                None,
+                probe,
+                media,
+                SfxAssets(assets=assets, media=media, probe=probe),
+                Path(settings.THOTH_FFMPEG),
+            ),
+            workspace_of=workspace_of,
         )
     )

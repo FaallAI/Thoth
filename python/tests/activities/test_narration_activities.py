@@ -7,9 +7,10 @@ import json
 import logging
 import math
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -19,6 +20,7 @@ from thoth_control_plane.application.prompt_proposal_ports import (
     ProviderUnavailable,
 )
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2
+from thoth_control_plane.domain.editor_assets import EditorAsset
 from thoth_control_plane.domain.narration import (
     NarrationPreset,
     NarrationRevoiceInput,
@@ -29,6 +31,7 @@ from thoth_control_plane.domain.narration import (
     TranscriptSegment,
 )
 from thoth_control_plane.domain.studio_imports import StudioMaterial, StudioMaterials
+from thoth_control_plane.domain.workspace_assets import WorkspaceAsset
 from thoth_control_plane.voice.ports import SynthesizedVoice, VoiceNotConfigured, WordTiming
 
 CASES = json.loads(
@@ -61,18 +64,6 @@ class Store:
 
     async def get_preset_of(self, _doc: str) -> NarrationPreset:
         return NarrationPreset()
-
-    async def list_sfx(self) -> list[SfxEntry]:
-        return [
-            SfxEntry(
-                sfx_id="whoosh",
-                file_name="whoosh.mp3",
-                location="sfx/a.mp3",
-                checksum="sha256:" + "a" * 64,
-                duration_seconds=1.0,
-                labels={"description": "swipe"},
-            )
-        ]
 
     async def set_script(
         self,
@@ -176,8 +167,23 @@ GOOD_ANSWER = {
         {"beat": "main", "text": "Ikan diambil dalam sekejap."},
         {"beat": "reactions", "text": "Warganet tertawa, kata Andi."},
     ],
-    "sfx_cues": [{"sfx_id": "whoosh", "beat": "reactions", "moment": "comment_appear"}],
+    "sfx_cues": [{"sfx_id": "lib_whoosh", "beat": "reactions", "moment": "comment_appear"}],
 }
+
+
+def library_item(asset_id: str, description: str) -> WorkspaceAsset:
+    return WorkspaceAsset(
+        asset_id=asset_id,
+        workspace_id="ws",
+        kind="sfx",
+        name=asset_id.removeprefix("lib_"),
+        labels={"description": description},
+        media_type="audio/mpeg",
+        checksum="sha256:" + "a" * 64,
+        duration_seconds=1.0,
+        has_audio=True,
+        created_at=datetime(2026, 11, 13, tzinfo=UTC),
+    )
 
 
 def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
@@ -229,14 +235,35 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
 
     class SfxAssets:
         async def ensure_project_sfx(self, project: str, entry: SfxEntry) -> AssetRef:
-            return AssetRef(
+            raise AssertionError("the global SFX library is retired")
+
+    class Library:
+        """ws_one holds a whoosh; ws_two holds an item ws_one must never see."""
+
+        items: ClassVar[dict[str, list[WorkspaceAsset]]] = {
+            "ws_one": [library_item("lib_whoosh", "swipe")],
+            "ws_two": [library_item("lib_theirs", "airhorn")],
+        }
+
+        async def list(self, workspace_id: str) -> list[WorkspaceAsset]:
+            seen.setdefault("library_lists", []).append(workspace_id)
+            return list(self.items.get(workspace_id, []))
+
+        async def add_to_project(self, workspace_id: str, project: str, asset_id: str) -> Any:
+            seen.setdefault("library_adds", []).append((workspace_id, project, asset_id))
+            return EditorAsset(
                 asset_id="asset_sfx",
                 project_id=project,
                 kind="audio",
+                media_type="audio/mpeg",
                 duration_in_frames=30,
                 has_audio=True,
                 validation_state="ready",
+                checksum="sha256:" + "a" * 64,
             )
+
+    async def workspace_of(_project: str) -> str | None:
+        return overrides.get("workspace", "ws_one")
 
     def voice() -> Voice:
         if overrides.get("voice_missing"):
@@ -255,6 +282,8 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
         voice=voice,
         upload_audio=upload_audio,
         sfx_assets=SfxAssets(),
+        library=Library(),
+        workspace_of=workspace_of,
         prompts=None,
         preferences=Preferences(),
         provider=Provider(),
@@ -646,3 +675,25 @@ def test_every_voice_is_brought_to_one_level_before_it_is_stored(
 
     assert len(levelled) == 3
     assert seen["uploaded"] and all(audio.startswith(b"LEVEL:") for audio in seen["uploaded"])
+
+
+def test_script_writer_lists_only_the_drafts_workspace_sfx() -> None:
+    built, seen = ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    user = seen["provider_requests"][0]["user"]
+    assert "lib_whoosh: swipe" in user and "lib_theirs" not in user
+    assert seen["library_lists"] == ["ws_one"]
+
+
+def test_unknown_workspace_gives_no_sfx() -> None:
+    built, seen = ports(workspace=None)
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert "No sound effects are available" in seen["provider_requests"][0]["user"]
+    assert "library_lists" not in seen
+
+
+def test_a_placed_cue_is_copied_from_the_workspace_library() -> None:
+    built, seen = ports()
+    document = narrate_once(built, seen)
+    assert seen["library_adds"] == [("ws_one", "project_001", "lib_whoosh")]
+    assert any(clip.clip_id == "clip_sfx_0" for clip in document.clips)
