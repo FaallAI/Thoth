@@ -305,6 +305,8 @@ class NarrationRow(EditorBase):
     previous: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     #: Editor migration 0030: a styled script's title card frames, for its cut preview.
     intro_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Editor migration 0032: what each narration phrase shows (planner stage 1, 2026-11-13).
+    plan: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _created_at()
 
@@ -359,4 +361,14 @@ class WorkspaceAssetRow(EditorBase):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_audio: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    created_at: Mapped[datetime] = _created_at()
+
+
+class PlannerShotsRow(EditorBase):
+    """Editor migration 0032: a source video's shots, by its checksum (planner stage 1)."""
+
+    __tablename__ = "planner_shots"
+
+    checksum: Mapped[str] = mapped_column(Text, primary_key=True)
+    shots: Mapped[Any] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created_at()
