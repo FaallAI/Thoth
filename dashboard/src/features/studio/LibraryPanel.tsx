@@ -36,8 +36,8 @@ export function LibraryPanel({
   if (!items) return null;
   const shown = items.filter((asset) => kind === "all" || asset.kind === kind);
   return (
-    <section aria-label={t("library.title")} className="flex flex-col gap-2 rounded-[10px] bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">{t("library.title")}</h2>
+    <section aria-label={t("library.title")} className="flex h-full min-h-0 flex-col gap-2">
+      <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("library.title")}</h2>
       {items.length === 0 ? (
         <p className="text-xs text-muted-ink">
           {t("library.panelEmpty")}{" "}
@@ -48,32 +48,33 @@ export function LibraryPanel({
         </p>
       ) : (
         <>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex shrink-0 gap-1 overflow-x-auto">
             {KINDS.map((entry) => (
               <button
                 key={entry.kind}
                 type="button"
                 aria-pressed={kind === entry.kind}
-                className={`rounded px-2 py-0.5 text-xs ${kind === entry.kind ? "bg-raised text-ink" : "text-muted-ink"}`}
+                className={`shrink-0 rounded px-2 py-0.5 text-xs ${kind === entry.kind ? "bg-raised text-ink" : "text-muted-ink"}`}
                 onClick={() => setKind(entry.kind)}
               >
                 {t(entry.label)}
               </button>
             ))}
           </div>
-          <ul className="flex flex-col gap-1 text-sm">
+          {/* The list scrolls on its own, so the heading and the filter stay in view. */}
+          <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto text-sm">
             {shown.map((asset) => (
-              <li key={asset.asset_id} className="flex flex-wrap items-baseline gap-2">
-                <span className="text-ink">{asset.name}</span>
-                <span className="text-xs text-muted-ink">{t(KINDS.find((entry) => entry.kind === asset.kind)!.label)}</span>
+              <li key={asset.asset_id} className="flex shrink-0 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-ink" title={asset.name}>{asset.name}</span>
+                <span className="shrink-0 text-xs text-muted-ink">{t(KINDS.find((entry) => entry.kind === asset.kind)!.label)}</span>
                 {asset.duration_seconds != null ? (
-                  <span className="text-xs text-muted-ink">{asset.duration_seconds.toFixed(1)} s</span>
+                  <span className="shrink-0 text-xs text-muted-ink">{asset.duration_seconds.toFixed(1)} s</span>
                 ) : null}
                 {onAdd ? (
                   <button
                     type="button"
                     aria-label={t("library.addToDraft", { name: asset.name })}
-                    className="rounded bg-raised px-2 py-0.5 text-xs text-ink"
+                    className="shrink-0 rounded bg-raised px-2 py-0.5 text-xs text-ink"
                     onClick={() => {
                       setFailed(null);
                       void client.addLibraryItemToProject(projectId, asset.asset_id).then(onAdd, () => setFailed(asset.name));

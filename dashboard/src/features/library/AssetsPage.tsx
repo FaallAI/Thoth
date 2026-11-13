@@ -59,8 +59,8 @@ function searchable(asset: WorkspaceAsset): string {
 
 function Preview({ asset, url }: { asset: WorkspaceAsset; url: string }) {
   if (asset.kind === "image") return <img src={url} alt="" className="h-16 w-16 rounded object-cover" />;
-  if (asset.kind === "clip") return <video src={url} controls muted preload="metadata" className="h-24 rounded" />;
-  return <audio src={url} controls preload="none" className="h-8 w-full max-w-[260px]" />;
+  if (asset.kind === "clip") return <video src={url} controls muted preload="metadata" className="h-24 max-w-full rounded" />;
+  return <audio src={url} controls preload="none" className="h-8 w-full" />;
 }
 
 function Row({
@@ -97,8 +97,11 @@ function Row({
         checked={selected}
         onChange={(event) => onSelect(event.target.checked)}
       />
-      <Preview asset={asset} url={client.libraryMediaUrl(asset.asset_id)} />
-      <div className="flex min-w-[200px] flex-1 flex-col gap-1">
+      {/* A fixed preview column, so every row's name and kind line up whatever the media. */}
+      <div className="flex w-[260px] max-w-[calc(100%-2.5rem)] shrink-0 justify-center">
+        <Preview asset={asset} url={client.libraryMediaUrl(asset.asset_id)} />
+      </div>
+      <div className="flex min-w-[200px] flex-1 basis-full flex-col gap-1 sm:basis-0">
         <input
           aria-label={t("library.name", { name: asset.name })}
           className="rounded bg-raised px-2 py-1 text-sm text-ink"
@@ -121,6 +124,7 @@ function Row({
           }}
         />
       </div>
+      <div className="ml-auto flex items-center gap-2">
       <select
         aria-label={t("library.kindOf", { name: asset.name })}
         className="rounded bg-raised px-2 py-1 text-sm text-ink"
@@ -134,9 +138,10 @@ function Row({
           </option>
         ))}
       </select>
-      {asset.duration_seconds != null ? (
-        <span className="font-mono text-xs text-muted-ink">{asset.duration_seconds.toFixed(1)} s</span>
-      ) : null}
+      <span className="w-12 text-right font-mono text-xs text-muted-ink">
+        {asset.duration_seconds != null ? `${asset.duration_seconds.toFixed(1)} s` : ""}
+      </span>
+      </div>
       {unsaved ? <p className="w-full text-xs text-danger">{t("library.error.save")}</p> : null}
     </li>
   );
@@ -257,7 +262,7 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
           type="search"
           aria-label={t("library.search")}
           placeholder={t("library.search")}
-          className="ml-auto min-w-[200px] rounded bg-raised px-3 py-1.5 text-sm text-ink"
+          className="w-full rounded bg-raised px-3 py-1.5 text-sm text-ink sm:ml-auto sm:w-auto sm:min-w-[200px]"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />

@@ -450,11 +450,18 @@ test("Timeline keeps the workspace library in the asset column, never a workstat
     />,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+  // The column shows one list at a time, so each gets the column's full height.
+  expect(screen.getByRole("region", { name: "Asset library" })).toBeDefined();
+  expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+  fireEvent.click(screen.getByRole("tab", { name: "Library" }));
   const sfx = await screen.findByRole("region", { name: "Library" });
-  const column = screen.getByLabelText("Asset library").parentElement!;
+  expect(screen.queryByRole("region", { name: "Asset library" })).toBeNull();
+  const column = screen.getByLabelText("Asset library").closest("[data-asset-column]")!;
 
   expect(column.contains(sfx)).toBe(true);
   expect(column.id).not.toBe("studio-region-scenes");
+  fireEvent.click(screen.getByRole("tab", { name: "Draft assets" }));
+  expect(screen.getByRole("region", { name: "Asset library" })).toBeDefined();
 });
 
 test("offers Story and Timeline for a version 2 document", async () => {
