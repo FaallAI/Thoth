@@ -59,14 +59,14 @@ After the fixes: `make test` 4900 passed, 240 skipped; Postgres 38 passed; lint 
 - the library stores `duration_seconds`, not frames;
 - `assets/meme` and `assets/ui` reach the container by `docker cp` at import, not in the image.
 
-**Deferred minors:**
-- add-to-draft copy failures answer 500, not 503;
-- a failed delete of the duplicate object on the dedupe path answers 503;
-- a cancellation after the row commits leaves a row without its object;
-- the Studio panel's "+" fails silently;
-- rename drops text before a slash;
-- "Delete selected" includes selected items hidden by a filter, although its count shows them;
-- the kind select offers every kind, and a refused change snaps back silently.
+**Review minors, fixed test-first on the operator's word** (2026-11-13: "tolong perbaiki temuan minor dulu"). No fresh reviewer saw these fixes.
+- A failed copy into a draft answers 503 `library_unavailable`, not 500.
+- On the dedupe path, a duplicate object that will not delete is logged and left behind; the upload still returns the kept item.
+- An upload cancelled while its row is being added keeps its object. The row may already be committed, and a leftover object only costs storage.
+- The Studio panel says when an item could not be added to the draft.
+- A rename keeps slashes and dots; only control characters go, and the name is still cut to 120 characters.
+- "Delete selected" counts and deletes only the selected items the filter shows.
+- The kind select offers only the kinds the server allows for that media, and a change that is not saved says so.
 
 **Not run:** the e2e check `e2e/tests/assets-page.e2e.ts` targets stage1, which does not serve `/library` until this branch is deployed.
 
