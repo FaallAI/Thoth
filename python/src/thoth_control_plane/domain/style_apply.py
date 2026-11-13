@@ -7,6 +7,9 @@ The result is ordinary typed edit operations, so a style is one revision and one
 - a beat's positioned cards keep their place and take the beat's move, dim and emphasis;
 - a beat's heading text takes the beat's place, and every caption the style's caption style;
 - a card line becomes a `card` text clip: at the hook's start, elsewhere between facts;
+- a planned beat (planner stage 1, spec 2026-11-13) places the planner's shots, cards and credits:
+  the main video's shots on its track, footage on the b-roll with a credit, a card moved to the
+  phrase that names it; the cursor fills only what the plan leaves open;
 - locked or hidden clips, narration, music, SFX and clips with no beat are never touched.
 """
 
@@ -22,12 +25,14 @@ from collections.abc import Mapping, Sequence
 from thoth_control_plane.domain.edit_document_v2 import (
     AppliedStyle,
     EditDocumentV2,
+    Position,
     TimelineCaptionClip,
     TimelineTextClip,
     TimelineVideoClip,
 )
 from thoth_control_plane.domain.move_presets import MovePreset, move_preset
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId
+from thoth_control_plane.domain.planner_assign import BeatAssignment, PlannedCard, PlannedShot
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.studio_layout import full_frame_fill
 from thoth_control_plane.domain.style_cuts import ShotSource, plan_shots
@@ -52,6 +57,19 @@ logger = logging.getLogger(__name__)
 STYLE_CARD = re.compile(r"clip_style_([a-z]+)_card_\d+")
 #: How much taller than the canvas a picture must be to take a beat's tall move.
 TALL_TOLERANCE = 0.05
+#: A planner credit, removed when the beat is planned again.
+STYLE_CREDIT_PREFIX = "clip_style_credit_"
+#: Where the import places a card over the picture; a planned overlay card sits there too.
+CARD_POSITION = Position(x=0.0, y=-0.24, scale=0.76)
+#: A planned clip carries its beat's role, so Story mode keeps it in that beat.
+_BEAT_ROLE = {
+    "hook": "hook",
+    "main": "main",
+    "evidence": "post_card",
+    "reactions": "comment_card",
+    "footage": "footage",
+    "outro": "outro",
+}
 
 
 def style_operations(
@@ -62,10 +80,12 @@ def style_operations(
     card_lines: Mapping[BeatId, str] | None = None,
     recut: set[str] | None = None,
     card_at: Mapping[BeatId, int] | None = None,
+    assignments: Mapping[BeatId, BeatAssignment] | None = None,
 ) -> list[TimelineOperation]:
     """The operations that put `document` in `template`'s style, the style record last.
     `recut` limits the cuts to those beats (a re-voice, operator 2026-11-10). `card_at` is the
-    frame the voice says a beat's card line: its card shows there instead of between facts."""
+    frame the voice says a beat's card line: its card shows there instead of between facts.
+    `assignments` are the planner's beats (spec 2026-11-13): their shots, cards and credits."""
     fps = document.canvas.fps
     roles = roles_by_item or {}
     beats = clip_beats(document, roles_by_item)
@@ -144,6 +164,120 @@ def style_operations(
             )
         )
 
+    def place(
+        beat: str,
+        track_id: str,
+        asset_id: str,
+        start: int,
+        duration: int,
+        source_from: int,
+        hold: bool,
+        source_clip: TimelineVideoClip,
+        scene_id: str | None,
+        look: BeatLook,
+    ) -> None:
+        """One shot of a material already in the beat: the cursor's, or the planner's."""
+        asset = refs[asset_id]
+        fill = full_frame_fill(asset) if look.background == "blur_fill" else None
+        scene = scenes.get(scene_id) if scene_id else None
+        inside = scene is not None and (
+            scene.start_frame <= start
+            and start + duration <= scene.start_frame + scene.duration_in_frames
+        )
+        clip_id = new_clip_id(beat)
+        blurred = source_clip.blur_enabled or bool(source_clip.blur_regions)
+        operations.append(
+            AddClipFromAsset(
+                kind="add_clip_from_asset",
+                operation_id=operation_id(),
+                clip_id=clip_id,
+                track_id=track_id,
+                asset_id=asset_id,
+                from_frame=start,
+                duration_in_frames=duration,
+                source_from_frame=source_from,
+                scene_id=scene_id if inside else None,
+                fit=fill[0] if fill else source_clip.fit,
+                source_role=source_clip.source_role
+                or roles.get(source_clip.clip_id.removeprefix("clip_")),  # type: ignore[arg-type]
+                background=fill[1] if fill else None,
+                # The subtitle blur sits in source frames, so every shot keeps it.
+                blur_enabled=source_clip.blur_enabled if blurred else None,
+                blur_regions=list(source_clip.blur_regions) if blurred else None,
+                hold_after_source=True if hold else None,
+            )
+        )
+        if source_clip.crop is not None:
+            operations.append(
+                SetClipCrop(
+                    kind="set_clip_crop",
+                    operation_id=operation_id(),
+                    clip_id=clip_id,
+                    crop=source_clip.crop,
+                )
+            )
+        look_on(clip_id, asset_id, duration, look, card=False)
+
+    def planned_broll(beat: BeatId, track_id: str, shot: PlannedShot, look: BeatLook) -> None:
+        """A planned footage shot over the main video, with its source's credit."""
+        asset = refs.get(shot.asset_id)
+        fill = (
+            full_frame_fill(asset) if asset is not None and look.background == "blur_fill" else None
+        )
+        clip_id = new_clip_id(beat)
+        operations.append(
+            AddClipFromAsset(
+                kind="add_clip_from_asset",
+                operation_id=operation_id(),
+                clip_id=clip_id,
+                track_id=track_id,
+                asset_id=shot.asset_id,
+                from_frame=shot.from_frame,
+                duration_in_frames=shot.duration,
+                source_from_frame=shot.source_from_frame,
+                fit=fill[0] if fill else "cover",
+                source_role=_BEAT_ROLE[beat],  # type: ignore[arg-type]
+                background=fill[1] if fill else None,
+                hold_after_source=True if shot.hold else None,
+            )
+        )
+        look_on(clip_id, shot.asset_id, shot.duration, look, card=False)
+        if shot.credit and text_track is not None:
+            operations.append(
+                AddTextClip(
+                    kind="add_text_clip",
+                    operation_id=operation_id(),
+                    clip_id=new_clip_id("credit"),
+                    track_id=text_track,
+                    from_frame=shot.from_frame,
+                    duration_in_frames=shot.duration,
+                    heading=shot.credit,
+                    body="",
+                    style_slot="credit",
+                )
+            )
+
+    def planned_card_clip(
+        beat: BeatId, track_id: str, planned_card: PlannedCard, look: BeatLook
+    ) -> None:
+        """A card over the phrase that names it; a card with no base fills the screen."""
+        clip_id = new_clip_id(beat)
+        operations.append(
+            AddClipFromAsset(
+                kind="add_clip_from_asset",
+                operation_id=operation_id(),
+                clip_id=clip_id,
+                track_id=track_id,
+                asset_id=planned_card.asset_id,
+                from_frame=planned_card.from_frame,
+                duration_in_frames=planned_card.duration,
+                fit="contain",
+                position=None if planned_card.full else CARD_POSITION,
+                source_role=_BEAT_ROLE[beat],  # type: ignore[arg-type]
+            )
+        )
+        look_on(clip_id, planned_card.asset_id, planned_card.duration, look, card=True)
+
     # The last style's cards go first: a new style, or a re-voice, places its own.
     old_cards = {
         clip.clip_id
@@ -158,6 +292,65 @@ def style_operations(
         for clip_id in sorted(old_cards)
     )
     taken -= old_cards
+    planned = {
+        beat: plan for beat, plan in (assignments or {}).items() if recut is None or beat in recut
+    }
+    planned_main = sorted(
+        (shot for plan in planned.values() for shot in plan.shots if shot.layer == "main"),
+        key=lambda shot: shot.from_frame,
+    )
+    b_roll_track = next((t.track_id for t in document.tracks if t.kind == "b_roll"), None)
+    spans_of = {span.beat: span for span in beat_spans(document, roles_by_item)}
+    planned_ranges = [
+        (spans_of[beat].start_frame, spans_of[beat].start_frame + spans_of[beat].duration_in_frames)
+        for beat in planned
+        if beat in spans_of
+    ]
+    # The planner's earlier credits and the import's per-scene footage credits make way for
+    # one credit per planned footage shot; a locked one stays (spec 2026-11-13, 5.7).
+    gone = {
+        clip.clip_id
+        for clip in document.clips
+        if isinstance(clip, TimelineTextClip)
+        and not clip.locked
+        and (
+            (
+                clip.clip_id.startswith(STYLE_CREDIT_PREFIX)
+                and any(a <= clip.from_frame < b for a, b in planned_ranges)
+            )
+            or (
+                beats.get(clip.clip_id) in planned
+                and (clip.source_role or roles.get(clip.clip_id.removeprefix("clip_"))) == "footage"
+                and clip.heading.startswith("@")
+                and not clip.body.strip()
+            )
+        )
+    }
+    # A planned card moves: the import's unlocked placement of that card is taken away first.
+    movable = [
+        clip
+        for clip in document.clips
+        if isinstance(clip, TimelineVideoClip)
+        and clip.position is not None
+        and clip.clip_id not in old_cards
+    ]
+    placed_cards: list[tuple[BeatId, PlannedCard, bool]] = []
+    for beat, plan in planned.items():
+        for planned_card in plan.cards:
+            same = [
+                c for c in movable if c.asset_id == planned_card.asset_id and c.clip_id not in gone
+            ]
+            free = next((c for c in same if not c.locked), None)
+            if same and free is None:
+                continue  # only locked placements of this card: it stays where the operator put it
+            if free is not None:
+                gone.add(free.clip_id)
+            placed_cards.append((beat, planned_card, free is not None))
+    operations.extend(
+        RemoveClip(kind="remove_clip", operation_id=operation_id(), clip_id=clip_id)
+        for clip_id in sorted(gone)
+    )
+    taken -= gone
     # Every beat's sentence ends: the main video runs under several beats.
     all_ends = sorted({frame for ends in (sentence_ends or {}).values() for frame in ends})
     tracks = {track.track_id: track for track in document.tracks}
@@ -169,7 +362,9 @@ def style_operations(
         in_beat = [
             clip
             for clip in document.clips
-            if beats.get(clip.clip_id) == span.beat and clip.clip_id not in old_cards
+            if beats.get(clip.clip_id) == span.beat
+            and clip.clip_id not in old_cards
+            and clip.clip_id not in gone
         ]
         pictures = [
             clip
@@ -197,8 +392,17 @@ def style_operations(
             and spoken is None
             and span.beat != "hook"
             and template.cuts.card_between_facts
+            and not template.cuts.planned
             and text_track is not None
         )
+        plan = planned.get(span.beat)
+        if plan is not None:
+            for shot in (s for s in plan.shots if s.layer == "broll"):
+                if b_roll_track is not None:
+                    planned_broll(span.beat, b_roll_track, shot, look)
+            for beat_of, planned_card, _ in placed_cards:
+                if beat_of == span.beat and b_roll_track is not None:
+                    planned_card_clip(span.beat, b_roll_track, planned_card, look)
         placed_between = False
         by_track: dict[str, list[TimelineVideoClip]] = {}
         for clip in sorted((c for c in pictures if c.position is None), key=lambda c: c.from_frame):
@@ -233,16 +437,38 @@ def style_operations(
             # Kept clips (hidden or locked here, anything on a main track) are built around.
             group_ids = {c.clip_id for c in group}
             main_track = track.kind == "main_video"
-            kept = sorted(
+            kept = [
                 (c.from_frame, c.from_frame + c.duration_in_frames)
                 for c in document.clips
                 if c.track_id == track_id
                 and c.clip_id not in group_ids
                 and c.clip_id not in old_cards
+                and c.clip_id not in gone
                 and (main_track or beats.get(c.clip_id) == span.beat)
                 and c.from_frame < end
                 and start < c.from_frame + c.duration_in_frames
-            )
+            ]
+            # The planner's shots are placed as they are; the cursor fills only what is left.
+            own_plan: list[PlannedShot] = []
+            if main_track:
+                own_plan = [s for s in planned_main if start <= s.from_frame < end]
+            elif plan is not None and track_id == b_roll_track:
+                own_plan = [s for s in plan.shots if s.layer == "broll"]
+            kept = sorted(kept + [(s.from_frame, s.from_frame + s.duration) for s in own_plan])
+            if main_track:
+                for shot in own_plan:
+                    place(
+                        span.beat,
+                        track_id,
+                        shot.asset_id,
+                        shot.from_frame,
+                        shot.duration,
+                        shot.source_from_frame,
+                        shot.hold,
+                        group[0],
+                        scene_id,
+                        look,
+                    )
             for window_start, window_end in _free_windows(start, end, kept):
                 window_sources = sources
                 if len(sources) == 1 and sources[0].kind == "video":
@@ -271,54 +497,38 @@ def style_operations(
                         card(span.beat, line or "", shot.from_frame, shot.duration)
                         placed_between = True
                         continue
-                    source_clip = first[shot.source.asset_id]
-                    asset = refs[shot.source.asset_id]
-                    fill = full_frame_fill(asset) if look.background == "blur_fill" else None
-                    scene = scenes.get(scene_id) if scene_id else None
-                    inside = scene is not None and (
-                        scene.start_frame <= shot.from_frame
-                        and shot.from_frame + shot.duration
-                        <= scene.start_frame + scene.duration_in_frames
+                    place(
+                        span.beat,
+                        track_id,
+                        shot.source.asset_id,
+                        shot.from_frame,
+                        shot.duration,
+                        shot.source_from_frame,
+                        shot.hold,
+                        first[shot.source.asset_id],
+                        scene_id,
+                        look,
                     )
-                    clip_id = new_clip_id(span.beat)
-                    blurred = source_clip.blur_enabled or bool(source_clip.blur_regions)
-                    operations.append(
-                        AddClipFromAsset(
-                            kind="add_clip_from_asset",
-                            operation_id=operation_id(),
-                            clip_id=clip_id,
-                            track_id=track_id,
-                            asset_id=shot.source.asset_id,
-                            from_frame=shot.from_frame,
-                            duration_in_frames=shot.duration,
-                            source_from_frame=shot.source_from_frame,
-                            scene_id=scene_id if inside else None,
-                            fit=fill[0] if fill else source_clip.fit,
-                            source_role=source_clip.source_role
-                            or roles.get(source_clip.clip_id.removeprefix("clip_")),  # type: ignore[arg-type]
-                            background=fill[1] if fill else None,
-                            # The subtitle blur sits in source frames, so every shot keeps it.
-                            blur_enabled=source_clip.blur_enabled if blurred else None,
-                            blur_regions=list(source_clip.blur_regions) if blurred else None,
-                            hold_after_source=True if shot.hold else None,
-                        )
-                    )
-                    if source_clip.crop is not None:
-                        operations.append(
-                            SetClipCrop(
-                                kind="set_clip_crop",
-                                operation_id=operation_id(),
-                                clip_id=clip_id,
-                                crop=source_clip.crop,
-                            )
-                        )
-                    look_on(clip_id, shot.source.asset_id, shot.duration, look, card=False)
         if line and not placed_between:
             length = min(card_frames, span.duration_in_frames)
             end = span.start_frame + span.duration_in_frames
             at = span.start_frame
             if spoken is not None:
                 at = max(span.start_frame, min(spoken, end - length))
+            elif template.cuts.planned and span.beat != "hook":
+                # Over the third phrase (or the last of a shorter beat), never in a slot of its
+                # own: the phrase windows stay on the voice (spec 2026-11-13, 5.7).
+                starts = (
+                    plan.phrase_starts
+                    if plan is not None
+                    else sorted(
+                        f
+                        for f in (sentence_ends or {}).get(span.beat, ())
+                        if span.start_frame <= f < end
+                    )
+                )
+                if starts:
+                    at = max(span.start_frame, min(starts[min(2, len(starts) - 1)], end - length))
             card(span.beat, line, at, length)
 
         if look.heading_place is not None:

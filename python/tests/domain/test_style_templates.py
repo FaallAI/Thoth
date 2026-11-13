@@ -28,11 +28,18 @@ def test_style_a_values() -> None:
 def test_style_b_values() -> None:
     b = BUILT_IN_STYLES["style_b"]
     assert b.captions.style == "kinetic"
-    assert b.cuts.max_shot_seconds == 3.0
+    assert b.cuts.max_shot_seconds == 2.4 and b.cuts.min_shot_seconds == 0.9
     assert b.cuts.card_between_facts is True
     assert b.narration.card_lines is True
     assert b.beats["main"].dim == 0.45
-    assert {look.move for look in b.beats.values()} <= {"push_in", "none"}
+
+
+def test_style_b_is_still_and_planned() -> None:
+    # Planner stage 1 (spec 2026-11-13, 5.6): phrase-start cuts, a still camera, revision 2.
+    b = BUILT_IN_STYLES["style_b"]
+    assert b.revision == 2 and b.cuts.planned
+    assert {look.move for look in b.beats.values()} == {"none"}
+    assert not BUILT_IN_STYLES["style_a"].cuts.planned
 
 
 def test_a_template_missing_a_beat_is_refused() -> None:
