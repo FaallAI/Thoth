@@ -251,3 +251,41 @@ async def test_a_failure_inside_the_planner_gives_no_plan() -> None:
             raise RuntimeError("store down")
 
     assert await make(Broken(), Model(), [voice("main", "satu dua tiga")]) is None
+
+
+async def test_a_partial_replan_keeps_the_unchanged_beats_picks() -> None:
+    hook_text = "Bung Rocky kena semprot"
+    first_store, first_model = Store(), Model([PhraseAnswer("P1", ["S3"], None, "a")])
+    first = await make(
+        first_store, first_model, [voice("hook", hook_text), voice("main", "satu dua tiga")]
+    )
+    assert first is not None and first.beats[0].phrases[0].base == ["S3"]
+    model = Model([PhraseAnswer("P1", ["S4"], None, "b")])
+    plan = await make(
+        Store(plan=first), model, [voice("hook", hook_text), voice("main", "empat lima enam")]
+    )
+    assert plan is not None
+    assert [p.text for p in model.calls[0]["phrases"]] == ["empat lima enam"]
+    hook, main = plan.beats
+    assert hook.phrases[0].base == ["S3"] and main.phrases[0].base == ["S4"]
+    assert [(s.shot_id, s.asset_id, s.start_seconds) for s in plan.shots] == [
+        (s.shot_id, s.asset_id, s.start_seconds) for s in first.shots
+    ]
+
+
+async def test_a_plan_made_without_a_model_is_planned_again_once_one_answers() -> None:
+    text = "Rocky kena semprot warga hari ini"
+    stored = DraftPlan(
+        model=None,
+        beats=[
+            BeatPlan(
+                beat="main",
+                words_key=words_key(words(text)),
+                phrases=[PlanPhrase(phrase_id="P1", first_word=0, last_word=5, text=text)],
+            )
+        ],
+    )
+    model = Model([PhraseAnswer("P1", ["S3"], None, "a")])
+    plan = await make(Store(plan=stored), model, [voice("main", text)])
+    assert len(model.calls) == 1
+    assert plan is not None and plan.beats[0].phrases[0].base == ["S3"]

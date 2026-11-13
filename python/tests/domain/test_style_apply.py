@@ -347,7 +347,7 @@ def test_planned_beat_places_shots_cards_and_credits() -> None:
     ]
     credits = text_clips(after, "credit")
     assert [(c.clip_id, c.heading, c.from_frame, c.duration_in_frames) for c in credits] == [
-        ("clip_style_credit_1", "@kompascomreport", start, 30)
+        ("clip_style_reactions_credit_1", "@kompascomreport", start, 30)
     ]
     main_track = {t.track_id for t in after.tracks if t.kind == "main_video"}
     mains = {(c.from_frame, c.source_from_frame) for c in after.clips if c.track_id in main_track}
@@ -392,7 +392,7 @@ def test_import_credits_are_replaced_but_locked_ones_stay() -> None:  # Review F
     after = styled(before, B, assignments={"footage": plan})
     ids = {c.clip_id for c in text_clips(after, "credit")}
     assert "clip_credit_one" not in ids
-    assert {"clip_credit_locked", "clip_style_credit_1"} <= ids
+    assert {"clip_credit_locked", "clip_style_footage_credit_1"} <= ids
 
 
 def test_a_locked_card_does_not_move() -> None:  # Review Focus 4
@@ -432,3 +432,96 @@ def test_main_only_draft_has_no_broll_and_no_credits() -> None:  # Review Focus 
         and c.clip_id.startswith("clip_style_")
     ]
     assert added == []
+
+
+# Final review fixes (2026-11-13): a planned draft written again, a re-voice of main only, a locked
+# main-video piece, and credits that keep their beat.
+def planner_clips(document: EditDocumentV2, beat: str) -> list[str]:
+    return sorted(
+        c.clip_id
+        for c in document.clips
+        if c.clip_id.startswith(f"clip_style_{beat}_plan_")
+        or c.clip_id.startswith(f"clip_style_{beat}_credit_")
+    )
+
+
+def gapped_plan(document: EditDocumentV2) -> BeatAssignment:
+    """Two footage shots with a phrase on the main video between them."""
+    plan = reactions_plan(document)
+    start = plan.phrase_starts[0]
+    shots = [s for s in plan.shots if s.layer == "main"]
+    shots += [broll_shot(start, 20), broll_shot(start + 60, 20)]
+    return BeatAssignment("reactions", shots, [], plan.phrase_starts)
+
+
+def test_a_planned_beat_written_twice_is_not_filled_with_cursor_footage() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": gapped_plan(before)})
+    twice = styled(once, B, assignments={"reactions": gapped_plan(once)})
+    start, end = span_of(once, "reactions")
+    footage = [c for c in videos(twice, "asset_vid_long") if start <= c.from_frame < end]
+    assert sorted((c.from_frame, c.duration_in_frames) for c in footage) == [
+        (start, 20),
+        (start + 60, 20),
+    ]
+    assert len(text_clips(twice, "credit")) == 2
+
+
+def test_a_planned_beat_restyled_without_a_plan_keeps_its_planned_clips() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": gapped_plan(before)})
+    again = styled(once, B)  # Studio re-apply: no assignments
+    assert planner_clips(again, "reactions") == planner_clips(once, "reactions")
+    start, end = span_of(once, "reactions")
+    footage = [c for c in videos(again, "asset_vid_long") if start <= c.from_frame < end]
+    assert len(footage) == 2
+
+
+def test_revoicing_main_keeps_the_other_beats_soundbites() -> None:
+    before = narrated()
+    voice = next(c for c in before.clips if c.clip_id == "clip_narration_main")
+    main_plan = BeatAssignment(
+        "main",
+        [main_shot(voice.from_frame, voice.duration_in_frames, 100)],
+        [],
+        [voice.from_frame],
+    )
+    plan = reactions_plan(before)
+    after = styled(before, B, assignments={"main": main_plan, "reactions": plan}, recut={"main"})
+    main_track = {t.track_id for t in after.tracks if t.kind == "main_video"}
+    mains = {(c.from_frame, c.source_from_frame) for c in after.clips if c.track_id in main_track}
+    assert (plan.phrase_starts[0], 500) in mains and (voice.from_frame, 100) in mains
+
+
+def test_a_locked_main_piece_is_built_around() -> None:
+    cut = styled(narrated(), B)
+    start, _ = span_of(cut, "reactions")
+    main_track = {t.track_id for t in cut.tracks if t.kind == "main_video"}
+    piece = next(
+        c for c in cut.clips if c.track_id in main_track and start < c.from_frame < start + 60
+    )
+    locked = cut.model_copy(
+        update={
+            "clips": [
+                c.model_copy(update={"locked": True}) if c.clip_id == piece.clip_id else c
+                for c in cut.clips
+            ]
+        }
+    )
+    after = styled(locked, B, assignments={"reactions": reactions_plan(locked)})
+    assert next(c for c in after.clips if c.clip_id == piece.clip_id) == next(
+        c for c in locked.clips if c.clip_id == piece.clip_id
+    )
+
+
+def test_a_credit_names_its_beat_and_stays_when_another_beat_is_recut() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": reactions_plan(before)})
+    credit = text_clips(once, "credit")[0]
+    assert credit.clip_id == "clip_style_reactions_credit_1"
+    voice = next(c for c in once.clips if c.clip_id == "clip_narration_main")
+    main_plan = BeatAssignment(
+        "main", [main_shot(voice.from_frame, voice.duration_in_frames, 100)], [], [voice.from_frame]
+    )
+    again = styled(once, B, assignments={"main": main_plan}, recut={"main"})
+    assert [c.clip_id for c in text_clips(again, "credit")] == [credit.clip_id]

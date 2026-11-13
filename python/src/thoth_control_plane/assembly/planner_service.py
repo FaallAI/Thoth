@@ -94,6 +94,9 @@ class Planner:
     ) -> DraftPlan:
         stored = await self._store.get_plan(document_id)
         kept = {beat.beat: beat for beat in stored.beats} if stored else {}
+        if stored is not None and stored.model is None and self._model is not None:
+            # Made while no model answered (busy, or before a key): ask again now one may.
+            kept = {}
         reused: dict[str, BeatPlan] = {}
         fresh: list[Any] = []
         for voice in voices:
@@ -114,7 +117,7 @@ class Planner:
         with tempfile.TemporaryDirectory() as work:
             directory = Path(work)
             shots, cards, assets, files, sources = await self._candidates(
-                project_id, document_id, document, materials, directory
+                project_id, document_id, document, materials, directory, stored if reused else None
             )
             mains = [shot for shot in shots if shot.source == "main"]
             beats: dict[str, BeatPlan] = dict(reused)
@@ -142,10 +145,27 @@ class Planner:
             answers, model_used = await self._ask(
                 shots, cards, files, sources, voices, asks, directory
             )
+        # Answers belong to this call's phrases only; a reused beat keeps its picks, less any
+        # shot or card the draft no longer has (final review, 2026-11-13).
         by_id = {answer.phrase_id: answer for answer in answers}
+        fresh_beats = {voice.beat for voice in fresh}
+        shot_ids = {shot.shot_id for shot in shots}
+        card_ids = {card.card_id for card in cards}
         beats = {
             name: beat.model_copy(
-                update={"phrases": [_merged(p, by_id.get(p.phrase_id)) for p in beat.phrases]}
+                update={
+                    "phrases": [
+                        _merged(p, by_id.get(p.phrase_id))
+                        if name in fresh_beats
+                        else p.model_copy(
+                            update={
+                                "base": [x for x in p.base if x in shot_ids],
+                                "overlay": p.overlay if p.overlay in card_ids else None,
+                            }
+                        )
+                        for p in beat.phrases
+                    ]
+                }
             )
             for name, beat in beats.items()
         }
@@ -172,7 +192,24 @@ class Planner:
         document: EditDocumentV2,
         materials: StudioMaterials,
         directory: Path,
+        previous: DraftPlan | None = None,
     ) -> tuple[list[PlanShot], list[PlanCard], list[AssetRef], dict[str, Path], list[str]]:
+        """The draft's shots and cards. With `previous` (a partial re-plan), a shot or card the
+        stored plan already named keeps its id, so the reused beats' picks still point at it."""
+        old_shots = {
+            (s.asset_id, round(s.start_seconds, 3), round(s.end_seconds, 3)): s.shot_id
+            for s in (previous.shots if previous else [])
+        }
+        old_cards = {c.asset_id: c.card_id for c in (previous.cards if previous else [])}
+        taken_ids = set(old_shots.values()) | set(old_cards.values())
+
+        def new_id(prefix: str) -> str:
+            number = 1
+            while f"{prefix}{number}" in taken_ids:
+                number += 1
+            taken_ids.add(f"{prefix}{number}")
+            return f"{prefix}{number}"
+
         main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
         videos = [c for c in document.clips if isinstance(c, TimelineVideoClip)]
         main = next((c.asset_id for c in videos if c.track_id in main_tracks), None)
@@ -222,9 +259,10 @@ class Planner:
             handle = handles.get(asset_id) if kind == "footage" else None
             sources.append(f"- {label}: {kind} video" + (f", from {handle}" if handle else ""))
             for start, end in spans:
+                key = (asset_id, round(start, 3), round(end, 3))
                 shots.append(
                     PlanShot(
-                        shot_id=f"S{len(shots) + 1}",
+                        shot_id=old_shots.get(key) or new_id("S"),
                         asset_id=asset_id,
                         source=kind,  # type: ignore[arg-type]
                         start_seconds=start,
@@ -241,7 +279,7 @@ class Planner:
             fetched = await self._fetch(project_id, asset_id, directory)
             if fetched is None or fetched[1].kind != "image":
                 continue
-            card_id = f"C{len(cards) + 1}"
+            card_id = old_cards.get(asset_id) or new_id("C")
             cards.append(PlanCard(card_id=card_id, asset_id=asset_id, item_id=item_id, kind=role))  # type: ignore[arg-type]
             assets.append(fetched[1])
             files[card_id] = fetched[0]

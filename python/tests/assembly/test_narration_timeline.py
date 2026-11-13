@@ -859,3 +859,57 @@ def test_a_plan_places_a_soundbite_on_the_main_track() -> None:
     main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
     first = next(c for c in document.clips if c.track_id in main_tracks and c.from_frame == start)
     assert first.source_from_frame == 300 and first.duration_in_frames == 50
+
+
+def test_a_planned_credit_follows_its_shot_on_a_revoice() -> None:
+    from thoth_control_plane.domain.planner import (
+        BeatPlan,
+        DraftPlan,
+        PlanPhrase,
+        PlanShot,
+        words_key,
+    )
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    style = BUILT_IN_STYLES["style_b"]
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    footage = PlanShot(
+        shot_id="S2",
+        asset_id="asset_vid_long",
+        source="footage",
+        start_seconds=1.0,
+        end_seconds=4.0,
+        handle="@kompascomreport",
+    )
+    words = voices[2].words
+    plan = DraftPlan(
+        shots=[footage],
+        beats=[
+            BeatPlan(
+                beat="reactions",
+                words_key=words_key(words),
+                phrases=[
+                    PlanPhrase(phrase_id="P1", first_word=0, last_word=2, text="", base=["S2"]),
+                    PlanPhrase(phrase_id="P2", first_word=3, last_word=5, text=""),
+                ],
+            )
+        ],
+    )
+    first = narrate_document(draft(), voices, [], PRESET, ROLES, style=style, plan=plan)
+    longer = [voiced("hook", 3.0), voices[1], voices[2]]
+    longer[0] = VoicedBeat(
+        beat="hook", asset=audio("asset_voice_hook_2", 3.0), duration_seconds=3.0,
+        words=longer[0].words,
+    )  # fmt: skip
+    second = narrate_document(first, longer, [], PRESET, ROLES, style=style, plan=plan)
+    credit = next(c for c in second.clips if c.clip_id.startswith("clip_style_reactions_credit_"))
+    shot = next(
+        c
+        for c in second.clips
+        if getattr(c, "asset_id", None) == "asset_vid_long"
+        and c.clip_id.startswith("clip_style_reactions_plan_")
+    )
+    assert (credit.from_frame, credit.duration_in_frames) == (
+        shot.from_frame,
+        shot.duration_in_frames,
+    )

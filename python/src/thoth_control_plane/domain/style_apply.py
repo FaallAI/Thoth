@@ -21,6 +21,7 @@ import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 
 from thoth_control_plane.domain.edit_document_v2 import (
     AppliedStyle,
@@ -57,8 +58,9 @@ logger = logging.getLogger(__name__)
 STYLE_CARD = re.compile(r"clip_style_([a-z]+)_card_\d+")
 #: How much taller than the canvas a picture must be to take a beat's tall move.
 TALL_TOLERANCE = 0.05
-#: A planner credit, removed when the beat is planned again.
-STYLE_CREDIT_PREFIX = "clip_style_credit_"
+#: A clip the planner placed (a footage shot, a card, a credit), named for its beat: it is
+#: removed only when that beat is planned again, and never cut as the cursor's material.
+PLANNER_CLIP = re.compile(r"clip_style_([a-z]+)_(?:plan|credit)_\d+")
 #: Where the import places a card over the picture; a planned overlay card sits there too.
 CARD_POSITION = Position(x=0.0, y=-0.24, scale=0.76)
 #: A planned clip carries its beat's role, so Story mode keeps it in that beat.
@@ -224,7 +226,7 @@ def style_operations(
         fill = (
             full_frame_fill(asset) if asset is not None and look.background == "blur_fill" else None
         )
-        clip_id = new_clip_id(beat)
+        clip_id = new_clip_id(f"{beat}_plan")
         operations.append(
             AddClipFromAsset(
                 kind="add_clip_from_asset",
@@ -247,7 +249,7 @@ def style_operations(
                 AddTextClip(
                     kind="add_text_clip",
                     operation_id=operation_id(),
-                    clip_id=new_clip_id("credit"),
+                    clip_id=new_clip_id(f"{beat}_credit"),
                     track_id=text_track,
                     from_frame=shot.from_frame,
                     duration_in_frames=shot.duration,
@@ -261,7 +263,7 @@ def style_operations(
         beat: BeatId, track_id: str, planned_card: PlannedCard, look: BeatLook
     ) -> None:
         """A card over the phrase that names it; a card with no base fills the screen."""
-        clip_id = new_clip_id(beat)
+        clip_id = new_clip_id(f"{beat}_plan")
         operations.append(
             AddClipFromAsset(
                 kind="add_clip_from_asset",
@@ -295,31 +297,34 @@ def style_operations(
     planned = {
         beat: plan for beat, plan in (assignments or {}).items() if recut is None or beat in recut
     }
+    # The main video runs under several beats as one cut: every beat's planned main shots
+    # go back when it is cut, a re-voiced beat's or not (final review, 2026-11-13).
     planned_main = sorted(
-        (shot for plan in planned.values() for shot in plan.shots if shot.layer == "main"),
+        (
+            shot
+            for plan in (assignments or {}).values()
+            for shot in plan.shots
+            if shot.layer == "main"
+        ),
         key=lambda shot: shot.from_frame,
     )
     b_roll_track = next((t.track_id for t in document.tracks if t.kind == "b_roll"), None)
-    spans_of = {span.beat: span for span in beat_spans(document, roles_by_item)}
-    planned_ranges = [
-        (spans_of[beat].start_frame, spans_of[beat].start_frame + spans_of[beat].duration_in_frames)
-        for beat in planned
-        if beat in spans_of
-    ]
-    # The planner's earlier credits and the import's per-scene footage credits make way for
-    # one credit per planned footage shot; a locked one stays (spec 2026-11-13, 5.7).
+
+    def planner_beat(clip_id: str) -> str | None:
+        found = PLANNER_CLIP.fullmatch(clip_id)
+        return found.group(1) if found else None
+
+    # A beat planned again first loses what the planner placed there before; the import's
+    # per-scene footage credits make way for one credit per footage shot; a locked clip stays.
     gone = {
         clip.clip_id
         for clip in document.clips
-        if isinstance(clip, TimelineTextClip)
-        and not clip.locked
+        if not clip.locked
         and (
-            (
-                clip.clip_id.startswith(STYLE_CREDIT_PREFIX)
-                and any(a <= clip.from_frame < b for a, b in planned_ranges)
-            )
+            planner_beat(clip.clip_id) in planned
             or (
-                beats.get(clip.clip_id) in planned
+                isinstance(clip, TimelineTextClip)
+                and beats.get(clip.clip_id) in planned
                 and (clip.source_role or roles.get(clip.clip_id.removeprefix("clip_"))) == "footage"
                 and clip.heading.startswith("@")
                 and not clip.body.strip()
@@ -366,10 +371,15 @@ def style_operations(
             and clip.clip_id not in old_cards
             and clip.clip_id not in gone
         ]
+        # What the planner placed is never the cursor's material: it stays as it is until its
+        # beat is planned again (final review, 2026-11-13).
         pictures = [
             clip
             for clip in in_beat
-            if isinstance(clip, TimelineVideoClip) and not clip.hidden and not clip.locked
+            if isinstance(clip, TimelineVideoClip)
+            and not clip.hidden
+            and not clip.locked
+            and planner_beat(clip.clip_id) is None
         ]
         if not look.use:
             operations.extend(
@@ -451,7 +461,21 @@ def style_operations(
             # The planner's shots are placed as they are; the cursor fills only what is left.
             own_plan: list[PlannedShot] = []
             if main_track:
-                own_plan = [s for s in planned_main if start <= s.from_frame < end]
+                # A main shot never overlaps a kept piece of the main video (a locked one): it
+                # is trimmed to the free stretches, as the cursor's shots are.
+                free = _free_windows(start, end, sorted(kept))
+                own_plan = [
+                    replace(
+                        shot,
+                        from_frame=a,
+                        duration=b - a,
+                        source_from_frame=shot.source_from_frame + (a - shot.from_frame),
+                    )
+                    for shot in planned_main
+                    for window_start, window_end in free
+                    if (a := max(shot.from_frame, window_start))
+                    < (b := min(shot.from_frame + shot.duration, window_end))
+                ]
             elif plan is not None and track_id == b_roll_track:
                 own_plan = [s for s in plan.shots if s.layer == "broll"]
             kept = sorted(kept + [(s.from_frame, s.from_frame + s.duration) for s in own_plan])

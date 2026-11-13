@@ -38,7 +38,11 @@ from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPr
 from thoth_control_plane.domain.planner import DraftPlan, split_phrases
 from thoth_control_plane.domain.planner_assign import BeatAssignment, assign_beat
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
-from thoth_control_plane.domain.style_apply import beat_fingerprints, style_operations
+from thoth_control_plane.domain.style_apply import (
+    PLANNER_CLIP,
+    beat_fingerprints,
+    style_operations,
+)
 from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
@@ -181,7 +185,9 @@ def narrate_document(
             window = _map(clip.from_frame, clip.end_frame, old_bg, new_bg)
         elif clip.clip_id in packed:
             window = packed[clip.clip_id]
-        elif (beat := beats.get(clip.clip_id)) in old_windows and beat in new_windows:
+        elif (beat := beats.get(clip.clip_id) or _planner_beat(clip.clip_id)) in old_windows and (
+            beat in new_windows
+        ):
             window = _map(clip.from_frame, clip.end_frame, old_windows[beat], new_windows[beat])
         else:
             window = _map(clip.from_frame, clip.end_frame, (0, old_total), (0, total))
@@ -420,6 +426,12 @@ def narrate_document(
         for clip in styled.clips
     ]
     return _recorded(EditDocumentV2.model_validate(restyled), roles_by_item, kept)
+
+
+def _planner_beat(clip_id: str) -> str | None:
+    """The beat a planner clip was placed for (its credit has no role of its own)."""
+    found = PLANNER_CLIP.fullmatch(clip_id)
+    return found.group(1) if found else None
 
 
 def _phrase_windows(
