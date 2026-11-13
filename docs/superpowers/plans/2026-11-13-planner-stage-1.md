@@ -35,7 +35,7 @@
 - **Model call (spec 5.4):**
   - `temperature 0`, `response_format json_object`, `reasoning {"effort": "low"}`, `provider {"data_collection": "deny"}`, `usage {"include": true}`, `max_tokens 12000`;
   - a `finish_reason` other than `stop` is a failure.
-- **Settings:** `THOTH_PLANNER_MODEL="qwen/qwen3.7-flash"`, `THOTH_PLANNER_FALLBACK_MODEL="qwen/qwen3-vl-30b-a3b-instruct"`, `THOTH_PLANNER_ENABLED=True`.
+- **Settings:** `THOTH_PLANNER_MODEL="qwen/qwen3.7-flash"`, `THOTH_PLANNER_FALLBACK_MODEL="google/gemini-3.1-flash-lite"`, `THOTH_PLANNER_ENABLED=True`.
 - **Positioned card:** overlay cards use the import's card placement, `Position(x=0.0, y=-0.24, scale=0.76)` with `fit="contain"`.
 - **Planner deadline:** the planner gets at most 180 s inside `narration_write_draft`, whose timeout is 5 min; on timeout it degrades.
 - **Never print secrets:** the OpenRouter key is never logged.

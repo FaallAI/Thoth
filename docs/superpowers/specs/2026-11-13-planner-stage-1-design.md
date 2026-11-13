@@ -158,7 +158,7 @@ One call per draft is made to the configured planner model.
 | Setting | Default |
 |---|---|
 | `THOTH_PLANNER_MODEL` | `qwen/qwen3.7-flash` |
-| `THOTH_PLANNER_FALLBACK_MODEL` | `qwen/qwen3-vl-30b-a3b-instruct`, already in config as the source vision model |
+| `THOTH_PLANNER_FALLBACK_MODEL` | `google/gemini-3.1-flash-lite` (operator, 2026-11-13: in the trial it kept the 3-shot cap and added no unpicked cards; every fallback use logs a warning and the plan records the model that answered) |
 | `THOTH_PLANNER_ENABLED` | on |
 
 Cost goes through the existing metering scope of the narration write.
