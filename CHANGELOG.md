@@ -67,8 +67,24 @@ The reference-faithful editing track, step 2. Style B drafts sat on the main vid
 - **Assets:** `DraftPlan.assets` carries the candidates' references, so a post card from Materials can be placed.
 - **Rhythm:** rhythm cuts include each beat's own start.
 
+**Final review** (one fresh reviewer on the most capable model over the whole branch): 2 Critical and 4 Important, all fixed test-first in one pass, each test failing before its fix:
+- **A partial re-plan overwrote unchanged beats' picks.** The model's answers now go to the re-planned beats only. Shot and card ids the stored plan named are kept, so the reused picks still point at the same shots.
+- **Planner clips became the cursor's material on a later write** (uncredited footage between planned shots). Planner clips are now named for their beat (`clip_style_<beat>_plan_`/`_credit_`), removed only when that beat is planned again, and never cut by the cursor.
+- **Re-voicing main dropped the other beats' soundbites.** Every beat's planned main shots go back when the main video is cut.
+- **A locked main-video piece made the write fail.** Planned main shots are trimmed around kept pieces.
+- **Credits had no beat.** Their ids carry it, they are removed by beat, and a re-voice moves them with their shot.
+- **A plan made while no model answered was reused forever.** It is planned again once a model is configured.
+
+After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clean. Six minors are deferred:
+- the per-attempt model timeout against the 180 s deadline;
+- orphaned ffmpeg processes on cancel;
+- an unhashable id in the clamp;
+- an `F0` label;
+- a card removed when there is no b-roll track;
+- a paid call for a hand-edited beat.
+
 ### Next steps
-- Final whole-branch review, then the operator's review of the branch.
+- The operator's review of the branch.
 - Gates, each with its own authorization: push, deploy to stage1 from the branch image, merge.
 - The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
 - Carried forward:
