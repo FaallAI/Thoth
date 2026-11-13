@@ -164,3 +164,11 @@ def test_content_assembly_settings_default_off() -> None:
     assert settings.THOTH_FOOTAGE_ENABLED is False
     assert settings.THOTH_FOOTAGE_STORY_MIN == 0.36
     assert settings.THOTH_FIGURES_MODEL == "deepseek/deepseek-v4-flash-0731"
+
+
+def test_planner_settings_default() -> None:
+    # Planner stage 1 (spec 2026-11-13): the cheapest model, the operator's fallback, on.
+    configured = settings()
+    assert configured.THOTH_PLANNER_MODEL == "qwen/qwen3.7-flash"
+    assert configured.THOTH_PLANNER_FALLBACK_MODEL == "google/gemini-3.1-flash-lite"
+    assert configured.THOTH_PLANNER_ENABLED is True

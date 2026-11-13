@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from thoth_control_plane.domain.edit_document_v2 import AssetRef
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.narration import BeatId, TranscriptSegment
 from thoth_control_plane.voice.ports import WordTiming
@@ -103,6 +104,8 @@ class DraftPlan(StrictModel):
     shots: list[PlanShot] = Field(default_factory=list)
     cards: list[PlanCard] = Field(default_factory=list)
     beats: list[BeatPlan] = Field(default_factory=list)
+    #: The candidates' references, so a planned card or footage the timeline lacks can be added.
+    assets: list[AssetRef] = Field(default_factory=list)
 
 
 def split_phrases(words: Sequence[WordTiming]) -> list[tuple[int, int]]:

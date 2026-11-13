@@ -786,3 +786,76 @@ def test_the_scripts_headline_becomes_the_main_title_unless_a_person_wrote_one()
         draft(titled("user_edited")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
     )
     assert clip(kept, "clip_001").heading == clip(draft(), "clip_001").heading
+
+
+# Planner stage 1 (spec 2026-11-13): Style B cuts on phrase starts, and a plan picks the pictures.
+PHRASED = "satu dua, tiga empat, lima enam"
+
+
+def _style_b_main_starts(document: EditDocumentV2, window: tuple[int, int]) -> list[int]:
+    main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
+    return sorted(
+        c.from_frame
+        for c in document.clips
+        if c.track_id in main_tracks and window[0] <= c.from_frame < window[1]
+    )
+
+
+def _main_window(document: EditDocumentV2) -> tuple[int, int]:
+    voice = clip(document, "clip_narration_main")
+    return voice.from_frame, voice.from_frame + voice.duration_in_frames
+
+
+def test_planned_style_cuts_on_phrase_starts_without_a_plan() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    document = narrate_document(
+        draft(), voices, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"]
+    )
+    start, end = _main_window(document)
+    assert _style_b_main_starts(document, (start, end)) == [start, start + 50, start + 100]
+
+
+def test_a_plan_places_a_soundbite_on_the_main_track() -> None:
+    from thoth_control_plane.domain.planner import (
+        BeatPlan,
+        DraftPlan,
+        PlanPhrase,
+        PlanShot,
+        words_key,
+    )
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    main_words = voices[1].words
+    plan = DraftPlan(
+        shots=[
+            PlanShot(
+                shot_id="S9",
+                asset_id="asset_main",
+                source="main",
+                start_seconds=10.0,
+                end_seconds=12.0,
+            )
+        ],
+        beats=[
+            BeatPlan(
+                beat="main",
+                words_key=words_key(main_words),
+                phrases=[
+                    PlanPhrase(phrase_id="P1", first_word=0, last_word=1, text="satu dua,",
+                               base=["S9"], soundbite=True),
+                    PlanPhrase(phrase_id="P2", first_word=2, last_word=3, text="tiga empat,"),
+                    PlanPhrase(phrase_id="P3", first_word=4, last_word=5, text="lima enam"),
+                ],
+            )
+        ],
+    )  # fmt: skip
+    document = narrate_document(
+        draft(), voices, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"], plan=plan
+    )
+    start, _ = _main_window(document)
+    main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
+    first = next(c for c in document.clips if c.track_id in main_tracks and c.from_frame == start)
+    assert first.source_from_frame == 300 and first.duration_in_frames == 50

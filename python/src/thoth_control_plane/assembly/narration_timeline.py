@@ -17,6 +17,7 @@ import re
 from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 
 from thoth_control_plane.domain.clip_moves import stretch_moves
 from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
@@ -34,6 +35,8 @@ from thoth_control_plane.domain.edit_document_v2 import (
     frames_left,
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
+from thoth_control_plane.domain.planner import DraftPlan, split_phrases
+from thoth_control_plane.domain.planner_assign import BeatAssignment, assign_beat
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.style_apply import beat_fingerprints, style_operations
 from thoth_control_plane.domain.style_templates import StyleTemplate
@@ -94,6 +97,7 @@ def narrate_document(
     style: StyleTemplate | None = None,
     card_lines: Mapping[BeatId, str] | None = None,
     headline: str | None = None,
+    plan: DraftPlan | None = None,
 ) -> EditDocumentV2:
     """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
     recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
@@ -365,11 +369,23 @@ def narrate_document(
         kept = [b for b in changed if b not in only]
         if not only:
             return _recorded(narrated_document, roles_by_item, kept)
-    # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
-    ends = {
-        beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
-        for beat, start in starts.items()
-    }
+    assignments: dict[BeatId, BeatAssignment] | None = None
+    if style.cuts.planned:
+        # Planner stage 1 (spec 2026-11-13): cut on phrase starts; a plan picks each picture.
+        windows = {
+            beat: _phrase_windows(voices[beat].words, start, new_windows[beat], fps)  # type: ignore[index]
+            for beat, start in starts.items()
+        }
+        ends = {beat: [a for a, _ in phrases] for beat, phrases in windows.items()}
+        if plan is not None:
+            assignments = _assignments(plan, narrated_document, voices, windows, fps)
+            assets.update({ref.asset_id: ref for ref in plan.assets})
+    else:
+        # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
+        ends = {
+            beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
+            for beat, start in starts.items()
+        }
     # A card shows while the voice says its line, when it says it.
     card_at = {
         beat: frame
@@ -378,13 +394,19 @@ def narrate_document(
         and (frame := spoken_at(line, voices[beat].words, starts[beat], fps)) is not None
     }
     operations = style_operations(
-        narrated_document, style, roles_by_item, ends, card_lines, recut=only, card_at=card_at
-    )
-    styled = apply_edit_operations(
         narrated_document,
-        operations,
-        resolved_assets={asset.asset_id: asset for asset in narrated_document.asset_refs},
+        style,
+        roles_by_item,
+        ends,
+        card_lines,
+        recut=only,
+        card_at=card_at,
+        assignments=assignments,
     )
+    resolved = {asset.asset_id: asset for asset in narrated_document.asset_refs}
+    for ref in plan.assets if plan is not None else []:
+        resolved.setdefault(ref.asset_id, ref)
+    styled = apply_edit_operations(narrated_document, operations, resolved_assets=resolved)
     if not curve:
         return _recorded(styled, roles_by_item, kept)
     # New shots of a movie duck under the voice like the clip they replaced.
@@ -398,6 +420,75 @@ def narrate_document(
         for clip in styled.clips
     ]
     return _recorded(EditDocumentV2.model_validate(restyled), roles_by_item, kept)
+
+
+def _phrase_windows(
+    words: Sequence[WordTiming], start: int, window: Window, fps: float
+) -> list[Window]:
+    """A voiced beat's phrase windows: each from its first word to the next phrase's first
+    word, the first from the beat's start and the last to its end (spec 2026-11-13, 5.1)."""
+    ranges = split_phrases(words)
+    if not ranges:
+        return [window]
+    cuts = [window[0]]
+    for first, _ in ranges[1:]:
+        frame = min(window[1] - 1, start + round(words[first].start_seconds * fps))
+        if frame > cuts[-1]:
+            cuts.append(frame)
+    bounds = [*cuts, window[1]]
+    return list(pairwise(bounds))
+
+
+def _assignments(
+    plan: DraftPlan,
+    document: EditDocumentV2,
+    voices: Mapping[str, VoicedBeat],
+    windows: Mapping[str, list[Window]],
+    fps: float,
+) -> dict[BeatId, BeatAssignment]:
+    """The plan in frames, beat by beat, sharing one record of used shots. A beat whose phrases
+    no longer match the plan's (an edited script) keeps the phrase-start rhythm only."""
+    main_tracks = {track.track_id for track in document.tracks if track.kind == "main_video"}
+    mains = sorted(
+        (
+            c
+            for c in document.clips
+            if isinstance(c, TimelineVideoClip) and c.track_id in main_tracks
+        ),
+        key=lambda c: c.from_frame,
+    )
+    refs = {ref.asset_id: ref for ref in (*document.asset_refs, *plan.assets)}
+    frames = {
+        asset_id: ref.duration_in_frames
+        for asset_id, ref in refs.items()
+        if ref.kind == "video" and ref.duration_in_frames
+    }
+    used: set[str] = set()
+    out: dict[BeatId, BeatAssignment] = {}
+    for beat_plan in sorted(plan.beats, key=lambda b: BEAT_ORDER.index(b.beat)):
+        beat = beat_plan.beat
+        voice = voices.get(beat)
+        phrase_windows = windows.get(beat)
+        if voice is None or phrase_windows is None:
+            continue
+        ranges = [(p.first_word, p.last_word) for p in beat_plan.phrases]
+        if ranges != split_phrases(voice.words) or len(ranges) != len(phrase_windows):
+            continue
+        at = phrase_windows[0][0]
+        under = next((c for c in mains if c.from_frame <= at < c.end_frame), None)
+        out[beat] = assign_beat(
+            beat,
+            beat_plan.phrases,
+            phrase_windows,
+            plan,
+            fps,
+            under.asset_id if under is not None else None,
+            under.source_from_frame + (at - under.from_frame) if under is not None else 0,
+            beat in BACKGROUND_BEATS,
+            used,
+            frames,
+        )
+    return out
 
 
 def _recorded(

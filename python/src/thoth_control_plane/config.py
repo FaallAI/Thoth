@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     # Stage 4 source attribution. Without a key, that half of the evidence is skipped.
     THOTH_FFMPEG: str = "ffmpeg"
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
+    # Planner stage 1 (spec 2026-11-13): what each narration phrase shows, one call per draft.
+    THOTH_PLANNER_MODEL: str = "qwen/qwen3.7-flash"
+    # Kept the 3-shot cap and added no unpicked cards in the trial (operator, 2026-11-13).
+    THOTH_PLANNER_FALLBACK_MODEL: str = "google/gemini-3.1-flash-lite"
+    THOTH_PLANNER_ENABLED: bool = True
     # Vision and Jev decisions both go through OpenRouter (operator, 2026-10-08/09).
     THOTH_OPENROUTER_API_KEY: SecretStr | None = None
     # Voice adapter (spec 2026-10-18, section 9): ElevenLabs, or any OpenAI-compatible server.

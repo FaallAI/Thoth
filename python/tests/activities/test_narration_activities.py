@@ -700,3 +700,43 @@ def test_only_audio_is_offered_as_an_sfx() -> None:
     run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
     user = seen["provider_requests"][0]["user"]
     assert "lib_whoosh" in user and "lib_paper" not in user
+
+
+class SlowPlanner:
+    def __init__(self, seconds: float = 0.0, plan: Any = None) -> None:
+        self.seconds = seconds
+        self.plan_value = plan
+        self.calls: list[tuple[str, int]] = []
+
+    async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+        self.calls.append((document_id, len(voices)))
+        await asyncio.sleep(self.seconds)
+        return self.plan_value
+
+
+def test_a_planned_style_asks_the_planner_once() -> None:
+    from thoth_control_plane.domain.planner import DraftPlan
+
+    planner = SlowPlanner(plan=DraftPlan())
+    built, seen = styled_ports()
+    built.planner = planner
+    narrate_once(built, seen)
+    assert len(planner.calls) == 1 and planner.calls[0][1] >= 1
+
+
+def test_an_unplanned_style_never_asks_the_planner() -> None:
+    planner = SlowPlanner()
+    built, seen = styled_ports("style_a")
+    built.planner = planner
+    narrate_once(built, seen)
+    assert planner.calls == []
+
+
+def test_write_draft_survives_a_planner_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.activities import narration
+
+    monkeypatch.setattr(narration, "PLANNER_DEADLINE_SECONDS", 0.05)
+    built, seen = styled_ports()
+    built.planner = SlowPlanner(seconds=5.0)
+    written = narrate_once(built, seen)
+    assert written.style is not None and written.style.template_id == "style_b"
