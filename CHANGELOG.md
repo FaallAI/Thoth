@@ -68,6 +68,8 @@ After the fixes: `make test` 4900 passed, 240 skipped; Postgres 38 passed; lint 
 - "Delete selected" counts and deletes only the selected items the filter shows.
 - The kind select offers only the kinds the server allows for that media, and a change that is not saved says so.
 
+**Deployed (2026-11-13):** branch commit `a1c50ae2` (PR #130) runs on stage1: thoth `55b4ea8a`, renderer `883b018d`, web `4a99cc46`, each matching the push run's published digest. The editor database is at migration 0031. `GET /library` answers 200 with an empty list, the old `/sfx` answers 404, and the worker and api logged no errors. Rollback restores the `42b843a8` pins with no migrate step, since 0031 only adds a table. Stage1 runs code not yet in `master`.
+
 **Not run:** the e2e check `e2e/tests/assets-page.e2e.ts` targets stage1, which does not serve `/library` until this branch is deployed.
 
 **Next steps** (each its own gate):
