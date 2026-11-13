@@ -75,13 +75,15 @@ The reference-faithful editing track, step 2. Style B drafts sat on the main vid
 - **Credits had no beat.** Their ids carry it, they are removed by beat, and a re-voice moves them with their shot.
 - **A plan made while no model answered was reused forever.** It is planned again once a model is configured.
 
-After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clean. Six minors are deferred:
-- the per-attempt model timeout against the 180 s deadline;
-- orphaned ffmpeg processes on cancel;
-- an unhashable id in the clamp;
-- an `F0` label;
-- a card removed when there is no b-roll track;
-- a paid call for a hand-edited beat.
+After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clean. The six minors were then fixed test-first too (operator: "minor tolong perbaiki dulu"), in `805a6dee`:
+- **Timeouts:** a model attempt now times out at 45 s, and a hung model hands over to the fallback at once.
+- **ffmpeg:** a cancelled ffmpeg run is killed.
+- **Odd phrase ids:** an odd phrase id from the model is skipped, not fatal.
+- **Labels:** footage labels start at F1 even when the main video cannot be fetched.
+- **Cards:** a card stays put when its beat has no b-roll track or shows nothing.
+- **Hand-edited beats:** a hand-edited beat is not sent to the planner, so it is not paid for again; its stored plan is carried over.
+
+`make test` then gives 4974 passed and 243 skipped, and lint is clean.
 
 ### Next steps
 - The operator's review of the branch.
