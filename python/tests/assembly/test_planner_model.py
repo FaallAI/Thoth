@@ -125,3 +125,48 @@ async def test_no_card_sheet_sends_only_the_shot_sheets() -> None:
     await ask(model(recorder), cards=None)
     content = recorder.bodies[0]["messages"][1]["content"]
     assert sum(part["type"] == "image_url" for part in content) == len(SHEETS)
+
+
+# Deferred minors fixed (operator, 2026-11-13).
+async def test_an_attempt_has_a_short_timeout() -> None:
+    seen: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.extensions["timeout"]["read"])
+        return answer(GOOD)
+
+    planner = PlannerModel(
+        "key", "cheap/model", None, client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    )
+    await ask(planner)
+    assert seen == [45.0]
+
+
+async def test_a_hung_model_hands_over_to_the_fallback_at_once() -> None:
+    models: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        models.append(body["model"])
+        if body["model"] == "cheap/model":
+            raise httpx.ReadTimeout("hung", request=request)
+        return answer(GOOD)
+
+    planner = PlannerModel(
+        "key",
+        "cheap/model",
+        "fallback/model",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        sleep=_no_sleep,
+    )
+    await ask(planner)
+    assert models == ["cheap/model", "fallback/model"]
+
+
+async def test_an_odd_phrase_id_is_skipped_not_fatal() -> None:
+    phrases = [
+        {"id": ["P1"], "base": ["S1"], "overlay": [], "fit": "shows", "why": "x"},
+        {"id": "P2", "base": ["S2"], "overlay": [], "fit": "shows", "why": "y"},
+    ]
+    answers = await ask(model(Recorder([answer(phrases)])))
+    assert answers == [PhraseAnswer("P2", ["S2"], None, "y")]

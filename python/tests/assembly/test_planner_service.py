@@ -289,3 +289,37 @@ async def test_a_plan_made_without_a_model_is_planned_again_once_one_answers() -
     plan = await make(Store(plan=stored), model, [voice("main", text)])
     assert len(model.calls) == 1
     assert plan is not None and plan.beats[0].phrases[0].base == ["S3"]
+
+
+async def test_footage_is_f1_when_the_main_video_cannot_be_fetched() -> None:
+    class NoMain(Fetcher):
+        async def __call__(self, project: str, asset_id: str, directory: Path):  # type: ignore[no-untyped-def]
+            if asset_id == "asset_main":
+                return None
+            return await super().__call__(project, asset_id, directory)
+
+    seen: list[str] = []
+
+    class Sources(Model):
+        async def ask(self, sources, *rest):  # type: ignore[no-untyped-def]
+            seen.append(sources)
+            return await super().ask(sources, *rest)
+
+    store = Store()
+    planner = Planner(
+        store, NoMain(), Sources(), "ffmpeg", "ffprobe", detect=Detect(), frames=frames
+    )
+    await planner.plan("project_001", DOC, draft(), MATERIALS, [voice("main", "satu dua tiga")])
+    assert "- F1: footage video" in seen[0] and "F0" not in seen[0]
+
+
+async def test_a_beat_left_out_keeps_its_stored_plan() -> None:
+    hook = BeatPlan(
+        beat="hook",
+        words_key="old",
+        phrases=[PlanPhrase(phrase_id="P1", first_word=0, last_word=1, text="a b", base=["S3"])],
+    )
+    stored = DraftPlan(model="cheap/model", beats=[hook])
+    plan = await make(Store(plan=stored), Model(), [voice("main", "satu dua tiga")])
+    assert plan is not None and [b.beat for b in plan.beats] == ["hook", "main"]
+    assert plan.beats[0].phrases[0].base == ["S3"]

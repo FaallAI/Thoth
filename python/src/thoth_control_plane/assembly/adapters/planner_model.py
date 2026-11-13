@@ -24,7 +24,8 @@ from thoth_control_plane.assembly.planner_shots import Sheet
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-TIMEOUT_SECONDS = 120.0
+#: Per attempt: a hung model must leave room for the fallback inside the 180 s deadline.
+TIMEOUT_SECONDS = 45.0
 ATTEMPTS = 3
 BACKOFF_SECONDS = (5.0, 15.0)
 BUSY = frozenset({429, 502, 503})
@@ -139,7 +140,8 @@ def _clamp(
     """Only asked phrases, known ids, three base shots and one card: a model's word is checked."""
     answers = []
     for item in raw.get("phrases") or []:
-        if not isinstance(item, dict) or item.get("id") not in asked:
+        phrase_id = item.get("id") if isinstance(item, dict) else None
+        if not isinstance(phrase_id, str) or phrase_id not in asked:
             continue
         none = item.get("fit") == "none"
         base = [] if none else [s for s in item.get("base") or [] if s in shot_ids][:MAX_BASE]
@@ -232,6 +234,10 @@ class PlannerModel:
                 headers={"Authorization": f"Bearer {self._key}"},
                 timeout=TIMEOUT_SECONDS,
             )
+        except httpx.TimeoutException as error:
+            # Hung, not busy: retrying the same model would spend the deadline.
+            logger.warning("planner model timed out model=%s", model)
+            raise _Failed(busy=False) from error
         except httpx.TransportError as error:
             raise _Failed(busy=True) from error
         if response.status_code in BUSY:

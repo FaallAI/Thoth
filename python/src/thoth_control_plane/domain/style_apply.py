@@ -341,6 +341,8 @@ def style_operations(
     ]
     placed_cards: list[tuple[BeatId, PlannedCard, bool]] = []
     for beat, plan in planned.items():
+        if b_roll_track is None or not template.beats[beat].use:
+            continue  # nowhere to show it: the card stays where it is
         for planned_card in plan.cards:
             same = [
                 c for c in movable if c.asset_id == planned_card.asset_id and c.clip_id not in gone

@@ -56,6 +56,7 @@ from thoth_control_plane.domain.narration import (
 )
 from thoth_control_plane.domain.prompts import PROMPT_STARTERS
 from thoth_control_plane.domain.story_beats import beat_spans
+from thoth_control_plane.domain.style_apply import edited_beats
 from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
 from thoth_control_plane.voice.loudness import normalize_loudness
 from thoth_control_plane.voice.ports import (
@@ -437,7 +438,11 @@ class NarrationActivities:
         ]
         plan = None
         if style is not None and style.cuts.planned and ports.planner is not None:
-            plan = await self._plan(step, document, materials, voiced)
+            # A hand-edited beat is not re-cut, so its picture is not paid for again.
+            edited = set(edited_beats(document, _roles(materials)))
+            plan = await self._plan(
+                step, document, materials, [v for v in voiced if v.beat not in edited]
+            )
         narrated = narrate_document(
             document,
             voiced,

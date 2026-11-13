@@ -91,3 +91,26 @@ def test_cards_stack_at_a_readable_width(tmp_path: Path) -> None:
 
 def test_no_cards_no_card_sheet() -> None:
     assert card_sheet([]) is None
+
+
+async def test_a_cancelled_command_is_killed(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from thoth_control_plane.assembly import planner_shots
+
+    started: list[asyncio.subprocess.Process] = []
+    real = asyncio.create_subprocess_exec
+
+    async def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
+        process = await real(*args, **kwargs)
+        started.append(process)
+        return process
+
+    monkeypatch.setattr(planner_shots.asyncio, "create_subprocess_exec", spy)
+    task = asyncio.create_task(planner_shots._run("sleep", "30"))
+    while not started:
+        await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert started[0].returncode is not None

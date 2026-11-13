@@ -27,6 +27,7 @@ from thoth_control_plane.assembly.planner_shots import (
     keyframes,
 )
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2, TimelineVideoClip
+from thoth_control_plane.domain.narration import BEAT_ORDER
 from thoth_control_plane.domain.planner import (
     BeatPlan,
     DraftPlan,
@@ -108,8 +109,13 @@ class Planner:
                 reused[voice.beat] = BeatPlan(beat=voice.beat, words_key=key, phrases=phrases)
             else:
                 fresh.append(voice)
+        # A beat the caller left out (hand-edited, not re-cut) keeps what was stored for it.
+        spoken = {voice.beat for voice in voices}
+        carried = [beat for beat in (stored.beats if stored else []) if beat.beat not in spoken]
         if stored is not None and not fresh:
-            plan = stored.model_copy(update={"beats": [reused[v.beat] for v in voices]})
+            plan = stored.model_copy(
+                update={"beats": _ordered([*carried, *(reused[v.beat] for v in voices)])}
+            )
             logger.info("planner reused the stored plan beats=%d", len(reused))
             await self._store.set_plan(document_id, plan)
             return plan
@@ -173,7 +179,7 @@ class Planner:
             model=model_used,
             shots=shots,
             cards=cards,
-            beats=[beats[v.beat] for v in voices if v.beat in beats],
+            beats=_ordered([*carried, *(beats[v.beat] for v in voices if v.beat in beats)]),
             assets=assets,
         )
         await self._store.set_plan(document_id, plan)
@@ -254,7 +260,7 @@ class Planner:
                 spans = await self._detect(path, self._ffmpeg, self._ffprobe)
                 if ref.checksum:
                     await self._store.put_shots(ref.checksum, spans)
-            label = "MAIN" if kind == "main" else f"F{len(files) + (0 if main else 1)}"
+            label = "MAIN" if kind == "main" else f"F{sum(k.startswith('F') for k in files) + 1}"
             files[label] = path
             handle = handles.get(asset_id) if kind == "footage" else None
             sources.append(f"- {label}: {kind} video" + (f", from {handle}" if handle else ""))
@@ -333,6 +339,10 @@ class Planner:
             logger.warning("planner model unavailable; soundbites only")
             return [], None
         return answers, self._model.model_used
+
+
+def _ordered(beats: list[BeatPlan]) -> list[BeatPlan]:
+    return sorted(beats, key=lambda beat: BEAT_ORDER.index(beat.beat))
 
 
 def _merged(phrase: PlanPhrase, answer: PhraseAnswer | None) -> PlanPhrase:

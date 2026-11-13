@@ -525,3 +525,12 @@ def test_a_credit_names_its_beat_and_stays_when_another_beat_is_recut() -> None:
     )
     again = styled(once, B, assignments={"main": main_plan}, recut={"main"})
     assert [c.clip_id for c in text_clips(again, "credit")] == [credit.clip_id]
+
+
+def test_a_card_is_not_taken_away_when_its_beat_shows_nothing() -> None:
+    before = narrated()
+    beats = dict(B.beats)
+    beats["reactions"] = beats["reactions"].model_copy(update={"use": False})
+    off = B.model_copy(update={"beats": beats})
+    after = styled(before, off, assignments={"reactions": reactions_plan(before)})
+    assert len(positioned_cards(after)) == len(positioned_cards(before))

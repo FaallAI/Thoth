@@ -39,7 +39,13 @@ async def _run(*command: str) -> tuple[int, str, str]:
     process = await asyncio.create_subprocess_exec(
         *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
-    out, err = await process.communicate()
+    try:
+        out, err = await process.communicate()
+    except asyncio.CancelledError:
+        # The planner's deadline passed: the command must not keep the CPU busy after it.
+        process.kill()
+        await process.wait()
+        raise
     return process.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
 
 

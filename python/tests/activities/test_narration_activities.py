@@ -740,3 +740,24 @@ def test_write_draft_survives_a_planner_timeout(monkeypatch: pytest.MonkeyPatch)
     built.planner = SlowPlanner(seconds=5.0)
     written = narrate_once(built, seen)
     assert written.style is not None and written.style.template_id == "style_b"
+
+
+def test_a_hand_edited_beat_is_not_planned(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.activities import narration
+    from thoth_control_plane.domain.planner import DraftPlan
+
+    seen: list[list[str]] = []
+
+    class Recording(SlowPlanner):
+        async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+            seen.append([v.beat for v in voices])
+            return DraftPlan()
+
+    built, written = styled_ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(NarrationActivities(built).voice(STEP))
+    voiced = [v.beat for v in run(written["store"].get_voices(STEP.document_id))]
+    monkeypatch.setattr(narration, "edited_beats", lambda *_args: [voiced[0]])
+    built.planner = Recording()
+    run(NarrationActivities(built).write_draft(NarrationWriteInput(**STEP.model_dump())))
+    assert seen == [voiced[1:]]
