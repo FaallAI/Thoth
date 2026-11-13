@@ -15,7 +15,7 @@ from typing import Literal
 from pydantic import Field
 
 from thoth_control_plane.domain.models import StrictModel
-from thoth_control_plane.domain.narration import BeatId
+from thoth_control_plane.domain.narration import BeatId, TranscriptSegment
 from thoth_control_plane.voice.ports import WordTiming
 
 #: A phrase is at least this long before punctuation or the cap may close it (spec 5.1).
@@ -23,6 +23,13 @@ MIN_PHRASE_SECONDS = 0.9
 #: A phrase closes before the next word would take it past this (spec 5.1).
 MAX_PHRASE_SECONDS = 2.4
 _CLOSES = re.compile(r"[,.?!;:]$")
+#: Words that say nothing about the picture; left out of soundbite matching (trial, 2026-11-13).
+STOP_WORDS: frozenset[str] = frozenset(
+    "yang dan di ke dari ini itu ada aja juga dia nya sih nih kan lagi ya pun saat jadi untuk "
+    "dengan atau sebagai dalam".split()
+)
+#: A soundbite fires when the best main shot shares at least this share of the phrase's words.
+SOUNDBITE_SHARE = 0.5
 
 
 class PlanShot(StrictModel):
@@ -127,3 +134,35 @@ def reuse_picks(
             )
         )
     return out
+
+
+def shot_speech(transcript: Sequence[TranscriptSegment], start: float, end: float) -> str:
+    """The sentences a shot really carries: each covers >= 1 s, or half the shot, of it. A sliver
+    at a cut belongs to the next shot (trial, 2026-11-13: the model picked the shot before)."""
+    need = min(1.0, 0.5 * (end - start))
+    return " ".join(
+        segment.text
+        for segment in transcript
+        if min(end, segment.end_seconds) - max(start, segment.start_seconds) >= need
+    )
+
+
+def _content(text: str) -> set[str]:
+    return {
+        word
+        for word in re.findall(r"[a-z0-9]+", text.lower())
+        if word not in STOP_WORDS and len(word) > 1
+    }
+
+
+def soundbite(text: str, main_shots: Sequence[PlanShot]) -> list[str]:
+    """The main shots saying the phrase, in time order; empty when none says enough of it."""
+    words = _content(text)
+    if len(words) < 2:
+        return []
+    scored = [(len(words & _content(shot.said)) / len(words), shot) for shot in main_shots]
+    best = max((score for score, _ in scored), default=0.0)
+    if best < SOUNDBITE_SHARE:
+        return []
+    chosen = sorted((shot for score, shot in scored if score == best), key=lambda s: s.start_seconds)
+    return [shot.shot_id for shot in chosen]

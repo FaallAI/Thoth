@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+from thoth_control_plane.domain.narration import TranscriptSegment
 from thoth_control_plane.domain.planner import (
     BeatPlan,
     PlanPhrase,
+    PlanShot,
     reuse_picks,
+    shot_speech,
+    soundbite,
     split_phrases,
     words_key,
 )
 from thoth_control_plane.voice.ports import WordTiming
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "planner"
 
 
 def w(text: str, start: float, end: float) -> WordTiming:
@@ -68,3 +77,64 @@ def test_reuse_maps_picks_by_word_overlap() -> None:
     assert [p.overlay for p in out] == [None, "C2"]
     assert [(p.first_word, p.last_word) for p in out] == [(0, 2), (3, 7)]
     assert [p.text for p in out] == ["0 1 2", "3 4 5 6 7"]
+
+
+SEGS = [
+    TranscriptSegment(text="A", start_seconds=0.9, end_seconds=20.4),
+    TranscriptSegment(text="B", start_seconds=20.4, end_seconds=32.1),
+]
+
+
+def test_a_sliver_at_a_cut_is_not_the_shots_speech() -> None:
+    assert shot_speech(SEGS, 17.9, 20.9) == "A"
+    assert shot_speech(SEGS, 20.9, 23.9) == "B"
+    assert shot_speech(SEGS, 19.0, 22.0) == "A B"
+    assert shot_speech(SEGS, 40.0, 41.0) == ""
+
+
+def _main(shot_id: str, said: str, start: float = 0.0) -> PlanShot:
+    return PlanShot(
+        shot_id=shot_id, asset_id="m", source="main", start_seconds=start, end_seconds=start + 1, said=said
+    )
+
+
+def test_soundbite_needs_two_content_words_and_half_overlap() -> None:
+    shots = [_main("S25", "Penjilat nasional.", 0.0), _main("S3", "Tobat, TG!", 1.0)]
+    assert soundbite("penjilat nasional.", shots) == ["S25"]
+    assert soundbite("nah.", shots) == []
+    assert soundbite("sampai ada yang menyebutnya sebagai", shots) == []
+
+
+def test_soundbite_returns_every_best_shot_in_time_order() -> None:
+    shots = [_main("S26", "Penjilat nasional.", 5.0), _main("S25", "Penjilat nasional.", 4.0)]
+    assert soundbite("penjilat nasional", shots) == ["S25", "S26"]
+
+
+def fixture_soundbite_score() -> tuple[int, int]:
+    """(fired, hit): phrases where a soundbite fires, and those hitting the operator's blind pick."""
+    fired = hit = 0
+    for path in sorted(FIXTURES.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        shots = [
+            PlanShot(
+                shot_id=s["shot"],
+                asset_id=s["asset_id"],
+                source=s["source"],
+                start_seconds=s["start"],
+                end_seconds=s["end"],
+                said=s["said"],
+            )
+            for s in data["shots"]
+            if s["source"] == "main"
+        ]
+        for phrase in data["phrases"]:
+            picked = soundbite(phrase["text"], shots)
+            if picked:
+                fired += 1
+                hit += bool(set(picked) & set(data["blind"][phrase["id"]]["own"]))
+    return fired, hit
+
+
+def test_soundbite_hits_the_operators_blind_pick_on_the_fixtures() -> None:
+    fired, hit = fixture_soundbite_score()
+    assert fired >= 12 and hit >= 12, (fired, hit)

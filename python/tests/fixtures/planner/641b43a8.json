@@ -1,0 +1,967 @@
+{
+ "document": "641b43a8",
+ "shots": [
+  {
+   "shot": "S1",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 0.0,
+   "end": 2.99,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S2",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 2.99,
+   "end": 5.98,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S3",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 5.98,
+   "end": 8.98,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S4",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 8.98,
+   "end": 11.97,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S5",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 11.97,
+   "end": 14.96,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S6",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 14.96,
+   "end": 17.95,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S7",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 17.95,
+   "end": 20.95,
+   "said": "Saya menghormati seluruh aspirasi, kritik, dan saran dari masyarakat terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S8",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 20.95,
+   "end": 23.94,
+   "said": "Saya tidak ingin dinamika yang terjadi saat ini menjadi polemik politik yang berkepanjangan.",
+   "handle": null
+  },
+  {
+   "shot": "S9",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 23.94,
+   "end": 26.93,
+   "said": "Saya tidak ingin dinamika yang terjadi saat ini menjadi polemik politik yang berkepanjangan.",
+   "handle": null
+  },
+  {
+   "shot": "S10",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 26.93,
+   "end": 29.92,
+   "said": "Saya tidak ingin dinamika yang terjadi saat ini menjadi polemik politik yang berkepanjangan.",
+   "handle": null
+  },
+  {
+   "shot": "S11",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 29.92,
+   "end": 32.92,
+   "said": "Saya tidak ingin dinamika yang terjadi saat ini menjadi polemik politik yang berkepanjangan.",
+   "handle": null
+  },
+  {
+   "shot": "S12",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 32.92,
+   "end": 35.91,
+   "said": "Seperti teman-teman media ketahui, tadi pagi saya bertemu dengan Bapak Presiden.",
+   "handle": null
+  },
+  {
+   "shot": "S13",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 35.91,
+   "end": 38.9,
+   "said": "Seperti teman-teman media ketahui, tadi pagi saya bertemu dengan Bapak Presiden.",
+   "handle": null
+  },
+  {
+   "shot": "S14",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 38.9,
+   "end": 41.89,
+   "said": "Seperti teman-teman media ketahui, tadi pagi saya bertemu dengan Bapak Presiden.",
+   "handle": null
+  },
+  {
+   "shot": "S15",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 41.89,
+   "end": 44.89,
+   "said": "Pak Presiden ini sudah seperti ayah saya sendiri.",
+   "handle": null
+  },
+  {
+   "shot": "S16",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 44.89,
+   "end": 47.88,
+   "said": "Pak Presiden ini sudah seperti ayah saya sendiri.",
+   "handle": null
+  },
+  {
+   "shot": "S17",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 47.88,
+   "end": 50.87,
+   "said": "Pak Presiden ini sudah seperti ayah saya sendiri.",
+   "handle": null
+  },
+  {
+   "shot": "S18",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 50.87,
+   "end": 53.86,
+   "said": "Pak Presiden ini sudah seperti ayah saya sendiri.",
+   "handle": null
+  },
+  {
+   "shot": "S19",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 53.86,
+   "end": 56.86,
+   "said": "Beliau memberikan banyak saran dan masukan terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S20",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 56.86,
+   "end": 59.85,
+   "said": "Beliau memberikan banyak saran dan masukan terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S21",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 59.85,
+   "end": 62.84,
+   "said": "Beliau memberikan banyak saran dan masukan terkait dinamika yang terjadi saat ini.",
+   "handle": null
+  },
+  {
+   "shot": "S22",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 62.84,
+   "end": 65.83,
+   "said": "Salah satu saran beliau itu adalah agar saya tetap fight di PT UN",
+   "handle": null
+  },
+  {
+   "shot": "S23",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 65.83,
+   "end": 68.82,
+   "said": "Salah satu saran beliau itu adalah agar saya tetap fight di PT UN",
+   "handle": null
+  },
+  {
+   "shot": "S24",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 68.82,
+   "end": 71.82,
+   "said": "Salah satu saran beliau itu adalah agar saya tetap fight di PT UN",
+   "handle": null
+  },
+  {
+   "shot": "S25",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 71.82,
+   "end": 74.81,
+   "said": "dengan menghadirkan seluruh dokumen-dokumen dari SD sampai S1.",
+   "handle": null
+  },
+  {
+   "shot": "S26",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 74.81,
+   "end": 77.8,
+   "said": "dengan menghadirkan seluruh dokumen-dokumen dari SD sampai S1.",
+   "handle": null
+  },
+  {
+   "shot": "S27",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 77.8,
+   "end": 80.79,
+   "said": "Dan juga berkoordinasi untuk mengajukan PKDMA.",
+   "handle": null
+  },
+  {
+   "shot": "S28",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 80.79,
+   "end": 83.79,
+   "said": "Dan juga berkoordinasi untuk mengajukan PKDMA.",
+   "handle": null
+  },
+  {
+   "shot": "S29",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 83.79,
+   "end": 86.78,
+   "said": "Dan juga berkoordinasi untuk mengajukan PKDMA.",
+   "handle": null
+  },
+  {
+   "shot": "S30",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 86.78,
+   "end": 89.77,
+   "said": "Itu saja. Terima kasih. Selamat sore teman-teman media.",
+   "handle": null
+  },
+  {
+   "shot": "S31",
+   "source": "main",
+   "asset_id": "asset_38b7b1d9b4364b7994d6ef86d1a5926a",
+   "start": 89.77,
+   "end": 92.76,
+   "said": "Itu saja. Terima kasih. Selamat sore teman-teman media. Terima kasih.",
+   "handle": null
+  },
+  {
+   "shot": "S32",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 0.0,
+   "end": 2.86,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S33",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 2.86,
+   "end": 5.71,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S34",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 5.71,
+   "end": 8.57,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S35",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 8.57,
+   "end": 11.43,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S36",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 11.43,
+   "end": 14.29,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S37",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 14.29,
+   "end": 17.14,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S38",
+   "source": "footage",
+   "asset_id": "asset_23105322074046d0ad7e1d541fb0f5d8",
+   "start": 17.14,
+   "end": 20.0,
+   "said": "",
+   "handle": "@metropolitan.id"
+  },
+  {
+   "shot": "S39",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 0.0,
+   "end": 2.86,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S40",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 2.86,
+   "end": 5.71,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S41",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 5.71,
+   "end": 8.57,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S42",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 8.57,
+   "end": 11.43,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S43",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 11.43,
+   "end": 14.29,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S44",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 14.29,
+   "end": 17.14,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S45",
+   "source": "footage",
+   "asset_id": "asset_6a996aa7badd438ca4cad28081b86e71",
+   "start": 17.14,
+   "end": 20.0,
+   "said": "",
+   "handle": "@kompastv.indonesia"
+  },
+  {
+   "shot": "S46",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 0.0,
+   "end": 2.33,
+   "said": "",
+   "handle": "@bitvonline.com"
+  },
+  {
+   "shot": "S47",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 2.33,
+   "end": 4.67,
+   "said": "",
+   "handle": "@bitvonline.com"
+  },
+  {
+   "shot": "S48",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 4.67,
+   "end": 8.7,
+   "said": "",
+   "handle": "@bitvonline.com"
+  },
+  {
+   "shot": "S49",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 8.7,
+   "end": 12.38,
+   "said": "",
+   "handle": "@bitvonline.com"
+  },
+  {
+   "shot": "S50",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 12.38,
+   "end": 16.07,
+   "said": "",
+   "handle": "@bitvonline.com"
+  },
+  {
+   "shot": "S51",
+   "source": "footage",
+   "asset_id": "asset_26332ed774504b13bd0e4a0a32897ef4",
+   "start": 16.07,
+   "end": 20.0,
+   "said": "",
+   "handle": "@bitvonline.com"
+  }
+ ],
+ "cards": [
+  {
+   "card": "C1",
+   "kind": "comment_card",
+   "asset_id": "asset_2df7fee65b4b482e9c75afa239d9dabc"
+  },
+  {
+   "card": "C2",
+   "kind": "comment_card",
+   "asset_id": "asset_ebb8199152644992a8a7a23d991eab46"
+  },
+  {
+   "card": "C3",
+   "kind": "comment_card",
+   "asset_id": "asset_89e68ee34e3647fc8e0e90ee041ccbbb"
+  }
+ ],
+ "phrases": [
+  {
+   "id": "P1",
+   "beat": "main",
+   "text": "Gibran Rakabuming Raka akhirnya buka suara",
+   "start": 0.0,
+   "end": 2.206
+  },
+  {
+   "id": "P2",
+   "beat": "main",
+   "text": "soal isu pengunduran dirinya.",
+   "start": 2.264,
+   "end": 3.727
+  },
+  {
+   "id": "P3",
+   "beat": "main",
+   "text": "Dia bilang menghormati semua kritik dan saran masyarakat.",
+   "start": 3.971,
+   "end": 7.152
+  },
+  {
+   "id": "P4",
+   "beat": "main",
+   "text": "Gibran nggak mau dinamika ini jadi polemik",
+   "start": 7.361,
+   "end": 9.532
+  },
+  {
+   "id": "P5",
+   "beat": "main",
+   "text": "politik yang panjang.",
+   "start": 9.567,
+   "end": 10.693
+  },
+  {
+   "id": "P6",
+   "beat": "main",
+   "text": "Dia juga cerita baru saja bertemu Presiden Prabowo",
+   "start": 10.937,
+   "end": 13.282
+  },
+  {
+   "id": "P7",
+   "beat": "main",
+   "text": "yang sudah dianggap seperti ayahnya sendiri.",
+   "start": 13.363,
+   "end": 15.65
+  },
+  {
+   "id": "P8",
+   "beat": "main",
+   "text": "Saran dari Presiden adalah agar Gibran tetap",
+   "start": 15.894,
+   "end": 17.995
+  },
+  {
+   "id": "P9",
+   "beat": "main",
+   "text": "berjuang di PTUN dengan membawa",
+   "start": 18.042,
+   "end": 20.027
+  },
+  {
+   "id": "P10",
+   "beat": "main",
+   "text": "semua dokumen pendidikan dari SD",
+   "start": 20.12,
+   "end": 22.082
+  },
+  {
+   "id": "P11",
+   "beat": "main",
+   "text": "sampai S1.",
+   "start": 22.291,
+   "end": 23.638
+  },
+  {
+   "id": "P12",
+   "beat": "evidence",
+   "text": "Kabar ini muncul setelah ada isu bahwa pihak",
+   "start": 0.0,
+   "end": 2.183
+  },
+  {
+   "id": "P13",
+   "beat": "evidence",
+   "text": "istana sudah menyampaikan niatan",
+   "start": 2.252,
+   "end": 4.4
+  },
+  {
+   "id": "P14",
+   "beat": "evidence",
+   "text": "pengunduran diri Gibran ke Presiden",
+   "start": 4.47,
+   "end": 6.444
+  },
+  {
+   "id": "P15",
+   "beat": "evidence",
+   "text": "Prabowo Subianto.",
+   "start": 6.502,
+   "end": 7.941
+  },
+  {
+   "id": "P16",
+   "beat": "reactions",
+   "text": "Netizen pun bereaksi.",
+   "start": 0.0,
+   "end": 0.987
+  },
+  {
+   "id": "P17",
+   "beat": "reactions",
+   "text": "Ada yang bilang suaranya mirip banget sama bapaknya.",
+   "start": 1.022,
+   "end": 3.262
+  },
+  {
+   "id": "P18",
+   "beat": "reactions",
+   "text": "Ada juga yang memohon agar Gibran jangan",
+   "start": 3.471,
+   "end": 5.422
+  },
+  {
+   "id": "P19",
+   "beat": "reactions",
+   "text": "mengundurkan diri.",
+   "start": 5.492,
+   "end": 6.432
+  },
+  {
+   "id": "P20",
+   "beat": "reactions",
+   "text": "Bahkan ada yang merasa arahnya Prabowo ingin",
+   "start": 6.711,
+   "end": 8.858
+  },
+  {
+   "id": "P21",
+   "beat": "reactions",
+   "text": "menendang Gibran.",
+   "start": 8.905,
+   "end": 10.124
+  },
+  {
+   "id": "P22",
+   "beat": "footage",
+   "text": "Kondisi ini penting diperhatikan karena menyangkut",
+   "start": 0.0,
+   "end": 2.241
+  },
+  {
+   "id": "P23",
+   "beat": "footage",
+   "text": "stabilitas politik di pemerintahan kita saat ini.",
+   "start": 2.287,
+   "end": 5.294
+  }
+ ],
+ "answer_v3": {
+  "P1": {
+   "base": [
+    "S1"
+   ],
+   "overlay": []
+  },
+  "P2": {
+   "base": [
+    "S1"
+   ],
+   "overlay": []
+  },
+  "P3": {
+   "base": [
+    "S1"
+   ],
+   "overlay": []
+  },
+  "P4": {
+   "base": [
+    "S8"
+   ],
+   "overlay": []
+  },
+  "P5": {
+   "base": [
+    "S8"
+   ],
+   "overlay": []
+  },
+  "P6": {
+   "base": [
+    "S12"
+   ],
+   "overlay": []
+  },
+  "P7": {
+   "base": [
+    "S15"
+   ],
+   "overlay": []
+  },
+  "P8": {
+   "base": [
+    "S22"
+   ],
+   "overlay": []
+  },
+  "P9": {
+   "base": [
+    "S22"
+   ],
+   "overlay": []
+  },
+  "P10": {
+   "base": [
+    "S25"
+   ],
+   "overlay": []
+  },
+  "P11": {
+   "base": [
+    "S25"
+   ],
+   "overlay": []
+  },
+  "P12": {
+   "base": [
+    "S39"
+   ],
+   "overlay": []
+  },
+  "P13": {
+   "base": [
+    "S39"
+   ],
+   "overlay": []
+  },
+  "P14": {
+   "base": [
+    "S39"
+   ],
+   "overlay": []
+  },
+  "P15": {
+   "base": [
+    "S39"
+   ],
+   "overlay": []
+  },
+  "P16": {
+   "base": [],
+   "overlay": []
+  },
+  "P17": {
+   "base": [],
+   "overlay": [
+    "C1"
+   ]
+  },
+  "P18": {
+   "base": [],
+   "overlay": [
+    "C2"
+   ]
+  },
+  "P19": {
+   "base": [],
+   "overlay": [
+    "C2"
+   ]
+  },
+  "P20": {
+   "base": [],
+   "overlay": [
+    "C3"
+   ]
+  },
+  "P21": {
+   "base": [],
+   "overlay": [
+    "C3"
+   ]
+  },
+  "P22": {
+   "base": [
+    "S31"
+   ],
+   "overlay": []
+  },
+  "P23": {
+   "base": [
+    "S31"
+   ],
+   "overlay": []
+  }
+ },
+ "blind": {
+  "P1": {
+   "own": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S7",
+    "S6",
+    "S9",
+    "S8",
+    "S10"
+   ],
+   "model_ok": null,
+   "v2_pick": "S1"
+  },
+  "P2": {
+   "own": [
+    "C2"
+   ],
+   "model_ok": true,
+   "v2_pick": "S1"
+  },
+  "P3": {
+   "own": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+   ],
+   "model_ok": null,
+   "v2_pick": "S1"
+  },
+  "P4": {
+   "own": [
+    "S8",
+    "S9",
+    "S10",
+    "S11"
+   ],
+   "model_ok": true,
+   "v2_pick": "S7"
+  },
+  "P5": {
+   "own": [
+    "S11",
+    "S10",
+    "S9",
+    "S8"
+   ],
+   "model_ok": null,
+   "v2_pick": "S8"
+  },
+  "P6": {
+   "own": [
+    "S12",
+    "S13",
+    "S14",
+    "S15"
+   ],
+   "model_ok": null,
+   "v2_pick": "S12"
+  },
+  "P7": {
+   "own": [
+    "S16",
+    "S17"
+   ],
+   "model_ok": true,
+   "v2_pick": "S15"
+  },
+  "P8": {
+   "own": [
+    "S19",
+    "S20",
+    "S21"
+   ],
+   "model_ok": true,
+   "v2_pick": "S18"
+  },
+  "P9": {
+   "own": [
+    "S22",
+    "S23",
+    "S24"
+   ],
+   "model_ok": null,
+   "v2_pick": "S22"
+  },
+  "P10": {
+   "own": [
+    "S25",
+    "S26",
+    "S27"
+   ],
+   "model_ok": true,
+   "v2_pick": "S24"
+  },
+  "P11": {
+   "own": [
+    "S26",
+    "S27"
+   ],
+   "model_ok": true,
+   "v2_pick": "S25"
+  },
+  "P12": {
+   "own": [],
+   "model_ok": false,
+   "v2_pick": "S32"
+  },
+  "P13": {
+   "own": [],
+   "model_ok": false,
+   "v2_pick": "S33"
+  },
+  "P14": {
+   "own": [],
+   "model_ok": false,
+   "v2_pick": "S34"
+  },
+  "P15": {
+   "own": [],
+   "model_ok": null,
+   "v2_pick": "S35"
+  },
+  "P16": {
+   "own": [
+    "C2",
+    "C3",
+    "C1"
+   ],
+   "model_ok": true,
+   "v2_pick": "C1"
+  },
+  "P17": {
+   "own": [
+    "C1"
+   ],
+   "model_ok": null,
+   "v2_pick": "C1"
+  },
+  "P18": {
+   "own": [
+    "C2"
+   ],
+   "model_ok": null,
+   "v2_pick": "C2"
+  },
+  "P19": {
+   "own": [
+    "C2"
+   ],
+   "model_ok": null,
+   "v2_pick": "C2"
+  },
+  "P20": {
+   "own": [
+    "C3"
+   ],
+   "model_ok": null,
+   "v2_pick": "C3"
+  },
+  "P21": {
+   "own": [
+    "C3"
+   ],
+   "model_ok": null,
+   "v2_pick": "C3"
+  },
+  "P22": {
+   "own": [],
+   "model_ok": null,
+   "v2_pick": null
+  },
+  "P23": {
+   "own": [],
+   "model_ok": null,
+   "v2_pick": null
+  }
+ }
+}
