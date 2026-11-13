@@ -27,6 +27,7 @@ export function LibraryPanel({
   const { t } = useLocale();
   const [items, setItems] = useState<WorkspaceAsset[] | null>(null);
   const [kind, setKind] = useState<LibraryKind | "all">("all");
+  const [failed, setFailed] = useState<string | null>(null);
   // The function, not the wrapper object, is stable across renders.
   const { listLibrary } = client;
   useEffect(() => {
@@ -73,7 +74,10 @@ export function LibraryPanel({
                     type="button"
                     aria-label={t("library.addToDraft", { name: asset.name })}
                     className="rounded bg-raised px-2 py-0.5 text-xs text-ink"
-                    onClick={() => void client.addLibraryItemToProject(projectId, asset.asset_id).then(onAdd, () => {})}
+                    onClick={() => {
+                      setFailed(null);
+                      void client.addLibraryItemToProject(projectId, asset.asset_id).then(onAdd, () => setFailed(asset.name));
+                    }}
                   >
                     +
                   </button>
@@ -81,6 +85,7 @@ export function LibraryPanel({
               </li>
             ))}
           </ul>
+          {failed ? <p className="text-xs text-danger">{t("library.error.add", { name: failed })}</p> : null}
         </>
       )}
     </section>

@@ -294,3 +294,54 @@ def test_a_kind_change_stays_inside_the_media_family(tmp_path: Path) -> None:
     assert asyncio.run(service.update("ws_a", "lib_hit", kind="backsound")).kind == "backsound"
     assert asyncio.run(service.update("ws_a", "lib_hit", kind="sfx")).kind == "sfx"
     assert asyncio.run(service.update("ws_a", "lib_png", name="Paper")).name == "Paper"
+
+
+def test_a_rename_keeps_slashes_and_dots_but_not_controls(tmp_path: Path) -> None:
+    service, library, _, _ = build(tmp_path, VIDEO_REPORT)
+    stored(library, "lib_hit", "sfx", "audio/mpeg", 1.2)
+    renamed = asyncio.run(service.update("ws_a", "lib_hit", name=" AC/DC v1.5\n "))
+    assert renamed.name == "AC/DC v1.5"
+    assert len(asyncio.run(service.update("ws_a", "lib_hit", name="x" * 300)).name) == 120
+
+
+def test_a_failed_copy_into_a_draft_reads_as_unavailable(tmp_path: Path) -> None:
+    class BrokenAssets:
+        async def ensure_project_asset(self, *_: Any, **__: Any) -> Any:
+            raise OSError("disk full")
+
+    _, library, _, _ = build(tmp_path, VIDEO_REPORT)
+    stored(library, "lib_clip", "clip", "video/mp4", 3.0)
+    service = WorkspaceLibraryService(
+        library, None, canned(VIDEO_REPORT), object(), BrokenAssets(), Path("ffmpeg")
+    )
+    with pytest.raises(LibraryUnavailable):
+        asyncio.run(service.add_to_project("ws_a", "project_a", "lib_clip"))
+
+
+def test_a_duplicate_whose_object_will_not_delete_still_returns_the_kept_item(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service, _, _, _ = build(tmp_path, VIDEO_REPORT)
+    first = asyncio.run(service.upload("ws_a", "video/mp4", chunks_of(MP4), "a.mp4"))
+
+    def stuck(self: Any, location: str) -> None:
+        raise OSError("busy")
+
+    monkeypatch.setattr(LocalMediaStore, "delete", stuck)
+    again = asyncio.run(service.upload("ws_a", "video/mp4", chunks_of(MP4), "b.mp4"))
+    assert again.asset_id == first.asset_id
+
+
+def test_a_cancel_after_the_row_is_stored_keeps_its_object(tmp_path: Path) -> None:
+    service, library, _, root = build(tmp_path, VIDEO_REPORT)
+    keep = library.add
+
+    async def stored_then_cancelled(record: WorkspaceAssetRecord) -> WorkspaceAssetRecord:
+        await keep(record)
+        raise asyncio.CancelledError()
+
+    library.add = stored_then_cancelled  # type: ignore[method-assign]
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(service.upload("ws_a", "video/mp4", chunks_of(MP4), "a.mp4"))
+    (record,) = library.records.values()
+    assert (root / record.location).read_bytes() == MP4

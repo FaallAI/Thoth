@@ -12,7 +12,7 @@ afterEach(cleanup);
 
 function item(asset_id: string, name: string, kind: WorkspaceAsset["kind"], labels: Record<string, unknown> = {}): WorkspaceAsset {
   return {
-    asset_id, name, kind, labels, workspace_id: "ws_a", media_type: kind === "clip" ? "video/mp4" : "audio/mpeg",
+    asset_id, name, kind, labels, workspace_id: "ws_a", media_type: kind === "clip" ? "video/mp4" : kind === "image" ? "image/png" : "audio/mpeg",
     checksum: `sha256:${asset_id}`, duration_seconds: 1.5, width: null, height: null, has_audio: true,
     created_at: "2026-11-13T00:00:00Z",
   };
@@ -100,4 +100,40 @@ test("says the library is unavailable when it cannot be listed", async () => {
   api.listLibrary.mockImplementation(async () => { throw new StudioImportRequestError(503, "library_unavailable"); });
   await act(async () => { render(<AssetsPage client={api as never} />); });
   expect(screen.getByText("The asset library is unavailable right now.")).toBeTruthy();
+});
+
+test("deletes only the selected items the filter still shows", async () => {
+  const api = client([item("lib_1", "Vine Boom", "sfx"), item("lib_2", "Yea Boi", "clip")]);
+  await act(async () => { render(<AssetsPage client={api as never} />); });
+  fireEvent.click(screen.getByLabelText("Select Vine Boom"));
+  fireEvent.click(screen.getByLabelText("Select Yea Boi"));
+  fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete selected (1)" })); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Delete assets" })); });
+
+  expect(api.deleteLibraryItem.mock.calls.map((call) => call[0])).toEqual(["lib_2"]);
+  fireEvent.click(screen.getByRole("button", { name: "All" }));
+  const rows = within(screen.getByRole("list", { name: "Library" })).getAllByRole("listitem");
+  expect(rows.map((row) => row.getAttribute("data-name"))).toEqual(["Vine Boom"]);
+});
+
+test("offers only the kinds that fit each item's media", async () => {
+  const api = client([item("lib_1", "Vine Boom", "sfx"), item("lib_2", "Yea Boi", "clip"), item("lib_3", "Paper", "image")]);
+  await act(async () => { render(<AssetsPage client={api as never} />); });
+  const options = (name: string) =>
+    within(screen.getByLabelText(`Kind of ${name}`)).getAllByRole("option").map((option) => option.textContent);
+
+  expect(options("Vine Boom")).toEqual(["SFX", "Backsound"]);
+  expect(options("Yea Boi")).toEqual(["Clips"]);
+  expect(options("Paper")).toEqual(["Images"]);
+});
+
+test("says when a change was not saved", async () => {
+  const api = client([item("lib_1", "Vine Boom", "sfx")]);
+  api.updateLibraryItem.mockImplementation(async () => { throw new StudioImportRequestError(422, "kind_mismatch"); });
+  await act(async () => { render(<AssetsPage client={api as never} />); });
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Kind of Vine Boom"), { target: { value: "backsound" } });
+  });
+  expect(screen.getByText("The change was not saved. Try again.")).toBeTruthy();
 });

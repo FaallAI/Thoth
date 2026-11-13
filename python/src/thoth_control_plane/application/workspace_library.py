@@ -85,12 +85,15 @@ def library_kind(
     return "sfx" if (duration_seconds or 0.0) <= SFX_MAX_SECONDS else "backsound"
 
 
+def clean_name(text: str) -> str:
+    """A name as typed, without controls, trimmed to `NAME_MAX`; slashes and dots stay."""
+    return _CONTROL.sub("", text).strip()[:NAME_MAX].strip() or "untitled"
+
+
 def display_name(file_name: str) -> str:
     """The name shown for an upload: its last path segment, without extension or controls."""
     base = PureWindowsPath(file_name.replace("/", "\\")).name
-    stem = base.rsplit(".", 1)[0] if "." in base else base
-    cleaned = _CONTROL.sub("", stem).strip()[:NAME_MAX].strip()
-    return cleaned or "untitled"
+    return clean_name(base.rsplit(".", 1)[0] if "." in base else base)
 
 
 async def _file_chunks(path: Path) -> AsyncIterator[bytes]:
@@ -161,7 +164,7 @@ class WorkspaceLibraryService:
         labels: dict[str, object] | None = None,
         kind: LibraryKind | None = None,
     ) -> WorkspaceAsset:
-        clean = None if name is None else display_name(name + ".x")
+        clean = None if name is None else clean_name(name)
         if kind is not None:
             record = await self._repo("get", workspace_id, asset_id)
             if record is None:
@@ -199,6 +202,7 @@ class WorkspaceLibraryService:
         except Exception as error:
             raise LibraryUnavailable() from error
         location: str | None = None
+        adding = False
         try:
             if not upload_type.signature(received.head):
                 raise EditorAssetMediaInvalid("media_type_mismatch")
@@ -241,10 +245,16 @@ class WorkspaceLibraryService:
                 has_audio=facts.has_audio,
                 created_at=datetime.now(UTC),
             )
+            adding = True
             kept = await self._repo("add", WorkspaceAssetRecord(asset=asset, location=location))
+            adding = False
             if kept.asset.asset_id != asset_id:
-                # The same file is already in this workspace: keep the one stored first.
-                await asyncio.to_thread(self._media.delete, location)
+                # The same file is already in this workspace: keep the one stored first. A
+                # leftover object only costs storage, so the upload still succeeds.
+                try:
+                    await asyncio.to_thread(self._media.delete, location)
+                except Exception:
+                    logger.warning("library dedupe left an object workspace=%s", workspace_id)
             logger.info(
                 "library upload workspace=%s asset=%s kind=%s new=%s",
                 workspace_id,
@@ -254,7 +264,10 @@ class WorkspaceLibraryService:
             )
             return kept.asset
         except BaseException as error:
-            if location is not None:
+            # Cancelled mid-add, the row may already be committed: keep its object, since a
+            # leftover object only costs storage and a row without one is a broken item.
+            committed_maybe = adding and not isinstance(error, Exception)
+            if location is not None and not committed_maybe:
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(self._media.delete, location)
             if isinstance(error, (EditorAssetMediaInvalid, LibraryUnavailable)) or not isinstance(
@@ -294,14 +307,18 @@ class WorkspaceLibraryService:
         if self._assets is None:
             raise LibraryUnavailable()
         upload_type = UPLOAD_TYPES[record.asset.media_type]
-        return await self._assets.ensure_project_asset(
-            project_id,
-            location=record.location,
-            checksum=record.asset.checksum,
-            media_type=record.asset.media_type,
-            kind=upload_type.kind,
-            suffix=upload_type.suffix,
-        )
+        try:
+            return await self._assets.ensure_project_asset(
+                project_id,
+                location=record.location,
+                checksum=record.asset.checksum,
+                media_type=record.asset.media_type,
+                kind=upload_type.kind,
+                suffix=upload_type.suffix,
+            )
+        except Exception as error:
+            logger.warning("library copy into a draft failed: %s", type(error).__name__)
+            raise LibraryUnavailable() from error
 
 
 @dataclass

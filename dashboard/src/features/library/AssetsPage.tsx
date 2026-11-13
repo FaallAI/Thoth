@@ -45,6 +45,13 @@ function tags(asset: WorkspaceAsset): string[] {
   return Array.isArray(raw) ? raw.map(String) : [];
 }
 
+/** The kinds an item may take, as the server allows them: only short audio may be an SFX. */
+function kindsFor(asset: WorkspaceAsset): LibraryKind[] {
+  if (asset.media_type.startsWith("image/")) return ["image"];
+  if (asset.media_type.startsWith("video/")) return ["clip"];
+  return (asset.duration_seconds ?? 0) <= 15 ? ["sfx", "backsound"] : ["backsound"];
+}
+
 function searchable(asset: WorkspaceAsset): string {
   const values = Object.values(asset.labels ?? {}).flatMap((value) => (Array.isArray(value) ? value : [value]));
   return [asset.name, ...values.filter((value) => typeof value === "string")].join(" ").toLowerCase();
@@ -72,8 +79,16 @@ function Row({
   const { t } = useLocale();
   const [name, setName] = useState(asset.name);
   const [labels, setLabels] = useState(tags(asset).join(", "));
+  const [unsaved, setUnsaved] = useState(false);
   const save = (patch: Parameters<LibraryClient["updateLibraryItem"]>[1]) =>
-    void client.updateLibraryItem(asset.asset_id, patch).then(onChange, () => {});
+    void client.updateLibraryItem(asset.asset_id, patch).then(
+      (changed) => {
+        setUnsaved(false);
+        onChange(changed);
+      },
+      () => setUnsaved(true),
+    );
+  const kinds = kindsFor(asset);
   return (
     <li data-name={asset.name} className="flex flex-wrap items-center gap-3 rounded-[10px] bg-surface p-3">
       <input
@@ -110,9 +125,10 @@ function Row({
         aria-label={t("library.kindOf", { name: asset.name })}
         className="rounded bg-raised px-2 py-1 text-sm text-ink"
         value={asset.kind}
+        disabled={kinds.length < 2}
         onChange={(event) => save({ kind: event.target.value as LibraryKind })}
       >
-        {KINDS.filter((entry) => entry.kind !== "all").map((entry) => (
+        {KINDS.filter((entry) => kinds.includes(entry.kind as LibraryKind)).map((entry) => (
           <option key={entry.kind} value={entry.kind}>
             {t(entry.label)}
           </option>
@@ -121,6 +137,7 @@ function Row({
       {asset.duration_seconds != null ? (
         <span className="font-mono text-xs text-muted-ink">{asset.duration_seconds.toFixed(1)} s</span>
       ) : null}
+      {unsaved ? <p className="w-full text-xs text-danger">{t("library.error.save")}</p> : null}
     </li>
   );
 }
@@ -146,6 +163,8 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
       (asset) => (kind === "all" || asset.kind === kind) && (!needle || searchable(asset).includes(needle)),
     );
   }, [items, kind, query]);
+  // Only what the filter shows is deleted: a hidden selection never goes along unseen.
+  const picked = shown.filter((asset) => selected.has(asset.asset_id)).map((asset) => asset.asset_id);
 
   async function upload(files: File[]) {
     const start = Date.now();
@@ -170,7 +189,7 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
   }
 
   async function removeSelected() {
-    const ids = [...selected];
+    const ids = picked;
     for (const id of ids) {
       try {
         await client.deleteLibraryItem(id);
@@ -179,7 +198,7 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
         // Kept in the list: the next reload shows whether it is still there.
       }
     }
-    setSelected(new Set());
+    setSelected((current) => new Set([...current].filter((id) => !ids.includes(id))));
   }
 
   if (failed) return <EmptyState>{t("library.unavailable")}</EmptyState>;
@@ -242,8 +261,8 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <Button variant="destructive" size="sm" disabled={selected.size === 0} onClick={() => setConfirming(true)}>
-          {t("library.deleteSelected", { count: selected.size })}
+        <Button variant="destructive" size="sm" disabled={picked.length === 0} onClick={() => setConfirming(true)}>
+          {t("library.deleteSelected", { count: picked.length })}
         </Button>
       </div>
       {items.length === 0 ? (
@@ -274,7 +293,7 @@ export function AssetsPage({ client = controlPlaneClient }: { client?: LibraryCl
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={t("library.deleteTitle", { count: selected.size })}
+        title={t("library.deleteTitle", { count: picked.length })}
         description={t("library.deleteBody")}
         confirmLabel={t("library.deleteConfirm")}
         onConfirm={() => void removeSelected()}

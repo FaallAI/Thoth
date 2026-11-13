@@ -51,3 +51,13 @@ test("says the library is empty and points to the Assets page", async () => {
   expect(screen.getByText(/Your library is empty: upload files on the/)).toBeTruthy();
   expect(screen.getByRole("link", { name: "Assets page" }).getAttribute("href")).toBe("/assets");
 });
+
+test("says when an item could not be added to the draft", async () => {
+  const api = client([item("lib_1", "Vine Boom", "sfx")]);
+  api.addLibraryItemToProject.mockImplementation(async () => { throw new Error("503"); });
+  const onAdd = mock((_asset: EditorAsset) => {});
+  await act(async () => { render(<LibraryPanel client={api} projectId="p" onAdd={onAdd} />); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add Vine Boom to the draft" })); });
+  expect(onAdd).not.toHaveBeenCalled();
+  expect(screen.getByText("Vine Boom could not be added to the draft. Try again.")).toBeTruthy();
+});
