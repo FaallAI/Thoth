@@ -60,7 +60,10 @@ def export(trial: Path, out: Path) -> None:
                 }
                 for s in t["shots"]
             ],
-            "cards": [{"card": c["shot"], "kind": c["kind"], "asset_id": c["asset_id"]} for c in t["cards"]],
+            "cards": [
+                {"card": c["shot"], "kind": c["kind"], "asset_id": c["asset_id"]}
+                for c in t["cards"]
+            ],
             "phrases": [
                 {k: p[k] for k in ("id", "beat", "text", "start", "end")} for p in t["phrases"]
             ],
@@ -70,7 +73,9 @@ def export(trial: Path, out: Path) -> None:
             },
             "blind": blind,
         }
-        (out / f"{doc}.json").write_text(json.dumps(fixture, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        (out / f"{doc}.json").write_text(
+            json.dumps(fixture, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
         print(doc, len(fixture["phrases"]), "phrases")
 
 

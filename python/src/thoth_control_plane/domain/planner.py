@@ -25,8 +25,33 @@ MAX_PHRASE_SECONDS = 2.4
 _CLOSES = re.compile(r"[,.?!;:]$")
 #: Words that say nothing about the picture; left out of soundbite matching (trial, 2026-11-13).
 STOP_WORDS: frozenset[str] = frozenset(
-    "yang dan di ke dari ini itu ada aja juga dia nya sih nih kan lagi ya pun saat jadi untuk "
-    "dengan atau sebagai dalam".split()
+    {
+        "yang",
+        "dan",
+        "di",
+        "ke",
+        "dari",
+        "ini",
+        "itu",
+        "ada",
+        "aja",
+        "juga",
+        "dia",
+        "nya",
+        "sih",
+        "nih",
+        "kan",
+        "lagi",
+        "ya",
+        "pun",
+        "saat",
+        "jadi",
+        "untuk",
+        "dengan",
+        "atau",
+        "sebagai",
+        "dalam",
+    }
 )
 #: A soundbite fires when the best main shot shares at least this share of the phrase's words.
 SOUNDBITE_SHARE = 0.5
@@ -164,5 +189,7 @@ def soundbite(text: str, main_shots: Sequence[PlanShot]) -> list[str]:
     best = max((score for score, _ in scored), default=0.0)
     if best < SOUNDBITE_SHARE:
         return []
-    chosen = sorted((shot for score, shot in scored if score == best), key=lambda s: s.start_seconds)
+    chosen = sorted(
+        (shot for score, shot in scored if score == best), key=lambda shot: shot.start_seconds
+    )
     return [shot.shot_id for shot in chosen]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from itertools import pairwise
 from pathlib import Path
 
 from thoth_control_plane.domain.narration import TranscriptSegment
@@ -45,7 +46,7 @@ def test_split_caps_a_phrase_near_2_4_seconds() -> None:
     assert all(words[b].end_seconds - words[a].start_seconds <= 2.4 + 0.5 for a, b in ranges)
     assert len(ranges) >= 2
     assert ranges[0][0] == 0 and ranges[-1][1] == 9
-    assert all(b + 1 == c for (_, b), (c, _) in zip(ranges, ranges[1:], strict=False))
+    assert all(b + 1 == c for (_, b), (c, _) in pairwise(ranges))
 
 
 def test_split_folds_a_short_tail_into_the_phrase_before() -> None:
@@ -94,7 +95,12 @@ def test_a_sliver_at_a_cut_is_not_the_shots_speech() -> None:
 
 def _main(shot_id: str, said: str, start: float = 0.0) -> PlanShot:
     return PlanShot(
-        shot_id=shot_id, asset_id="m", source="main", start_seconds=start, end_seconds=start + 1, said=said
+        shot_id=shot_id,
+        asset_id="m",
+        source="main",
+        start_seconds=start,
+        end_seconds=start + 1,
+        said=said,
     )
 
 
@@ -111,7 +117,7 @@ def test_soundbite_returns_every_best_shot_in_time_order() -> None:
 
 
 def fixture_soundbite_score() -> tuple[int, int]:
-    """(fired, hit): phrases where a soundbite fires, and those hitting the operator's blind pick."""
+    """(fired, hit): phrases a soundbite fires on, and those hitting the operator's blind pick."""
     fired = hit = 0
     for path in sorted(FIXTURES.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
