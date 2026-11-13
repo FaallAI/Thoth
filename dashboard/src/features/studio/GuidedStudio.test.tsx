@@ -428,7 +428,7 @@ async function renderTimelineStudio(
   return { view, patchEditDocument };
 }
 
-test("Timeline keeps the sound effects in the asset column, never a workstation cell of their own", async () => {
+test("Timeline keeps the workspace library in the asset column, never a workstation cell of its own", async () => {
   // A fragment in the `contents` region made the SFX list a grid cell: it took the centre column,
   // and pushed the preview, timeline and inspector one cell along (audit, 2026-11-01).
   const { upgradedTextDocument } = await import("./timeline-test-fixtures");
@@ -439,7 +439,8 @@ test("Timeline keeps the sound effects in the asset column, never a workstation 
       client={{
         ...promptClientBase,
         ...advancedClientBase,
-        listSfx: mock(async () => []),
+        listLibrary: mock(async () => []),
+        addLibraryItemToProject: mock(async () => { throw new Error("unused"); }),
         getEditDocument: mock(async () => document),
         patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
       }}
@@ -449,11 +450,18 @@ test("Timeline keeps the sound effects in the asset column, never a workstation 
     />,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
-  const sfx = await screen.findByRole("region", { name: "Sound effects" });
-  const column = screen.getByLabelText("Asset library").parentElement!;
+  // The column shows one list at a time, so each gets the column's full height.
+  expect(screen.getByRole("region", { name: "Asset library" })).toBeDefined();
+  expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+  fireEvent.click(screen.getByRole("tab", { name: "Library" }));
+  const sfx = await screen.findByRole("region", { name: "Library" });
+  expect(screen.queryByRole("region", { name: "Asset library" })).toBeNull();
+  const column = screen.getByLabelText("Asset library").closest("[data-asset-column]")!;
 
   expect(column.contains(sfx)).toBe(true);
   expect(column.id).not.toBe("studio-region-scenes");
+  fireEvent.click(screen.getByRole("tab", { name: "Draft assets" }));
+  expect(screen.getByRole("region", { name: "Asset library" })).toBeDefined();
 });
 
 test("offers Story and Timeline for a version 2 document", async () => {

@@ -50,6 +50,7 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
   - Repository artifacts: **Always English** (code, comments, docstrings, variable names, commit messages, plans, specs, ADRs, issues, and all files under `docs/`).
 - **Git commits:**
   - Write each commit message as one concise subject line, preferably no more than 72 characters.
+  - Start the subject with a Conventional Commits prefix, then a lowercase imperative phrase: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`, `ci:`, `build:` or `chore:`, with an optional scope such as `fix(dashboard):`. Example: `feat: add the workspace asset library`. CHANGELOG, roadmap and deploy records use `docs:`. The operator set this on 2026-11-13; plain-sentence subjects from 2026-10-26 to 2026-11-13 stay as they are.
   - Use exactly one `git commit -m "<subject>"`; do not add a body, detailed description, blank-line continuation, or trailer.
   - Never add `Co-Authored-By` or any AI attribution to a commit message.
 - **Code & schema conventions:**

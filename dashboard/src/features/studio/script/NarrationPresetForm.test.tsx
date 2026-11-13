@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { StudioImportRequestError, type StoredNarrationPreset } from "@/api/control-plane";
 import { render } from "@/test-render";
 
-import { NarrationPresetForm, SfxLibrary } from "./NarrationPresetForm";
+import { NarrationPresetForm } from "./NarrationPresetForm";
 
 afterEach(cleanup);
 
@@ -41,29 +41,4 @@ test("a preset saved elsewhere first is reported as a conflict", async () => {
   await act(async () => { render(<NarrationPresetForm client={client as never} projectId="p" />); });
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save preset" })));
   expect(screen.getByRole("status").textContent).toBe("Someone saved the preset first. Reload to see it.");
-});
-
-test("the sound effect library lists each entry with its licence, or says it is empty", async () => {
-  const client = { listSfx: mock(async () => [{ sfx_id: "whoosh", file_name: "whoosh.mp3", duration_seconds: 1.2, labels: { licence: "CC0-1.0", category: "transition" } }]) };
-  await act(async () => { render(<SfxLibrary client={client as never} />); });
-  expect(screen.getByText("whoosh")).toBeTruthy();
-  expect(screen.getByText("Licence CC0-1.0")).toBeTruthy();
-  cleanup();
-
-  await act(async () => { render(<SfxLibrary client={{ listSfx: async () => [] } as never} />); });
-  expect(screen.getByText("No licensed sound effects are in the library yet.")).toBeTruthy();
-});
-
-
-test("a library sound effect can be added to the draft", async () => {
-  const onAdd = mock((_asset: unknown) => {});
-  const asset = { asset_id: "asset_sfx" };
-  const client = {
-    listSfx: mock(async () => [{ sfx_id: "whoosh", file_name: "whoosh.mp3", duration_seconds: 1.2, labels: {} }]),
-    addSfxToProject: mock(async () => asset),
-  };
-  await act(async () => { render(<SfxLibrary client={client as never} projectId="p" onAdd={onAdd} />); });
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add whoosh" })));
-  expect(client.addSfxToProject).toHaveBeenCalledWith("p", "whoosh");
-  expect(onAdd).toHaveBeenCalledWith(asset);
 });

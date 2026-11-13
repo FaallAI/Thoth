@@ -60,7 +60,7 @@ import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
 import { NarrationChecking, NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
-import { SfxLibrary } from "./script/NarrationPresetForm";
+import { LibraryPanel } from "./LibraryPanel";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, beatOfClip, computeBeats, type BeatId } from "./story/story_beats";
@@ -106,8 +106,8 @@ type Props = {
         | "revoiceNarrationBeat"
         | "cancelNarration"
         | "restartNarration"
-        | "listSfx"
-        | "addSfxToProject"
+        | "listLibrary"
+        | "addLibraryItemToProject"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -134,6 +134,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Edit pane at a time.
   const [job, setJob] = useState<StudioJob>("edit");
   const [chosenPane, setEditPane] = useState<StudioEditPane>("preview");
+  // Timeline's asset column shows the draft's assets or the workspace library, one at a time.
+  const [assetTab, setAssetTab] = useState<"draft" | "library">("draft");
   const viewport = useStudioViewport();
   const compact = viewport === "phone" || viewport === "tablet";
   const [sceneBoardOpen, setSceneBoardOpen] = useState(true);
@@ -1170,8 +1172,26 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               />
             ) : advanced ? (
               assetClient ? (
-                // One workstation cell: the asset list fills it, the SFX library sits under it.
-                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_fit-content(35%)]">
+                // One workstation cell: tabs switch it between the draft's assets and the workspace
+                // library, so each list gets the full height. Both stay mounted, keeping their state.
+                <div data-asset-column className="flex min-h-0 flex-col">
+                {client.listLibrary && client.addLibraryItemToProject ? (
+                  <div role="tablist" className="flex shrink-0 gap-1 border-r border-border bg-card/60 px-3 pt-2">
+                    {(["draft", "library"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={assetTab === tab}
+                        className={`rounded px-2 py-0.5 text-xs ${assetTab === tab ? "bg-raised text-ink" : "text-muted-ink"}`}
+                        onClick={() => setAssetTab(tab)}
+                      >
+                        {t(tab === "draft" ? "library.tabDraft" : "library.title")}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="flex min-h-0 flex-1 flex-col [&>section]:flex-1" hidden={assetTab !== "draft"}>
                 <AssetLibrary
                   client={assetClient}
                   describe={describeAsset}
@@ -1190,11 +1210,12 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }
                 />
-                {/* The shared SFX library with its labels (spec 2026-10-31, decision 8). */}
-                {client.listSfx ? (
-                  <div className="max-h-64 overflow-auto border-r border-t border-border bg-card/60 p-2">
-                  <SfxLibrary
-                    client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
+                </div>
+                {/* The workspace asset library (spec 2026-11-13). */}
+                {client.listLibrary && client.addLibraryItemToProject ? (
+                  <div className="min-h-0 flex-1 overflow-hidden border-r border-border bg-card/60 p-3" hidden={assetTab !== "library"}>
+                  <LibraryPanel
+                    client={{ listLibrary: client.listLibrary, addLibraryItemToProject: client.addLibraryItemToProject }}
                     projectId={projectId}
                     onAdd={
                       timelineReadOnly

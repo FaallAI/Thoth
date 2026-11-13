@@ -26,7 +26,7 @@ test('1440 Timeline: every tool and the clip inspector fields stay, named in wor
   await app.open(DRAFT);
   await screen.getByRole('button', 'Timeline').tap();
   await expect(screen.getByRole('region', 'Asset library')).toBeVisible();
-  await expect(screen.getByRole('region', 'Sound effects')).toBeVisible();
+  await expect(screen.getByRole('tab', 'Library')).toBeVisible();
   for (const name of ['Move clip to playhead', 'Trim start to playhead', 'Trim end to playhead', 'Split clip at playhead', 'Zoom in', 'Zoom out']) {
     await expect(screen.getByRole('button', name)).toBeVisible();
   }
@@ -213,20 +213,18 @@ test('1440 Timeline: the same player stays through Review and back', async ({ ap
   expect(await browser.evaluate(() => Boolean((window as any).__player?.isConnected))).toBe(true);
 });
 
-test('1280 Timeline: a long sound list leaves Assets its share of the top row', async ({ app, browser, screen }) => {
+test('1280 Timeline: a long library list never squeezes Assets', async ({ app, browser, screen }) => {
   await browser.setViewport({ width: 1280, height: 720 });
   await app.open(DRAFT);
   await screen.getByRole('button', 'Timeline').tap();
-  await expect(screen.getByRole('region', 'Sound effects')).toBeVisible({ timeout: 20000 });
+  await expect(screen.getByRole('tab', 'Library')).toBeVisible({ timeout: 20000 });
+  // The column shows one list at a time (2026-11-13), so the draft's assets keep nearly all of it.
   const share = await browser.evaluate(() => {
-    const sounds = document.querySelector('[aria-label="Sound effects"]')!;
-    const tall = document.createElement('div');
-    tall.style.height = '900px';
-    sounds.appendChild(tall);
     const assets = document.querySelector('[aria-label="Asset library"]')!;
-    return assets.getBoundingClientRect().height / assets.parentElement!.getBoundingClientRect().height;
+    const column = assets.closest('[data-asset-column]')!;
+    return assets.getBoundingClientRect().height / column.getBoundingClientRect().height;
   });
-  expect(share).toBeGreaterThanOrEqual(0.6);
+  expect(share).toBeGreaterThanOrEqual(0.85);
 });
 
 for (const mode of ['Story', 'Review'] as const) {

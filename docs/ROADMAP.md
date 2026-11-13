@@ -111,6 +111,7 @@ component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDue
 | 4. Template gallery | Templates are private to their workspace; the operator can see, use and copy every template; a template the operator verifies can be published to every workspace with its creator credited, **only after the creator approves**; published versions are frozen snapshots; reference videos are never published | Not started |
 | 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
 | 6. Shared SFX and assets | SFX live in MinIO/S3 with labels; uploaded SFX follow the template gallery: private to the workspace, operator review, uploader notified and approving, then available to every workspace with the uploader credited | Bundled SFX in MinIO come with auto-draft's first milestone; uploads not started |
+| 6a. Workspace asset library (added 2026-11-13) | An Assets page per workspace: bulk upload, rename, labels, preview and delete of SFX, clips, backsound and images, private to the workspace and with no licence gate; Studio's Library panel copies an item into the draft; the script writer picks SFX from the draft's own workspace; the global seed-only SFX list retired | Built on `feat/workspace-assets` (spec and plan 2026-11-13); push, deploy and the import of `assets/` into the operator's workspace pending |
 
 ## Reference-faithful editing track (added 2026-11-12)
 
@@ -137,7 +138,7 @@ The operator agreed this order:
 
 | Step | Scope | Status |
 |---|---|---|
-| 1. Narration loudness | Every narration voice normalised to −14 LUFS, level with most TikTok videos (true peak −1.5 dB) when stored, by ffmpeg two-pass `loudnorm`, linear; length and word timings unchanged | Deployed to stage1 from PR #129 (`42b843a8`, 2026-11-12); merge pending |
+| 1. Narration loudness | Every narration voice normalised to −14 LUFS, level with most TikTok videos (true peak −1.5 dB) when stored, by ffmpeg two-pass `loudnorm`, linear; length and word timings unchanged | Merged as `d90cf8bb` (PR #129, 2026-11-12); stage1 runs `42b843a8` |
 | 2. Planner, stage 1 | Using materials we already have: a soundbite of the person taken from the main video's transcript and used as a refrain, cuts on phrase starts, fewer camera moves, a credit per clip | Not started; a short design first |
 | 3. Footage library | Per event and searched by moment. Fed by trusted accounts on every platform, keyword search, reverse visual search from the main video's frames, OCR of source credits, and earlier runs' downloads. Copies are merged by perceptual hash, and the most original copy is kept. Each main post is read into a "context card" by a model; relevance is judged from a candidate's content, not its metadata. | Not started; needs a written design, after the research report's seven validation tests and a context-card test on three earlier random posts |
 | 4. Stressed narration delivery | The script marks stressed words, and the voice settings are tuned to be more expressive | Not started; first one short paid voice sample, with the operator's approval |

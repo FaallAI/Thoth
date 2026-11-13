@@ -23,7 +23,6 @@ from thoth_control_plane.domain.narration import (
     NarrationScript,
     NarrationState,
     ScriptBeat,
-    SfxEntry,
     StoredPreset,
     VoiceEstimate,
 )
@@ -93,18 +92,6 @@ class Store:
             raise NarrationPresetConflict()
         self.preset = StoredPreset(preset=preset, revision=base_revision + 1)
         return self.preset
-
-    async def list_sfx(self) -> list[SfxEntry]:
-        return [
-            SfxEntry(
-                sfx_id="whoosh",
-                file_name="whoosh.mp3",
-                location="sfx/secret-key.mp3",
-                checksum="sha256:" + "a" * 64,
-                duration_seconds=1.0,
-                labels={"licence": "CC0-1.0"},
-            )
-        ]
 
 
 class Gateway:
@@ -286,7 +273,7 @@ async def test_another_projects_narration_is_not_found() -> None:
     assert response.status_code in {403, 404}
 
 
-async def test_the_preset_saves_with_its_revision_and_the_sfx_library_hides_locations() -> None:
+async def test_the_preset_saves_with_its_revision() -> None:
     store, gateway = Store(), Gateway()
     async with build(store, gateway) as api:
         read = await api.get("/api/v1/projects/project_001/narration-preset", headers=AUTH)
@@ -300,18 +287,9 @@ async def test_the_preset_saves_with_its_revision_and_the_sfx_library_hides_loca
             json={"base_revision": 0, "preset": read.json()["preset"]},
             headers=AUTH,
         )
-        sfx = await api.get("/api/v1/sfx", headers=AUTH)
 
     assert read.json()["revision"] == 0 and saved.json()["revision"] == 1
     assert (stale.status_code, code(stale)) == (409, "narration_preset_conflict")
-    assert sfx.json() == [
-        {
-            "sfx_id": "whoosh",
-            "file_name": "whoosh.mp3",
-            "duration_seconds": 1.0,
-            "labels": {"licence": "CC0-1.0"},
-        }
-    ]
 
 
 # --- Final review fixes (C1, I2, I4, re-graded minor 2) ---
@@ -453,36 +431,6 @@ async def test_resolving_an_import_item_waits_for_the_narration() -> None:
             headers=AUTH,
         )
     assert (response.status_code, code(response)) == (409, "narration_in_progress")
-
-
-async def test_a_library_sfx_can_be_added_to_the_draft_project() -> None:
-    from thoth_control_plane.domain.editor_assets import EditorAsset
-
-    store, gateway = Store(), Gateway()
-    client = build(store, gateway)
-    service = client._transport.app.state.narration_service  # type: ignore[attr-defined]
-    added: list[tuple[str, str]] = []
-
-    class Assets:
-        async def ensure_project_asset(self, project_id: str, entry: SfxEntry) -> EditorAsset:
-            added.append((project_id, entry.sfx_id))
-            return EditorAsset(
-                asset_id="asset_sfx",
-                project_id=project_id,
-                kind="audio",
-                media_type="audio/mpeg",
-                validation_state="ready",
-                checksum=entry.checksum,
-                has_audio=True,
-                duration_in_frames=30,
-            )
-
-    service._sfx_assets = Assets()
-    async with client as api:
-        response = await api.post("/api/v1/projects/project_001/sfx/whoosh/asset", headers=AUTH)
-        missing = await api.post("/api/v1/projects/project_001/sfx/airhorn/asset", headers=AUTH)
-    assert response.status_code == 200 and response.json()["asset_id"] == "asset_sfx"
-    assert added == [("project_001", "whoosh")] and missing.status_code == 404
 
 
 async def test_recreating_a_finished_narration_is_its_own_action() -> None:

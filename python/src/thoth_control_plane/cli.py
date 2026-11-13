@@ -641,30 +641,46 @@ def stage1_local_preflight(
     typer.echo("stage 1 local preflight passed")
 
 
-sfx_app = typer.Typer(no_args_is_help=True)
-app.add_typer(sfx_app, name="sfx")
+assets_app = typer.Typer(no_args_is_help=True)
+app.add_typer(assets_app, name="assets")
 
 
-@sfx_app.command("seed")
-def sfx_seed(
-    directory: Annotated[Path, typer.Option("--dir")] = Path("/opt/thoth/assets/sfx"),
+@assets_app.command("import")
+def assets_import(
+    workspace: Annotated[str, typer.Option("--workspace")],
+    directory: Annotated[Path, typer.Option("--dir")],
     catalog: Annotated[Path, typer.Option("--catalog")] = Path(
         "/opt/thoth/assets/asset_catalog.json"
     ),
 ) -> None:
-    """Seed the licensed bundled SFX into object storage and the library (idempotent)."""
-    from thoth_control_plane.application.sfx_library import seed_sfx
+    """Load every media file of one directory into a workspace's asset library (idempotent)."""
+    import functools
+
+    from thoth_control_plane.application.workspace_library import (
+        WorkspaceLibraryService,
+        import_directory,
+    )
+    from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
+    from thoth_control_plane.infrastructure.media_probe import probe_media
     from thoth_control_plane.infrastructure.media_store import build_media_store
-    from thoth_control_plane.infrastructure.narration_store import NarrationStore
+    from thoth_control_plane.infrastructure.workspace_asset_repository import (
+        PostgresWorkspaceAssetRepository,
+    )
 
     settings = Settings()
     if settings.THOTH_EDITOR_DATABASE_URL is None:
         typer.echo("editor_database_not_configured")
         raise typer.Exit(1)
-    store = NarrationStore(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
-    report = asyncio.run(
-        seed_sfx(
-            store, build_media_store(settings), catalog, directory, Path(settings.THOTH_FFMPEG)
-        )
+    media = build_media_store(settings)
+    service = WorkspaceLibraryService(
+        PostgresWorkspaceAssetRepository(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()),
+        LocalArtifactRoot(settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT, media),
+        functools.partial(probe_media, settings.THOTH_FFPROBE),
+        media,
+        None,
+        Path(settings.THOTH_FFMPEG),
     )
-    typer.echo(f"added={report.added} unchanged={report.unchanged} skipped={len(report.skipped)}")
+    report = asyncio.run(import_directory(service, workspace, directory, catalog))
+    for name, code in report.failed:
+        typer.echo(f"failed {name}: {code}")
+    typer.echo(f"added={report.added} unchanged={report.unchanged} failed={len(report.failed)}")
