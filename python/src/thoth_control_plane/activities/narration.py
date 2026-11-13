@@ -503,6 +503,18 @@ class NarrationActivities:
         return NarrationStepResult()
 
 
+async def fetch_planner_asset(
+    assets: Any, media: Any, project_id: str, asset_id: str, directory: Path
+) -> tuple[Path, AssetRef] | None:
+    """One ready project asset fetched for the planner, with its document reference."""
+    record = await assets.get_ready_record(project_id=project_id, asset_id=asset_id)
+    if record is None:
+        return None
+    target = directory / f"{asset_id}{Path(record.artifact_location).suffix}"
+    await asyncio.to_thread(media.fetch, record.artifact_location, target)
+    return target, record.asset.to_asset_ref()
+
+
 def build_narration_activities(settings: Any, media: Any) -> NarrationActivities:
     """The production ports, on the worker's editor database and media store."""
     import functools
@@ -588,12 +600,7 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
     async def fetch_asset(
         project_id: str, asset_id: str, directory: Path
     ) -> tuple[Path, AssetRef] | None:
-        record = await assets.get_ready_record(project_id=project_id, asset_id=asset_id)
-        if record is None:
-            return None
-        target = directory / f"{asset_id}{Path(record.artifact_location).suffix}"
-        await asyncio.to_thread(media.fetch, record.artifact_location, target)
-        return target, record.to_asset_ref()
+        return await fetch_planner_asset(assets, media, project_id, asset_id, directory)
 
     planner = None
     if settings.THOTH_PLANNER_ENABLED:

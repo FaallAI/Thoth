@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from thoth_control_plane.domain.edit_document_v2 import Background, Dim
+from thoth_control_plane.domain.edit_document_v2 import Background, Dim, FitMode
 from thoth_control_plane.domain.models import OpaqueId, StrictModel
 from thoth_control_plane.domain.move_presets import MovePreset
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId
@@ -25,6 +25,9 @@ class BeatLook(StrictModel):
     #: The move for a picture taller than the canvas, a long post or card (spec 5); none: `move`.
     tall_move: MovePreset | None = None
     background: Background = "none"
+    #: How a full-frame shot fills the frame; None keeps its material's own fit. Style B fills it,
+    #: so a landscape source is not a band under the captions (operator, 2026-11-13).
+    fit: FitMode | None = None
     dim: Dim = 0.0
     highlight: bool = False
     arrow: bool = False
@@ -122,7 +125,7 @@ def _a() -> StyleTemplate:
 
 def _b() -> StyleTemplate:
     # Revision 2 (planner stage 1, 2026-11-13): a still camera, as the WinNews references hold.
-    dimmed = BeatLook(move="none", dim=0.45)
+    dimmed = BeatLook(move="none", dim=0.45, fit="cover")
     return StyleTemplate(
         template_id="style_b",
         name="Style B",

@@ -761,3 +761,48 @@ def test_a_hand_edited_beat_is_not_planned(monkeypatch: pytest.MonkeyPatch) -> N
     built.planner = Recording()
     run(NarrationActivities(built).write_draft(NarrationWriteInput(**STEP.model_dump())))
     assert seen == [voiced[1:]]
+
+
+def test_the_planner_fetches_a_real_asset_record(tmp_path: Path) -> None:
+    # Stage1, 2026-11-13: the wiring called record.to_asset_ref(); the record holds the asset.
+    from thoth_control_plane.activities.narration import fetch_planner_asset
+    from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRecord
+
+    record = EditorAssetRecord(
+        asset=EditorAsset(
+            asset_id="asset_footage",
+            project_id="project_001",
+            kind="video",
+            media_type="video/mp4",
+            duration_in_frames=300,
+            width=1280,
+            height=720,
+            has_audio=True,
+            validation_state="ready",
+            checksum="sha256:" + "b" * 64,
+        ),
+        artifact_location="uploads/project_001/asset_footage.mp4",
+        provenance="operator_upload",
+    )
+
+    class Repository:
+        async def get_ready_record(self, *, project_id: str, asset_id: str):  # type: ignore[no-untyped-def]
+            return record if asset_id == "asset_footage" else None
+
+    class Media:
+        def fetch(self, location: str, target: Path) -> None:
+            target.write_bytes(location.encode())
+
+    fetched = run(
+        fetch_planner_asset(Repository(), Media(), "project_001", "asset_footage", tmp_path)
+    )
+    assert fetched is not None
+    path, ref = fetched
+    assert path.read_bytes() == b"uploads/project_001/asset_footage.mp4"
+    assert (ref.asset_id, ref.kind, ref.checksum) == (
+        "asset_footage",
+        "video",
+        record.asset.checksum,
+    )
+    missing = fetch_planner_asset(Repository(), Media(), "project_001", "asset_x", tmp_path)
+    assert run(missing) is None

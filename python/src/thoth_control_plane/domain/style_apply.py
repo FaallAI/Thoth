@@ -199,7 +199,7 @@ def style_operations(
                 duration_in_frames=duration,
                 source_from_frame=source_from,
                 scene_id=scene_id if inside else None,
-                fit=fill[0] if fill else source_clip.fit,
+                fit=fill[0] if fill else (look.fit or source_clip.fit),
                 source_role=source_clip.source_role
                 or roles.get(source_clip.clip_id.removeprefix("clip_")),  # type: ignore[arg-type]
                 background=fill[1] if fill else None,
@@ -237,7 +237,7 @@ def style_operations(
                 from_frame=shot.from_frame,
                 duration_in_frames=shot.duration,
                 source_from_frame=shot.source_from_frame,
-                fit=fill[0] if fill else "cover",
+                fit=fill[0] if fill else (look.fit or "cover"),
                 source_role=_BEAT_ROLE[beat],  # type: ignore[arg-type]
                 background=fill[1] if fill else None,
                 hold_after_source=True if shot.hold else None,

@@ -534,3 +534,15 @@ def test_a_card_is_not_taken_away_when_its_beat_shows_nothing() -> None:
     off = B.model_copy(update={"beats": beats})
     after = styled(before, off, assignments={"reactions": reactions_plan(before)})
     assert len(positioned_cards(after)) == len(positioned_cards(before))
+
+
+def test_style_b_shots_fill_the_frame() -> None:
+    # Operator, 2026-11-13: a landscape source in a portrait frame shrank to a band, and the big
+    # kinetic captions covered the speaker's face. Style B fills the frame, as WinNews does.
+    data = payload()
+    for clip in data["clips"]:
+        if clip["clip_id"] in ("clip_main", "clip_footage_000"):
+            clip["fit"] = "contain"  # as the Gibran draft's import placed them
+    document = styled(narrated(data), B)
+    shots = full_frame_shots(document)
+    assert shots and {shot.fit for shot in shots} == {"cover"}

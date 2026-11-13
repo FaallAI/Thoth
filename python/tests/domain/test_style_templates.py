@@ -39,6 +39,7 @@ def test_style_b_is_still_and_planned() -> None:
     b = BUILT_IN_STYLES["style_b"]
     assert b.revision == 2 and b.cuts.planned
     assert {look.move for look in b.beats.values()} == {"none"}
+    assert {look.fit for look in b.beats.values()} == {"cover"}
     assert not BUILT_IN_STYLES["style_a"].cuts.planned
 
 
