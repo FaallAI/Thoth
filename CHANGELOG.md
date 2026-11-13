@@ -70,6 +70,13 @@ After the fixes: `make test` 4900 passed, 240 skipped; Postgres 38 passed; lint 
 
 **Deployed (2026-11-13):** branch commit `a1c50ae2` (PR #130) runs on stage1: thoth `55b4ea8a`, renderer `883b018d`, web `4a99cc46`, each matching the push run's published digest. The editor database is at migration 0031. `GET /library` answers 200 with an empty list, the old `/sfx` answers 404, and the worker and api logged no errors. Rollback restores the `42b843a8` pins with no migrate step, since 0031 only adds a table. Stage1 runs code not yet in `master`.
 
+**Read-only e2e on stage1 and the layout fixes (2026-11-13, operator: "ya perbaiki dulu").** `e2e/tests/assets-page.e2e.ts` passed 3/3 on stage1. The look at 1280, 430 and 1440 found three layout faults. Each fault first got a layout e2e test, which failed on stage1 and passed on a local vite dev server against stage1's API:
+- The Timeline library showed about one row under the draft's asset list. The asset column now has two tabs, "Draft assets" and "Library", and each list gets the full height: about 14 library rows at 1440×900. Both lists stay mounted.
+- Assets rows did not line up because previews differ in width. A fixed 260 px preview column and a right-aligned kind-and-duration group now give every row the same name and kind columns.
+- On phones the search box was indented, and an image row wrapped its kind select on its own. The search box now spans the row, and the name block takes a full line on phones.
+
+Two e2e checks still looked for the retired "Sound effects" region. They now check the Library tab. Five other Studio e2e failures are the same on stage1 before and after this change. They depend on data: another draft (`@kabinet_rakyat`), and a draft with 16 Main clips. Dashboard: 2024 pass, `tsc` clean, build ok.
+
 **Not run:** the e2e check `e2e/tests/assets-page.e2e.ts` targets stage1, which does not serve `/library` until this branch is deployed.
 
 **Next steps** (each its own gate):
