@@ -35,7 +35,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     frames_left,
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
-from thoth_control_plane.domain.planner import DraftPlan, split_phrases
+from thoth_control_plane.domain.planner import DraftPlan, content_words, split_phrases
 from thoth_control_plane.domain.planner_assign import BeatAssignment, assign_beat
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.style_apply import (
@@ -397,7 +397,16 @@ def narrate_document(
         beat: frame
         for beat, line in (card_lines or {}).items()
         if beat in starts
-        and (frame := spoken_at(line, voices[beat].words, starts[beat], fps)) is not None
+        and (
+            frame := spoken_at(
+                line,
+                voices[beat].words,
+                starts[beat],
+                fps,
+                loose=style is not None and style.cuts.planned,
+            )
+        )
+        is not None
     }
     operations = style_operations(
         narrated_document,
@@ -532,11 +541,23 @@ def _tokens(text: str) -> list[str]:
     return [token for token in re.split(r"[^\w-]+", text.casefold()) if token]
 
 
-def spoken_at(line: str, words: Sequence[WordTiming], start: int, fps: float) -> int | None:
+def spoken_at(
+    line: str, words: Sequence[WordTiming], start: int, fps: float, *, loose: bool = False
+) -> int | None:
     """The frame the voice first says a word of the sentence a card line repeats: the sentence
     holding most of the line's words (at least half; on a tie the shorter, closer one), or None
-    when no sentence does (stage1, 2026-11-12)."""
+    when no sentence does (stage1, 2026-11-12). `loose` then settles for the sentence naming
+    any of the line's content words, as a paraphrasing script's line does (stage1, 2026-11-14)."""
     wanted = set(_tokens(line))
+    found = _said_at(wanted, words, start, fps, least=len(wanted) / 2)
+    if found is None and loose:
+        found = _said_at(content_words(line), words, start, fps, least=1)
+    return found
+
+
+def _said_at(
+    wanted: set[str], words: Sequence[WordTiming], start: int, fps: float, least: float
+) -> int | None:
     best: tuple[int, float, int] | None = None  # (shared words, closeness, frame)
     sentence: list[WordTiming] = []
     for word in words:
@@ -545,7 +566,7 @@ def spoken_at(line: str, words: Sequence[WordTiming], start: int, fps: float) ->
             said = [w for w in sentence if wanted & set(_tokens(w.text))]
             shared = len(wanted & {t for w in said for t in _tokens(w.text)})
             score = (shared, shared / len(sentence))
-            if 2 * shared >= len(wanted) > 0 and (best is None or score > best[:2]):
+            if shared > 0 and shared >= least and (best is None or score > best[:2]):
                 best = (*score, start + round(said[0].start_seconds * fps))
             sentence = []
     return None if best is None else best[2]

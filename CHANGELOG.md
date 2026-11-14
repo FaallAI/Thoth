@@ -85,9 +85,33 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
 
 `make test` then gives 4974 passed and 243 skipped, and lint is clean.
 
+### On stage1 (2026-11-13 to 2026-11-14)
+- **807977be deployed from the branch image** (thoth e75b85eb2660, renderer e4c0bfc8e441, web abb13f31afb7), migration head 0032. stage1 runs code that is not in master.
+- **The operator's first look:**
+  - Gibran Style B was "lumayan bagus"; Gibran Style A was "sangat bagus mantap"; Yono Bakrie Halloween was "sangat bagus".
+  - They asked that a landscape source fill the Style B frame: Gibran's 1280x720 video sat in a `contain` band, and the kinetic captions covered his face.
+  - The planner had in fact failed on both drafts (`AttributeError`: the worker called `record.to_asset_ref()` on an `EditorAssetRecord`). The drafts fell back to the phrase-start rhythm.
+- **2a3fc4a4 fixed both:**
+  - `fetch_planner_asset` takes the asset from the record;
+  - `BeatLook.fit` sets Style B's full-frame shots to `cover`.
+
+  It was checked end to end in the worker, read-only, on the Gibran draft: 21 phrases, 6 soundbites and 3 comment cards. The cheap model ended `finish=error` and the fallback answered in 39 s.
+
+  It was deployed from the branch image (thoth dee6cb603fa1, renderer 917c8543aeee, web 09a9b7d89196), with rollback `D:/thoth-tmp/bu/pins/rollback-to-807977be.sh`.
+- **First planned Style B draft** (`edoc_bfd96c34`, qwen3.7-flash, 3 beats): the operator found the white narrator card "kadang tidak sesuai".
+  - 1 of 3 card lines matched its sentence. The other two paraphrased the voice, shared one word with it, and fell back to the third phrase, over another sentence.
+  - "Netizen makin kepo!" also covered the planner's pick for that phrase.
+- **The card fix:** in a planned style, `spoken_at(..., loose=True)` falls back to the sentence naming any of the line's content words before the third phrase. The planner's `_content` became the shared `content_words`.
+  - Tests: `test_a_loose_card_lands_on_the_sentence_naming_its_word` and `test_a_planned_card_shows_over_the_sentence_naming_its_word`, both RED then GREEN.
+  - Rechecked offline on the draft's stored voices: the cards now land on "…strateginya begini?" and "Netizen pun heboh."
+  - `make test`: 4975 passed, 243 skipped, 3 failed. The 3 failures are in `test_refine.py` and `test_ocr_replay.py` (`pytest.approx` on nested tuples). They fail without this change too: `scripts/dev/pytest-wsl.sh` installs an unpinned `pytest`, and a newer release rejects nested `approx`. CI installs from `uv.lock`.
+  - Lint is clean.
+
 ### Next steps
 - The operator's review of the branch.
-- Gates, each with its own authorization: push, deploy to stage1 from the branch image, merge.
+- Gates, each with its own authorization: push and deploy the card fix to stage1 from the branch image, then merge.
+- The footage-beat question, decided after seeing it: a short footage shot plays on into its source's next scene.
+- Pin `pytest` in `scripts/dev/pytest-wsl.sh`, or fix the three nested `approx` tests.
 - The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
 - Carried forward:
   - the narration script typo "Tobat, TG!" should read "Tobat, EGE!" (outside the planner);

@@ -175,7 +175,7 @@ def shot_speech(transcript: Sequence[TranscriptSegment], start: float, end: floa
     )
 
 
-def _content(text: str) -> set[str]:
+def content_words(text: str) -> set[str]:
     return {
         word
         for word in re.findall(r"[a-z0-9]+", text.lower())
@@ -185,10 +185,10 @@ def _content(text: str) -> set[str]:
 
 def soundbite(text: str, main_shots: Sequence[PlanShot]) -> list[str]:
     """The main shots saying the phrase, in time order; empty when none says enough of it."""
-    words = _content(text)
+    words = content_words(text)
     if len(words) < 2:
         return []
-    scored = [(len(words & _content(shot.said)) / len(words), shot) for shot in main_shots]
+    scored = [(len(words & content_words(shot.said)) / len(words), shot) for shot in main_shots]
     best = max((score for score, _ in scored), default=0.0)
     if best < SOUNDBITE_SHARE:
         return []

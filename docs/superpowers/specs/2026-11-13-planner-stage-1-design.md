@@ -207,6 +207,7 @@ Style B's beat look changes from `push_in` to `none` (still camera), keeping dim
 - **Style B card lines never push shots** in a planned beat, because the phrase windows must stay on the voice.
   - A spoken card line (`card_at`) sits over the phrase that says it, as today.
   - An unspoken one sits on top of the window of the beat's third phrase, or its last phrase in a shorter beat, for `card_seconds`. It does not take a full-screen slot of its own.
+  - Amended 2026-11-14 (operator: the white card "kadang tidak sesuai"): before falling back to the third phrase, a paraphrased line sits over the sentence naming any of its content words (stop words left out), from that word on. On stage1 draft `edoc_bfd96c34`, "Strateginya unik banget!" had landed over "undangan dari Densu", and "Netizen makin kepo!" over "Terus ada yang mengira dia disuruh Aldi Taher".
 - **Credits.**
   - In a planned beat, the unlocked per-scene credit text clips that the import made for footage sources are removed.
   - The planner places its own, one per footage shot, with a `clip_style_credit_` prefix, so a later re-plan replaces only its own.

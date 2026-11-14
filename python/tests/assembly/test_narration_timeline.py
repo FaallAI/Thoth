@@ -681,6 +681,76 @@ def test_a_card_lands_on_its_closest_sentence_at_the_first_word_it_repeats() -> 
     assert spoken_at("Netizen kok curiga?", words, 100, FPS) is None
 
 
+def _mutant_reactions() -> list[WordTiming]:
+    # Stage1 draft edoc_bfd96c34 (2026-11-14): the script's card lines paraphrase the voice.
+    return _timed(
+        ("jelas", 0.0, 0.3),
+        ("banget", 0.4, 0.7),
+        ("kalau", 0.8, 1.0),
+        ("Mutant", 1.1, 1.5),
+        ("mengincar", 1.6, 2.1),
+        ("undangan", 2.2, 2.6),
+        ("dari", 2.7, 2.8),
+        ("Densu.", 2.9, 3.4),
+        ("Kok", 3.6, 3.8),
+        ("bisa", 3.9, 4.1),
+        ("ya", 4.2, 4.3),
+        ("strateginya", 4.4, 5.0),
+        ("begini?", 5.1, 5.6),
+        ("Netizen", 5.9, 6.3),
+        ("pun", 6.4, 6.5),
+        ("heboh.", 6.6, 7.1),
+        ("Terus", 7.4, 7.6),
+        ("ada", 7.7, 7.8),
+        ("yang", 7.9, 8.0),
+        ("mengira", 8.1, 8.5),
+        ("dia", 8.6, 8.7),
+        ("disuruh", 8.8, 9.2),
+        ("Aldi", 9.3, 9.5),
+        ("Taher.", 9.6, 10.1),
+    )
+
+
+def test_a_loose_card_lands_on_the_sentence_naming_its_word() -> None:
+    # Style B, 2026-11-14: a paraphrased line went to the third phrase, over another sentence.
+    from thoth_control_plane.assembly.narration_timeline import spoken_at
+
+    words = _mutant_reactions()
+    assert spoken_at("Strateginya unik banget!", words, 100, FPS) is None
+    assert spoken_at("Strateginya unik banget!", words, 100, FPS, loose=True) == 100 + round(
+        4.4 * FPS
+    )
+    assert spoken_at("Netizen makin kepo!", words, 100, FPS, loose=True) == 100 + round(5.9 * FPS)
+    # Nothing named: still no place of its own.
+    assert spoken_at("Kok bisa gitu?", words[:8], 100, FPS, loose=True) is None
+
+
+def test_a_planned_card_shows_over_the_sentence_naming_its_word() -> None:
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    reactions = VoicedBeat(
+        beat="reactions",
+        asset=audio("asset_voice_reactions", 10.5),
+        duration_seconds=10.5,
+        words=_mutant_reactions(),
+    )
+    styled = narrate_document(
+        draft(),
+        [VOICES[0], VOICES[1], reactions],
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"reactions": "Netizen makin kepo!"},
+    )
+    card = next(
+        c for c in styled.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"
+    )
+    voice = next(c for c in styled.clips if c.clip_id == "clip_narration_reactions")
+    assert card.from_frame == voice.from_frame + round(5.9 * FPS)
+
+
 def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
     # Final review (operator, 2026-11-10): the style cuts once, from its first voice; a re-voice
     # only retimes, so shots the operator changed afterwards stay as they left them.
