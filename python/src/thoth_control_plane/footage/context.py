@@ -8,7 +8,7 @@ import json
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.domain.models import StrictModel
@@ -51,9 +51,9 @@ class CardPerson(StrictModel):
     model_config = ConfigDict(extra="ignore", strict=False)
 
     name: str = ""
-    aliases: list[str] = []
+    aliases: list[str] = Field(default_factory=list)
     role: str = ""
-    accounts: list[str] = []
+    accounts: list[str] = Field(default_factory=list)
 
     @field_validator("aliases", "accounts", mode="before")
     @classmethod
@@ -69,12 +69,12 @@ class CardPerson(StrictModel):
 class ContextCard(StrictModel):
     model_config = ConfigDict(extra="ignore", strict=False)
 
-    people: list[CardPerson] = []
+    people: list[CardPerson] = Field(default_factory=list)
     event: str = ""
     place: str = ""
     when: str = ""
     meme_or_joke: str = ""
-    queries: list[str] = []
+    queries: list[str] = Field(default_factory=list)
     notes: str = ""
 
     @field_validator("people", mode="before")
