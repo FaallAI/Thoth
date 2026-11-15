@@ -69,6 +69,8 @@ class FootageCandidateRow(Base):
     clip_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     ocr: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # What the video says around a section (migration 0034), TranscriptSegment dumps.
+    said: Mapped[Any] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
@@ -93,5 +95,6 @@ class FootageLibraryRow(Base):
     names: Mapped[list[str]] = mapped_column(JSON, default=list)
     ocr: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     event: Mapped[str] = mapped_column(String, default="")
+    said: Mapped[Any] = mapped_column(JSON, default=list)
     first_workflow_id: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)

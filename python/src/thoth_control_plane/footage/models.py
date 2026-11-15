@@ -54,6 +54,8 @@ class NewCandidate:
     status: str = "pending"
     reason: str | None = None
     media_kind: str = "video"  # "image" for a creator photo (spec 5c-2, G4)
+    # What the video says around a section (spec 2026-11-15, 9.3), TranscriptSegment dumps.
+    said: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,7 @@ class CandidateView:
     ocr: dict[str, Any] | None
     position: int | None
     media_kind: str = "video"
+    said: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,7 @@ class LibraryClip:
     event: str
     # The admission's OCR dump: the import reads it as `MainOcr`.
     ocr: dict[str, Any] = field(default_factory=dict)
+    said: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

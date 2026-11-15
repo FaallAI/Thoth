@@ -83,3 +83,59 @@ def test_the_library_round_trips_on_postgres(store: FootageStore) -> None:
     )
     assert [c.url for c in found] == [clip.url]
     assert found[0].ocr == {"outcome": "clean"} and found[0].hashes == [1, 2, 3, 4]
+
+
+SAID = [{"text": "bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0}]
+
+
+def _clip(url: str, said: list[dict[str, object]] | None = None) -> LibraryClip:
+    return LibraryClip(
+        url=url,
+        platform="tiktok",
+        owner_handle="jawaposofficial",
+        published_at="2026-11-12T10:00:00Z",
+        section_start=0.0,
+        section_end=None,
+        media_location="reports/wf_a/footage/b.mp4",
+        media_checksum="sha256:" + "b" * 64,
+        hashes=[9, 9, 9],
+        names=["mutant"],
+        event="e",
+        said=said or [],
+    )
+
+
+def test_said_round_trips_on_a_candidate(store: FootageStore) -> None:  # spec 9.5
+    store.start_run("wf_a", [FootageObject(query="q", visual="v")])
+    row = _candidate(f"{PODCAST}#t=292.0", "section")
+    store.add_candidates("wf_a", [NewCandidate(**{**row.__dict__, "said": SAID})])
+    assert store.candidates("wf_a")[0].said == SAID
+
+
+def test_said_round_trips_on_a_library_clip(store: FootageStore) -> None:
+    store.add_library("ws1", "wf_a", _clip(f"{PODCAST}#t=292.0", SAID))
+    found = store.library(
+        "ws1", ["mutant"], datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 12, 1, tzinfo=UTC)
+    )
+    assert found[0].said == SAID
+
+
+def test_odd_stored_said_reads_as_empty(store: FootageStore) -> None:  # Review Focus 5
+    store.start_run("wf_a", [FootageObject(query="q", visual="v")])
+    store.add_candidates("wf_a", [_candidate(PODCAST, "search")])
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute("UPDATE footage_candidates SET said = '{\"x\": 1}'::jsonb")
+    assert store.candidates("wf_a")[0].said == []
+
+
+def test_drop_library_keeps_an_earlier_runs_row(store: FootageStore) -> None:  # Review Focus 4
+    old = "https://www.tiktok.com/@a/video/7700000000000000001"
+    new = "https://www.tiktok.com/@b/video/7700000000000000002"
+    store.add_library("ws1", "wf_a", _clip(old))
+    store.add_library("ws1", "wf_b", LibraryClip(**{**_clip(new).__dict__, "hashes": [1, 2]}))
+    store.drop_library("ws1", "wf_b", old)
+    store.drop_library("ws1", "wf_b", new)
+    found = store.library(
+        "ws1", ["mutant"], datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 12, 1, tzinfo=UTC)
+    )
+    assert [c.url for c in found] == [old]

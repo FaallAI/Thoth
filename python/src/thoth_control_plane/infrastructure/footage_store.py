@@ -9,6 +9,7 @@ import json
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import Engine, make_url
@@ -44,6 +45,13 @@ def _text(value: str | None) -> str | None:
     return None if value is None else value.replace("\x00", "")
 
 
+def _said(value: object) -> list[dict[str, Any]]:
+    """Stored `said`, or [] for anything that is not a list of objects (spec 9.5)."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
 def _view(row: FootageCandidateRow) -> CandidateView:
     return CandidateView(
         url=row.url,
@@ -70,6 +78,7 @@ def _view(row: FootageCandidateRow) -> CandidateView:
         clip_start=row.clip_start,
         ocr=row.ocr,
         position=row.position,
+        said=_said(row.said),
     )
 
 
@@ -110,6 +119,7 @@ def _library_clip(row: FootageLibraryRow) -> LibraryClip:
         names=list(row.names or []),
         event=row.event,
         ocr=dict(row.ocr or {}),
+        said=_said(row.said),
     )
 
 
@@ -250,6 +260,7 @@ class FootageStore:
                         source_duration=item.source_duration,
                         status=item.status,
                         reason=item.reason,
+                        said=list(item.said),
                         created_at=now,
                         updated_at=now,
                     )
@@ -413,7 +424,20 @@ class FootageStore:
             "names": sorted(set(clip.names)),
             "event": clip.event,
             "ocr": dict(clip.ocr),
+            "said": list(clip.said),
         }
+
+    def drop_library(self, workspace_id: str, workflow_id: str, url: str) -> None:
+        """Forget a clip this run kept and then lost to a cleaner copy (spec 9.4); a row an
+        earlier run kept stays."""
+        with self._sessions.begin() as session:
+            session.execute(
+                delete(FootageLibraryRow).where(
+                    FootageLibraryRow.workspace_id == workspace_id,
+                    FootageLibraryRow.first_workflow_id == workflow_id,
+                    FootageLibraryRow.url == url,
+                )
+            )
 
     def library(
         self, workspace_id: str, names: Sequence[str], since: datetime, until: datetime
