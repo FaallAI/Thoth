@@ -75,6 +75,19 @@ Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 
 
 Ruled out of the pass, with its cost: a hard deadline before the checks phase still reports `unavailable` even when library clips are admitted. Nine minors are deferred (see Next steps).
 
+**On stage1 (2026-11-15):**
+- PR #133 is open.
+- CI was green on `15ae81f5`.
+- The branch image was deployed with digests thoth `84cf9805d248`, renderer `d8b99e67c3db` and web `0b0d6dba5418`; they match the CI log.
+- Health after the deploy:
+  - web answers 200;
+  - the worker logged 0 error lines;
+  - the API returned 0 5xx;
+  - no workflow was running.
+- The migration head is `0033`: `footage_library` exists, `footage_runs.context` exists, and the source CHECK is widened.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-e53e9ffb.sh` (pins only; 0033 stays).
+- stage1 runs code that is not in master.
+
 **Verification:**
 - `make test`: 5036 passed, 245 skipped.
 - `make test-postgres`: 223 passed, with 0033 applied.
@@ -91,8 +104,6 @@ Ruled out of the pass, with its cost: a hard deadline before the checks phase st
 - No change was made.
 
 ### Next steps
-- Push and CI (its own gate).
-- Deploy to stage1 from the branch image, which applies migration 0033 (its own gate).
 - One live run on the Mutant post, with its footage judged blind by the operator (its own gate); the accuracy target is agreed from that.
 - Merge (its own gate).
 - Deferred review minors:
