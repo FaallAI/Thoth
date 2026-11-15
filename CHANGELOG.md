@@ -110,8 +110,9 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
 - **The operator's verdict (2026-11-15):** "next step 1 - 3 ku cek sudah pas semua". The white cards on a new Style B draft, the planner's picture picks and the footage-beat play-on are all accepted as built.
 - **`scripts/dev/pytest-wsl.sh` pins `pytest==9.1.1`**, the `uv.lock` version. The three nested `approx` tests pass again, and `make test` gives 4978 passed, 243 skipped. Lint is clean.
 
+- **Merged on 2026-11-15:** PR #132 became merge commit `efe739d1`, after CI on `8a8f4738` was green. stage1 still runs the `e53e9ffb` branch image, which has the same code, so there was no redeploy. The PR also carried the PR #130 merge record.
+
 ### Next steps
-- The merge gate, authorized on 2026-11-15.
 - The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
 - Carried forward:
   - the narration script typo "Tobat, TG!" should read "Tobat, EGE!" (outside the planner);
@@ -122,7 +123,7 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
   - `/understand --full`;
   - the offer to move `reports/` and `research_notes/` to `docs/research`;
   - the pre-existing data-dependent Studio e2e failures.
-- The PR #130 merge record rides on this branch's PR.
+- This merge record rides on the next branch's PR (`feat/footage-library`).
 
 ## 2026-11-13 - Workspace asset library
 
