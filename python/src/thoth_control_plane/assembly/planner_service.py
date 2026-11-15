@@ -41,6 +41,7 @@ from thoth_control_plane.domain.planner import (
     words_key,
 )
 from thoth_control_plane.domain.studio_imports import StudioMaterials
+from thoth_control_plane.footage.reposts import credit_label
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,11 @@ class Planner:
         main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
         videos = [c for c in document.clips if isinstance(c, TimelineVideoClip)]
         main = next((c.asset_id for c in videos if c.track_id in main_tracks), None)
-        handles = {i.asset_id: i.owner_handle for i in materials.items if i.asset_id}
+        handles = {
+            i.asset_id: credit_label(i.platform, i.owner_handle)
+            for i in materials.items
+            if i.asset_id
+        }
         footage: list[str] = [
             i.asset_id for i in materials.items if i.role == "footage" and i.asset_id
         ]

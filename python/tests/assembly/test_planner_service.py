@@ -323,3 +323,17 @@ async def test_a_beat_left_out_keeps_its_stored_plan() -> None:
     plan = await make(Store(plan=stored), Model(), [voice("main", "satu dua tiga")])
     assert plan is not None and [b.beat for b in plan.beats] == ["hook", "main"]
     assert plan.beats[0].phrases[0].base == ["S3"]
+
+
+async def test_a_youtube_footage_item_is_credited_with_its_platform() -> None:
+    store = Store()
+    item = MATERIALS.items[0].model_copy(
+        update={"platform": "youtube", "owner_handle": "@curhatbang"}
+    )
+    materials = MATERIALS.model_copy(update={"items": [item, *MATERIALS.items[1:]]})
+    plan = await planner(store, Model([PhraseAnswer("P1", ["S3"], "C1", "terlihat")])).plan(
+        "project_001", DOC, draft(), materials, [voice("main", "Rocky kena semprot warga hari ini")]
+    )
+    assert plan is not None
+    footage = next(s for s in plan.shots if s.source == "footage")
+    assert footage.handle == "YouTube/curhatbang"

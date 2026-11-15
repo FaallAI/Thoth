@@ -26,6 +26,7 @@ RejectReason = Literal[
     "duplicate",
     "media_failed",
     "vision_unavailable",
+    "repost",  # an original replaced it (footage library spec 2026-11-15, 4.5)
 ]
 REJECT_REASONS: frozenset[str] = frozenset(get_args(RejectReason))
 
