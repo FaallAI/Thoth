@@ -20,7 +20,7 @@ export PYTHONPATH="$PWD/src"
 [ "$#" -gt 0 ] || set -- tests
 
 exec "$HOME/.local/bin/uv" run --no-project --python 3.12 \
-    --with pytest --with pytest-asyncio --with pydantic --with pydantic-settings --with typer \
+    --with 'pytest==9.1.1' --with pytest-asyncio --with pydantic --with pydantic-settings --with typer \
     --with httpx --with respx --with temporalio --with fastapi --with python-multipart \
     --with 'psycopg[binary]' --with sqlalchemy --with alembic --with 'minio>=7.2.20,<8' --with boto3 --with pyjwt \
     --with agno --with 'openai<3' --with pillow --with pyyaml --with cryptography --with 'authlib>=1.6,<2' --with itsdangerous \

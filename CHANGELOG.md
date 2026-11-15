@@ -106,12 +106,12 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
   - Rechecked offline on the draft's stored voices: the cards now land on "…strateginya begini?" and "Netizen pun heboh."
   - `make test`: 4975 passed, 243 skipped, 3 failed. The 3 failures are in `test_refine.py` and `test_ocr_replay.py` (`pytest.approx` on nested tuples). They fail without this change too: `scripts/dev/pytest-wsl.sh` installs an unpinned `pytest`, and a newer release rejects nested `approx`. CI installs from `uv.lock`.
   - Lint is clean.
+- **e53e9ffb deployed from the branch image** (CI 43626502644 green; thoth 05940a4e2846, renderer 05110f55078d, web 453ce0d742f2), healthy, with rollback `D:/thoth-tmp/bu/pins/rollback-to-2a3fc4a4.sh` (pins only; 0032 stays).
+- **The operator's verdict (2026-11-15):** "next step 1 - 3 ku cek sudah pas semua". The white cards on a new Style B draft, the planner's picture picks and the footage-beat play-on are all accepted as built.
+- **`scripts/dev/pytest-wsl.sh` pins `pytest==9.1.1`**, the `uv.lock` version. The three nested `approx` tests pass again, and `make test` gives 4978 passed, 243 skipped. Lint is clean.
 
 ### Next steps
-- The operator's review of the branch.
-- Gates, each with its own authorization: push and deploy the card fix to stage1 from the branch image, then merge.
-- The footage-beat question, decided after seeing it: a short footage shot plays on into its source's next scene.
-- Pin `pytest` in `scripts/dev/pytest-wsl.sh`, or fix the three nested `approx` tests.
+- The merge gate, authorized on 2026-11-15.
 - The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
 - Carried forward:
   - the narration script typo "Tobat, TG!" should read "Tobat, EGE!" (outside the planner);
