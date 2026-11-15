@@ -215,6 +215,7 @@ def _builder(
     per_candidate_seconds: float = 90.0,
     grace_seconds: float = 10.0,
     overrun_seconds: float = 120.0,
+    context_enabled: bool = False,
     **ports: Any,
 ) -> FootageBuilder:
     values: dict[str, Any] = {
@@ -239,6 +240,7 @@ def _builder(
         per_candidate_seconds=per_candidate_seconds,
         grace_seconds=grace_seconds,
         overrun_seconds=overrun_seconds,
+        context_enabled=context_enabled,
     )
 
 
@@ -1243,3 +1245,158 @@ async def test_a_search_outage_with_creator_material_is_logged(
         result = await _builder(store, search=search, **ports).build(_creator_inputs(tmp_path))
     assert result.status == "ok"
     assert "footage search unavailable; creator material only" in caplog.text
+
+
+# The context path (footage library spec 2026-11-15, 4.1-4.3).
+
+CONTEXT = Path(__file__).resolve().parents[1] / "fixtures" / "footage" / "context"
+
+
+def _card(name: str = "mutant_card") -> Any:
+    from thoth_control_plane.footage.context import ContextCard
+
+    return ContextCard.model_validate_json((CONTEXT / f"{name}.json").read_text(encoding="utf-8"))
+
+
+class Cards:
+    """The card model: the card for the first prompt, `refined` for round two."""
+
+    def __init__(self, card: Any, refined: Any = None) -> None:
+        self.answer, self.refined = card, refined
+        self.calls: list[str] = []
+        self.materials: list[str] = []
+
+    async def card(self, system: str, material: str) -> Any:
+        from thoth_control_plane.footage.context import CARD_PROMPT
+
+        self.calls.append("card" if system == CARD_PROMPT else "refine")
+        self.materials.append(material)
+        return self.answer if system == CARD_PROMPT else self.refined
+
+
+def _searched(search: Search) -> set[str]:
+    return {query for platform, query in search.calls if platform == "tiktok"}
+
+
+async def test_the_context_path_searches_people_queries(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search()
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    assert _searched(search) == set(_card().queries[:4])
+    run = store.run("wf_a")
+    assert run is not None and run.context is not None
+    assert [p["name"] for p in run.context["people"]] == ["Mutant", "Denny Sumargo"]
+
+
+async def test_sneakers_are_rejected_and_saiful_passes(store: FootageStore, tmp_path: Path) -> None:
+    card = _card()
+    refined = card.model_copy(deep=True)
+    refined.people[0].aliases.append("Saiful")
+    refined.queries = []
+    search = Search(
+        _hits(
+            _video(1, caption="Master Saiful ngamuk di USS"),
+            _video(2, caption="Sneakers hitam putih yang simpel"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(store, search=search, card=Cards(card, refined), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    by_caption = {c.caption: c for c in store.candidates("wf_a")}
+    assert by_caption["Master Saiful ngamuk di USS"].status == "admitted"
+    sneakers = by_caption["Sneakers hitam putih yang simpel"]
+    assert (sneakers.status, sneakers.reason) == ("rejected", "story")
+
+
+async def test_round_two_adds_queries_from_titles(store: FootageStore, tmp_path: Path) -> None:
+    card = _card()
+    refined = card.model_copy(deep=True)
+    refined.queries = ["saiful denny sumargo", "Mutant USS Denny Sumargo"]
+    cards = Cards(card, refined)
+    search = Search(
+        _hits(
+            _video(1, caption="Master Saiful Ngamuk di Depan Denny Sumargo"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(store, search=search, card=cards, context_enabled=True).build(_inputs(tmp_path))
+    assert cards.calls == ["card", "refine"]
+    assert "Master Saiful Ngamuk di Depan Denny Sumargo" in cards.materials[1]
+    assert "saiful denny sumargo" in _searched(search)
+    run = store.run("wf_a")
+    assert run is not None
+    assert [o.query for o in run.objects][-1] == "saiful denny sumargo"
+    assert len(run.objects) == 5  # the repeated query is not added twice
+
+
+async def test_own_account_candidates_are_screened_first(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+    downloader = Downloader()
+    search = Search(
+        _hits(
+            _video(1, caption="Mutant viral, Densu bereaksi", owner="tribunnews"),
+            _video(2, caption="Mutant datang ke podcast Densu", owner="curhatbang"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(
+        store, search=search, downloader=downloader, card=Cards(card), context_enabled=True
+    ).build(_inputs(tmp_path))
+    assert "curhatbang" in downloader.calls[0][0]
+
+
+async def test_no_card_falls_back_to_object_queries(store: FootageStore, tmp_path: Path) -> None:
+    queries, search = Queries(TWO_OBJECTS), Search()
+    await _builder(
+        store, queries=queries, search=search, card=Cards(None), context_enabled=True
+    ).build(_inputs(tmp_path))
+    assert queries.calls == 1
+    assert "banjir kemang" in _searched(search)
+    run = store.run("wf_a")
+    assert run is not None and run.context is None
+
+
+async def test_a_retry_reuses_the_stored_card(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.context import context_objects
+
+    card = _card()
+    store.start_run("wf_a", context_objects(card, card.queries[:4]))
+    store.set_context("wf_a", {**card.model_dump(), "refined": True})
+    cards, search = Cards(card), Search()
+    await _builder(store, search=search, card=cards, context_enabled=True).build(_inputs(tmp_path))
+    assert cards.calls == []
+    assert _searched(search) == set(card.queries[:4])
+
+
+async def test_context_disabled_runs_today(store: FootageStore, tmp_path: Path) -> None:
+    cards, queries = Cards(_card()), Queries(TWO_OBJECTS)
+    await _builder(store, queries=queries, card=cards).build(_inputs(tmp_path))
+    assert cards.calls == [] and queries.calls == 1
+
+
+async def test_creator_posts_pass_the_context_gate(store: FootageStore, tmp_path: Path) -> None:
+    ports = _creator(
+        CreatorListing(
+            videos=[
+                _own(1, "Urban Sneaker Society #densu #Dennysumargo Mutant datang"),
+                _own(2, "Kuta beach sunset today"),
+            ],
+            photos=[],
+        )
+    )
+    await _builder(store, card=Cards(_card()), context_enabled=True, **ports).build(
+        _creator_inputs(tmp_path)
+    )
+    by_caption = {c.caption: c for c in store.candidates("wf_a")}
+    assert (
+        by_caption["Urban Sneaker Society #densu #Dennysumargo Mutant datang"].status != "rejected"
+    )
+    sunset = by_caption["Kuta beach sunset today"]
+    assert (sunset.status, sunset.reason) == ("rejected", "story")

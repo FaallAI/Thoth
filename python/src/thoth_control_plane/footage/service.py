@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import itertools
+import json
 import logging
 import shutil
 import time
@@ -52,7 +53,7 @@ from thoth_control_plane.footage.creator import (
     verdict,
 )
 from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate, vision_seconds
-from thoth_control_plane.footage.gates import MainIdentity, text_gate
+from thoth_control_plane.footage.gates import MainIdentity, norm, text_gate
 from thoth_control_plane.footage.models import (
     AdmittedClip,
     CandidateView,
@@ -60,6 +61,7 @@ from thoth_control_plane.footage.models import (
     FootageResult,
     FootageStatus,
     NewCandidate,
+    RunView,
     SearchBatch,
 )
 from thoth_control_plane.footage.ports import (
@@ -72,7 +74,20 @@ from thoth_control_plane.footage.ports import (
     QueryModel,
     SearchPort,
 )
+from thoth_control_plane.footage.context import (
+    CARD_PROMPT,
+    REFINE_PROMPT,
+    CardModel,
+    ContextCard,
+    card_material,
+    card_names,
+    context_objects,
+    context_reason,
+    in_window,
+)
+from thoth_control_plane.footage.moments import CaptionPort
 from thoth_control_plane.footage.queries import footage_objects, query_prompt, top_comments
+from thoth_control_plane.footage.reposts import is_own_account
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +109,13 @@ SCRATCH_GLOB = "thoth-footage-*"  # the clip downloader's scratch directories
 CREATOR_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
 PHOTO_PLATFORMS = frozenset({"tiktok", "instagram", "x"})
 PAGE_CARD = "profile-page.png"
+# The context path (footage library spec 2026-11-15): queries per round, titles round two reads.
+FIRST_QUERIES = 4
+REFINE_QUERIES = 3
+REFINE_TITLES = 15
+OWN_SCORE = 1.0  # own accounts are screened first
+PASS_SCORE = 0.5
+REFINED = "refined"  # set in the stored card once round two ran
 
 T = TypeVar("T")
 
@@ -143,6 +165,11 @@ class FootagePorts:
     captions: CaptionJudge | None = None
     creator: CreatorPort | None = None
     photos: PhotoFetcher | None = None
+    # Footage library (spec 2026-11-15): the card model, long videos' captions, and a copy of a
+    # library clip's stored media into this run.
+    card: CardModel | None = None
+    captions_text: CaptionPort | None = None
+    library_media: Callable[[str, Path], Awaitable[None]] | None = None
 
 
 @dataclass(frozen=True)
@@ -155,6 +182,9 @@ class FootageInputs:
     # Uploads the admitted clips (spec 2026-10-17). It runs before the run is marked done:
     # a failed upload leaves the run open, so the retry reopens the clips it cannot find.
     publish: Callable[[list[str]], Awaitable[None]] | None = None
+    # What the context card reads besides the post (spec 2026-11-15, 4.1); empty when unknown.
+    figures: list[dict[str, Any]] = field(default_factory=list)
+    transcript: str = ""
 
 
 def _main(inputs: FootageInputs) -> SourceReport:
@@ -245,8 +275,10 @@ class FootageBuilder:
         concurrency: int = 3,
         grace_seconds: float = 10.0,
         overrun_seconds: float = 120.0,
+        context_enabled: bool = False,
     ) -> None:
         self._ports = ports
+        self._context_enabled = context_enabled
         self._store = ports.store
         self._aggregators = aggregators
         self._story_min = story_min
@@ -343,6 +375,13 @@ class FootageBuilder:
             )
             return await self._check_all(inputs, main, started, state, [CAROUSEL], slides)
 
+        card = ContextCard.model_validate(run.context) if run and run.context else None
+        if run is None and self._context_enabled and self._ports.card is not None:
+            begun = await self._start_context(workflow, main, inputs)
+            if state.over:  # a card model that ignored its cancellation came back late
+                raise asyncio.CancelledError
+            if begun is not None:
+                card, run = begun
         if run is None:
             found = await self._objects(main, inputs.attribution)
             if state.over:  # a query model that ignored its cancellation came back late
@@ -364,7 +403,7 @@ class FootageBuilder:
             [str(inputs.report.source.canonical_url)],
             main.post.text,
         )
-        creators = await self._creator(inputs, main, identity, objects)
+        creators = await self._creator(inputs, main, identity, objects, card)
         if failed and not creators:
             await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
             return await self._result(workflow, "unavailable")
@@ -373,7 +412,12 @@ class FootageBuilder:
             logger.warning("footage search unavailable; creator material only")
         if not failed:
             await self._gate(workflow, identity, objects, hits)
-        await self._story(workflow, main)
+        if card is None:
+            await self._story(workflow, main)
+        else:
+            await self._rounds(workflow, main, identity, card, run.context or {})
+            current = await asyncio.to_thread(self._store.run, workflow)
+            objects = current.objects if current is not None else objects
         if state.over:  # likewise an embedder
             raise asyncio.CancelledError
         people = frozenset(obj.query for obj in objects if obj.person)
@@ -388,6 +432,7 @@ class FootageBuilder:
         main: SourceReport,
         identity: MainIdentity,
         objects: Sequence[FootageObject],
+        card: ContextCard | None = None,
     ) -> int:
         """The creator's own videos and photos (spec 5c-2, G3, G3a, G4); how many are live.
 
@@ -422,7 +467,13 @@ class FootageBuilder:
             photos = []
         posts: list[DiscoveredVideo | DiscoveredPhoto] = [*videos, *photos]
         texts = [enriched_text(post.caption, post.hashtags) for post in posts]
-        scores = await self._scores(main, texts)
+        if card is None:
+            scores = await self._scores(main, texts)
+        else:  # spec 2026-11-15, 4.3.6: the creator's posts pass the context gate too
+            scores = [
+                0.0 if self._off_story(text, post.published_at, main, card) else OWN_SCORE
+                for text, post in zip(texts, posts, strict=True)
+            ]
         main_day = _when(main.post.published_at)
         rows: list[NewCandidate] = []
         undecided: list[int] = []
@@ -433,7 +484,9 @@ class FootageBuilder:
                 reason = text_gate(url, post, identity, self._aggregators)
             else:
                 reason = "main" if url in identity.urls else None
-            if reason is None:
+            if reason is None and card is not None:
+                reason = "story" if scores[index] == 0.0 else None
+            elif reason is None:
                 decided = verdict(scores[index], post.caption, self._story_min)
                 if decided == "undecided":
                     undecided.append(index)
@@ -488,6 +541,97 @@ class FootageBuilder:
             admitted_photos,
         )
         return live_videos + admitted_photos
+
+    async def _start_context(
+        self, workflow: str, main: SourceReport, inputs: FootageInputs
+    ) -> tuple[ContextCard, RunView] | None:
+        """The context card and the run's first queries; None falls back to the object path."""
+        assert self._ports.card is not None
+        material = card_material(main, inputs.figures, inputs.transcript)
+        card = await self._ports.card.card(CARD_PROMPT, material)
+        if card is None or not card_names(card):
+            logger.warning("footage context card unavailable; object queries")
+            return None
+        objects = [o for o in context_objects(card, card.queries[:FIRST_QUERIES]) if _storable(o)]
+        if not objects:
+            logger.warning("footage context card has no queries; object queries")
+            return None
+        await progress.step("footage.plan_queries", params={"count": len(objects)})
+        run = await asyncio.to_thread(self._store.start_run, workflow, objects)
+        await asyncio.to_thread(self._store.set_context, workflow, card.model_dump())
+        logger.info("footage context card people=%d queries=%d", len(card.people), len(objects))
+        return card, run
+
+    def _off_story(
+        self, text: str, published_at: str | None, main: SourceReport, card: ContextCard
+    ) -> bool:
+        return not in_window(published_at, main.post.published_at, self._clock()) or (
+            context_reason(text, card) is not None
+        )
+
+    async def _context_gate(self, workflow: str, main: SourceReport, card: ContextCard) -> int:
+        """Decide every undecided candidate by the card, own accounts first; the passing count."""
+        candidates = await asyncio.to_thread(self._store.candidates, workflow)
+        passing = 0
+        for c in candidates:
+            if c.status != "pending" or c.media_kind != "video":
+                continue
+            if c.story_score is not None:
+                passing += 1
+                continue
+            if self._off_story(f"{c.caption} {c.owner_handle}", c.published_at, main, card):
+                await asyncio.to_thread(self._store.reject, workflow, c.url, "story")
+                continue
+            score = OWN_SCORE if is_own_account(c.owner_handle, card) else PASS_SCORE
+            await asyncio.to_thread(self._store.score, workflow, c.url, score)
+            passing += 1
+        return passing
+
+    async def _rounds(
+        self,
+        workflow: str,
+        main: SourceReport,
+        identity: MainIdentity,
+        card: ContextCard,
+        stored: dict[str, Any],
+    ) -> None:
+        """Round one's gate, then round two: the titles teach the card aliases and corrections,
+        its new queries are searched, and round one's story rejects are judged again."""
+        passing = await self._context_gate(workflow, main, card)
+        if passing >= MAX_FOOTAGE or stored.get(REFINED) or self._ports.card is None:
+            return
+        candidates = await asyncio.to_thread(self._store.candidates, workflow)
+        titles = [
+            {"title": c.caption[:200], "channel": c.owner_handle, "platform": c.platform}
+            for c in candidates
+            if c.source == "search"
+        ][:REFINE_TITLES]
+        material = json.dumps({"card": card.model_dump(), "results": titles}, ensure_ascii=False)
+        refined = await self._ports.card.card(REFINE_PROMPT, material)
+        if refined is None or not card_names(refined):
+            await asyncio.to_thread(
+                self._store.set_context, workflow, {**card.model_dump(), REFINED: True}
+            )
+            return
+        run = await asyncio.to_thread(self._store.run, workflow)
+        known = {norm(o.query) for o in (run.objects if run is not None else [])}
+        fresh = [q for q in refined.queries if norm(q) and norm(q) not in known][:REFINE_QUERIES]
+        objects = [o for o in context_objects(refined, fresh) if _storable(o)]
+        await asyncio.to_thread(
+            self._store.set_context, workflow, {**refined.model_dump(), REFINED: True}
+        )
+        if objects:
+            await asyncio.to_thread(self._store.add_objects, workflow, objects)
+            hits, failed = await self._search(objects)
+            if not failed:
+                await self._gate(workflow, identity, objects, hits)
+        for c in await asyncio.to_thread(self._store.candidates, workflow):
+            story = c.status == "rejected" and c.reason == "story" and c.media_kind == "video"
+            text = f"{c.caption} {c.owner_handle}"
+            if story and not self._off_story(text, c.published_at, main, refined):
+                await asyncio.to_thread(self._store.reopen, workflow, c.url)
+        await self._context_gate(workflow, main, refined)
+        logger.info("footage context round two queries=%d", len(objects))
 
     async def _scores(self, main: SourceReport, texts: list[str]) -> list[float]:
         if not texts:
