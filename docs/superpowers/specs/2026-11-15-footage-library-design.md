@@ -425,3 +425,31 @@ story widens past the main post. The direction was approved ("ya setuju", brains
 - Where the ORB features of admitted clips are kept during a run.
 - The exact prompt wording.
 - How an admitted copy is un-admitted in the store.
+
+### 9.9 Copy test amended after the same-set spike (2026-11-16, item 64)
+
+This replaces the "at least 30% of its frames" test in 9.4. Matching frames alone cannot tell a
+copy from another moment filmed on the same set: two podcast moments matched on 9 of 9 frames. A
+copy is the same moment, so its frames line up in time.
+
+- **Features:** the existing `attribution/adapters/visual.py` `OrbMatcher` (3000 features, ratio
+  0.75, RANSAC) on 480 px frames.
+- **Stage 1, cheap trigger:**
+  - the candidate's 3 vision frames are compared against the main (one frame every 2 s, prepared
+    once per run) and against each admitted clip;
+  - nothing with 25 or more inliers means no copy.
+- **Stage 2, only when triggered:** both clips are compared at 1 fps over a full inlier matrix. It
+  is a copy only when all three hold:
+  - at least 3 candidate frames have a best match of 25 or more inliers;
+  - at least 60% of those best matches sit on one time offset (within 1 s);
+  - the median, over those frames, of best inliers / that row's median inliers is at least 3.
+- **Spike values:**
+
+  | Pair | Offset | Peak |
+  |---|---|---|
+  | Copies | 17-20 of 19-20 on one offset | 11-28x |
+  | Same set, other moment | 3 of 9 | 1.2x |
+  | Unrelated | 0 matched | — |
+
+- **Known limit:** a copy of a fixed-camera moment (a recap re-cutting a podcast moment) may not line
+  up, and is then kept. A credited repost is still traced (4.5).
