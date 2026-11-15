@@ -104,12 +104,13 @@ def pick_discussions(
                 break
     found: list[Discussion] = []
     for _, first, last in sorted(kept):
-
-        def weight(index: int) -> int:
-            text = said[index]
-            return 2 * bool(_count(text, subject)) + bool(_count(text, others)) + _count(text, words)
-
-        best = max(range(first, last + 1), key=lambda i: (weight(i), -i))
+        weights = {
+            i: 2 * bool(_count(said[i], subject))
+            + bool(_count(said[i], others))
+            + _count(said[i], words)
+            for i in range(first, last + 1)
+        }
+        best = max(weights, key=lambda i: (weights[i], -i))
         found.append(Discussion(lines[best].start, _segments(lines, first, last)))
     return found
 
