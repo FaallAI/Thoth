@@ -2,6 +2,86 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-15 - Footage library: footage found from the main post's context
+
+The reference-faithful editing track, step 3. The operator's case is draft `edoc_c570bd32`, on Mutant wanting to be invited to Denny Sumargo's podcast. It "harusnya bisa menambahkan beberapa potongan footage youtube dari channel denny sumargo … karena satu context". A person knows such a video exists from following social media every day; Thoth runs once, so it has to find it from the main post's own context (operator, 2026-11-15).
+
+Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 2026-11-15 ("ya sesuai dan setuju"). Plan: `docs/superpowers/plans/2026-11-15-footage-library.md`, executed natively. The brainstorm record is items 46-56.
+
+**Why the old stage missed it.** On run `wf_4c7961fc`, 70 candidates were checked and 0 kept:
+- **Object queries.** The queries named objects ("sneakers", "pedang excalibur urban sneaker society"), never "Mutant" or "Saiful".
+- **Caption similarity.** Relevance was judged by similarity to the main caption, so the clips of the same story that used another name for the man ("SAIFUL BUKAN MUTAN", "Detik-detik Pria Mengamuk di Depan Denny Sumargo") were rejected.
+- **Long videos.** Videos over 15 minutes were dropped outright.
+- **English titles.** YouTube titles came back auto-translated to English.
+
+**The spike** (read-only, USD 0.0042). A context card from the post's text, with people-plus-event queries, put the podcast `Sy_S4TgvKbY` first on YouTube, followed by 6 news recaps:
+- the Rocky Gerung post found the creator's own YouTube channel;
+- the Persib post showed that the card can be wrong ("timnas" instead of Persib);
+- the podcast's Indonesian auto-captions give its moments in under 1 s.
+
+**What it does** (`THOTH_FOOTAGE_CONTEXT_ENABLED`, default on):
+- **The context card.** The card model (`THOTH_FOOTAGE_CARD_MODEL`, default `google/gemini-3.1-flash-lite`, with the query model as fallback) reads the caption, the owner and the top 25 comments. It returns the people with every alias, the event, the place and the meme. The card is stored on `footage_runs.context`.
+- **Two rounds.**
+  - Round 1 searches TikTok, YouTube and X with the card's first 4 queries. YouTube is asked for the original Indonesian titles (`lang=id`).
+  - Round 2 runs when fewer than 6 candidates pass. It shows the card model the top 15 titles, so it learns the aliases and corrections they use ("Saiful"), searches up to 3 new queries, and re-judges round 1's rejects.
+- **The context gate.** A candidate passes when its caption or account names a card person or alias as whole words (aliases of 3+ characters), or names two event terms, and it falls from 30 days before the main post to the run. Own accounts are screened first. The creator's own listing goes through the same gate.
+- **Long videos.**
+  - A YouTube video over the cap is cut at up to 3 caption lines naming a card person, at least 60 s apart and past the first 30 s. Each line gives an 8 s section from 1 s before it.
+  - With no captions, or no line naming a card person, nothing is downloaded and the video is rejected as before.
+- **Originals before reposts.** A repost that credits another account is replaced by that account's original when its listing holds one on the story; the repost is rejected `repost`. Otherwise it is checked as before, so OCR still rejects burned-in text (operator: "jika bisa … langsung dari source video nya, bukan dari reposting").
+- **The library.**
+  - Every kept clip goes into `footage_library` per workspace (editor migration 0033), tagged with the card's names, together with its pictures' hashes and its OCR result.
+  - A copy of a kept clip merges into it, and the earlier-published copy stays the source.
+  - A later run on the same people takes those clips first, copied from storage with no search, download or check.
+- **Credits:** "YouTube/<channel>" on YouTube clips, "@handle" elsewhere.
+- **Falls back:** without a card answer, or with the flag off, today's object queries and story gate run unchanged.
+
+**Cost:** about USD 0.001-0.002 per run (1-2 card calls). Searches and captions are free.
+
+| Commit | What |
+|---|---|
+| `307a41e`, `a5ed76a8` | The context card and its model adapter |
+| `4748d92` | Context queries, the date window, the context gate |
+| `14e6e43` | Caption moments, the caption fetcher, Indonesian YouTube titles |
+| `68ceebc` | Credits, own accounts, credit labels, the `repost` reason |
+| `632bf2e` | Migration 0033 and the library store |
+| `f0f33bb` | The context path in the builder, two rounds |
+| `6160587` | Long-video sections, repost tracing |
+| `c0fd20d` | Library read and write |
+| `f204b6c0` | Production wiring |
+
+**Verification:**
+- `make test`: 5023 passed, 243 skipped.
+- `make test-postgres`: 221 passed, with 0033 applied.
+- `make lint` is clean.
+- **Fixtures** from the spike (`python/tests/fixtures/footage/context/`):
+  - the 4 cards;
+  - the Mutant run's 70 candidates;
+  - the podcast's first 10 minutes of captions.
+- **Replay:** on the Mutant run, "SAIFUL BUKAN MUTAN", "Momen Saeful temui Denny Sumargo" and "Detik-detik Pria Mengamuk di Depan Denny Sumargo" pass, and none of the 13 "sneakers" posts or the creator's travel posts do.
+
+**Planner model check** (operator: "tolong pastikan ini juga"):
+- Both Style B plans stored on stage1 were answered by `qwen/qwen3.7-flash`.
+- The spike's qwen failures came from its own request (1500 tokens, no `reasoning`), not from the planner.
+- No change was made.
+
+### Next steps
+- The whole-branch review, then push and CI (its own gate).
+- Deploy to stage1 from the branch image, which applies migration 0033 (its own gate).
+- One live run on the Mutant post, with its footage judged blind by the operator (its own gate); the accuracy target is agreed from that.
+- Merge (its own gate).
+- Carried forward:
+  - small-creator stories (Erio Manan) stay out of scope (item 53);
+  - stressed narration (track step 4);
+  - the "Tobat, TG!" → "Tobat, EGE!" script typo;
+  - dropping the `sfx_library` table;
+  - automatic placement of clips and backsound;
+  - `/understand --full`;
+  - moving `reports/` and `research_notes/`;
+  - the pre-existing Studio e2e failures;
+  - the `wt-run-progress-fixtures` worktree with uncommitted files;
+  - the PR #132 merge record rides on this branch's PR.
+
 ## 2026-11-13 - Planner stage 1: Style B cut per phrase, picture chosen by content
 
 The reference-faithful editing track, step 2. Style B drafts sat on the main video for about 79% of their length, cut on sentence ends, and pushed in on every shot; the WinNews references cut on every phrase, show what each phrase says, keep the camera still and credit each clip. The operator accepted the rule-based rhythm and asked that each phrase's picture be chosen by content and checked against the picture itself ("gunakan opsi 2 yaitu mencocokan isi per frasa"; "kita juga perlu melihat gambar"). Design: `docs/superpowers/specs/2026-11-13-planner-stage-1-design.md`; plan: `docs/superpowers/plans/2026-11-13-planner-stage-1.md`; brainstorm record items 24-41.
