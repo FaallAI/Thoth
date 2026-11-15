@@ -1675,3 +1675,24 @@ async def test_a_library_copy_failure_is_one_reject(store: FootageStore, tmp_pat
     rows = {c.url: c for c in store.candidates("wf_b")}
     assert rows[str(_video(1).canonical_url)].reason == "media_failed"
     assert result.status == "none"
+
+
+async def test_a_library_clip_that_is_the_main_post_is_not_reused(  # final review, Important 4
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    kept = _video(1, caption=SHOWN)
+    main = support_report(url=str(kept.canonical_url), owner="kreator", text=SHOWN, media="none")
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store, card=Cards(card_b), library_media=Media(tmp_path), context_enabled=True
+    ).build(
+        FootageInputs(
+            workflow_id="wf_b", report=main, attribution=None, original=None, artifact_root=tmp_path
+        )
+    )
+    rows = {c.url: c for c in store.candidates("wf_b")}
+    assert rows[str(kept.canonical_url)].reason == "main"
+    assert not store.admitted("wf_b")

@@ -67,7 +67,13 @@ from thoth_control_plane.footage.creator import (
     verdict,
 )
 from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate, vision_seconds
-from thoth_control_plane.footage.gates import MAX_SECONDS, MainIdentity, norm, text_gate
+from thoth_control_plane.footage.gates import (
+    MAX_SECONDS,
+    MainIdentity,
+    norm,
+    same_as_main,
+    text_gate,
+)
 from thoth_control_plane.footage.models import (
     AdmittedClip,
     CandidateView,
@@ -1258,6 +1264,18 @@ class FootageBuilder:
         chosen = [clip for clip in clips if clip.url not in known][:MAX_FOOTAGE]
         if not chosen:
             return
+        # Never the main post as its own footage: by its address, then by its pictures.
+        identity = MainIdentity.of(
+            str(main.source.canonical_url),
+            [str(inputs.report.source.canonical_url)],
+            main.post.text,
+        )
+        itself = {
+            clip.url
+            for clip in chosen
+            if same_as_main(identity, clip.url.partition(SECTION_MARK)[0], "")
+        }
+        main_hashes = await self._main_hashes(main, root)
         await asyncio.to_thread(
             self._store.add_candidates,
             workflow,
@@ -1280,6 +1298,9 @@ class FootageBuilder:
         )
         reused = 0
         for clip in chosen:
+            if clip.url in itself:
+                await asyncio.to_thread(self._store.reject, workflow, clip.url, "main")
+                continue
             name = hashlib.sha256(clip.url.encode()).hexdigest()[:20] + ".mp4"
             location = PurePosixPath("reports") / workflow / "footage" / name
             path = root / location
@@ -1290,6 +1311,10 @@ class FootageBuilder:
                 logger.warning("footage library copy failed error=%s", type(error).__name__)
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "media_failed")
+                continue
+            if main_hashes and is_duplicate(clip.hashes, [main_hashes]):
+                path.unlink(missing_ok=True)
+                await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
                 continue
             admitted = AdmittedClip(
                 kind="footage",
