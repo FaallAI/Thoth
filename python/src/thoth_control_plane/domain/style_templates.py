@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from thoth_control_plane.domain.edit_document_v2 import Background, Dim
+from thoth_control_plane.domain.edit_document_v2 import Background, Dim, FitMode
 from thoth_control_plane.domain.models import OpaqueId, StrictModel
 from thoth_control_plane.domain.move_presets import MovePreset
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId
@@ -25,6 +25,9 @@ class BeatLook(StrictModel):
     #: The move for a picture taller than the canvas, a long post or card (spec 5); none: `move`.
     tall_move: MovePreset | None = None
     background: Background = "none"
+    #: How a full-frame shot fills the frame; None keeps its material's own fit. Style B fills it,
+    #: so a landscape source is not a band under the captions (operator, 2026-11-13).
+    fit: FitMode | None = None
     dim: Dim = 0.0
     highlight: bool = False
     arrow: bool = False
@@ -37,6 +40,9 @@ class CutRules(StrictModel):
     cut_on_sentences: bool = True
     cycle_materials: bool = True
     card_between_facts: bool = False
+    #: Planner stage 1 (spec 2026-11-13): cut on phrase starts, each phrase's picture chosen by
+    #: what it says; card lines sit over a phrase instead of taking a slot of their own.
+    planned: bool = False
 
 
 class CaptionRules(StrictModel):
@@ -118,11 +124,12 @@ def _a() -> StyleTemplate:
 
 
 def _b() -> StyleTemplate:
-    dimmed = BeatLook(move="push_in", dim=0.45)
+    # Revision 2 (planner stage 1, 2026-11-13): a still camera, as the WinNews references hold.
+    dimmed = BeatLook(move="none", dim=0.45, fit="cover")
     return StyleTemplate(
         template_id="style_b",
         name="Style B",
-        revision=1,
+        revision=2,
         origin="built_in",
         beats={
             "hook": dimmed.model_copy(update={"heading_place": "title_top"}),
@@ -132,7 +139,9 @@ def _b() -> StyleTemplate:
             "footage": dimmed,
             "outro": dimmed,
         },
-        cuts=CutRules(max_shot_seconds=3.0, card_between_facts=True),
+        cuts=CutRules(
+            max_shot_seconds=2.4, min_shot_seconds=0.9, card_between_facts=True, planned=True
+        ),
         captions=CaptionRules(style="kinetic", words_per_caption=3),
         narration=NarrationRules(starter=_STARTER_B, card_lines=True),
     )

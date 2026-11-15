@@ -681,6 +681,76 @@ def test_a_card_lands_on_its_closest_sentence_at_the_first_word_it_repeats() -> 
     assert spoken_at("Netizen kok curiga?", words, 100, FPS) is None
 
 
+def _mutant_reactions() -> list[WordTiming]:
+    # Stage1 draft edoc_bfd96c34 (2026-11-14): the script's card lines paraphrase the voice.
+    return _timed(
+        ("jelas", 0.0, 0.3),
+        ("banget", 0.4, 0.7),
+        ("kalau", 0.8, 1.0),
+        ("Mutant", 1.1, 1.5),
+        ("mengincar", 1.6, 2.1),
+        ("undangan", 2.2, 2.6),
+        ("dari", 2.7, 2.8),
+        ("Densu.", 2.9, 3.4),
+        ("Kok", 3.6, 3.8),
+        ("bisa", 3.9, 4.1),
+        ("ya", 4.2, 4.3),
+        ("strateginya", 4.4, 5.0),
+        ("begini?", 5.1, 5.6),
+        ("Netizen", 5.9, 6.3),
+        ("pun", 6.4, 6.5),
+        ("heboh.", 6.6, 7.1),
+        ("Terus", 7.4, 7.6),
+        ("ada", 7.7, 7.8),
+        ("yang", 7.9, 8.0),
+        ("mengira", 8.1, 8.5),
+        ("dia", 8.6, 8.7),
+        ("disuruh", 8.8, 9.2),
+        ("Aldi", 9.3, 9.5),
+        ("Taher.", 9.6, 10.1),
+    )
+
+
+def test_a_loose_card_lands_on_the_sentence_naming_its_word() -> None:
+    # Style B, 2026-11-14: a paraphrased line went to the third phrase, over another sentence.
+    from thoth_control_plane.assembly.narration_timeline import spoken_at
+
+    words = _mutant_reactions()
+    assert spoken_at("Strateginya unik banget!", words, 100, FPS) is None
+    assert spoken_at("Strateginya unik banget!", words, 100, FPS, loose=True) == 100 + round(
+        4.4 * FPS
+    )
+    assert spoken_at("Netizen makin kepo!", words, 100, FPS, loose=True) == 100 + round(5.9 * FPS)
+    # Nothing named: still no place of its own.
+    assert spoken_at("Kok bisa gitu?", words[:8], 100, FPS, loose=True) is None
+
+
+def test_a_planned_card_shows_over_the_sentence_naming_its_word() -> None:
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    reactions = VoicedBeat(
+        beat="reactions",
+        asset=audio("asset_voice_reactions", 10.5),
+        duration_seconds=10.5,
+        words=_mutant_reactions(),
+    )
+    styled = narrate_document(
+        draft(),
+        [VOICES[0], VOICES[1], reactions],
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"reactions": "Netizen makin kepo!"},
+    )
+    card = next(
+        c for c in styled.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"
+    )
+    voice = next(c for c in styled.clips if c.clip_id == "clip_narration_reactions")
+    assert card.from_frame == voice.from_frame + round(5.9 * FPS)
+
+
 def test_a_revoice_of_a_styled_draft_keeps_the_hand_edits() -> None:
     # Final review (operator, 2026-11-10): the style cuts once, from its first voice; a re-voice
     # only retimes, so shots the operator changed afterwards stay as they left them.
@@ -786,3 +856,130 @@ def test_the_scripts_headline_becomes_the_main_title_unless_a_person_wrote_one()
         draft(titled("user_edited")), VOICES, [], PRESET, ROLES, headline="Judul pendek"
     )
     assert clip(kept, "clip_001").heading == clip(draft(), "clip_001").heading
+
+
+# Planner stage 1 (spec 2026-11-13): Style B cuts on phrase starts, and a plan picks the pictures.
+PHRASED = "satu dua, tiga empat, lima enam"
+
+
+def _style_b_main_starts(document: EditDocumentV2, window: tuple[int, int]) -> list[int]:
+    main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
+    return sorted(
+        c.from_frame
+        for c in document.clips
+        if c.track_id in main_tracks and window[0] <= c.from_frame < window[1]
+    )
+
+
+def _main_window(document: EditDocumentV2) -> tuple[int, int]:
+    voice = clip(document, "clip_narration_main")
+    return voice.from_frame, voice.from_frame + voice.duration_in_frames
+
+
+def test_planned_style_cuts_on_phrase_starts_without_a_plan() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    document = narrate_document(
+        draft(), voices, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"]
+    )
+    start, end = _main_window(document)
+    assert _style_b_main_starts(document, (start, end)) == [start, start + 50, start + 100]
+
+
+def test_a_plan_places_a_soundbite_on_the_main_track() -> None:
+    from thoth_control_plane.domain.planner import (
+        BeatPlan,
+        DraftPlan,
+        PlanPhrase,
+        PlanShot,
+        words_key,
+    )
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    main_words = voices[1].words
+    plan = DraftPlan(
+        shots=[
+            PlanShot(
+                shot_id="S9",
+                asset_id="asset_main",
+                source="main",
+                start_seconds=10.0,
+                end_seconds=12.0,
+            )
+        ],
+        beats=[
+            BeatPlan(
+                beat="main",
+                words_key=words_key(main_words),
+                phrases=[
+                    PlanPhrase(phrase_id="P1", first_word=0, last_word=1, text="satu dua,",
+                               base=["S9"], soundbite=True),
+                    PlanPhrase(phrase_id="P2", first_word=2, last_word=3, text="tiga empat,"),
+                    PlanPhrase(phrase_id="P3", first_word=4, last_word=5, text="lima enam"),
+                ],
+            )
+        ],
+    )  # fmt: skip
+    document = narrate_document(
+        draft(), voices, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_b"], plan=plan
+    )
+    start, _ = _main_window(document)
+    main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
+    first = next(c for c in document.clips if c.track_id in main_tracks and c.from_frame == start)
+    assert first.source_from_frame == 300 and first.duration_in_frames == 50
+
+
+def test_a_planned_credit_follows_its_shot_on_a_revoice() -> None:
+    from thoth_control_plane.domain.planner import (
+        BeatPlan,
+        DraftPlan,
+        PlanPhrase,
+        PlanShot,
+        words_key,
+    )
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    style = BUILT_IN_STYLES["style_b"]
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    footage = PlanShot(
+        shot_id="S2",
+        asset_id="asset_vid_long",
+        source="footage",
+        start_seconds=1.0,
+        end_seconds=4.0,
+        handle="@kompascomreport",
+    )
+    words = voices[2].words
+    plan = DraftPlan(
+        shots=[footage],
+        beats=[
+            BeatPlan(
+                beat="reactions",
+                words_key=words_key(words),
+                phrases=[
+                    PlanPhrase(phrase_id="P1", first_word=0, last_word=2, text="", base=["S2"]),
+                    PlanPhrase(phrase_id="P2", first_word=3, last_word=5, text=""),
+                ],
+            )
+        ],
+    )
+    first = narrate_document(draft(), voices, [], PRESET, ROLES, style=style, plan=plan)
+    longer = [voiced("hook", 3.0), voices[1], voices[2]]
+    longer[0] = VoicedBeat(
+        beat="hook", asset=audio("asset_voice_hook_2", 3.0), duration_seconds=3.0,
+        words=longer[0].words,
+    )  # fmt: skip
+    second = narrate_document(first, longer, [], PRESET, ROLES, style=style, plan=plan)
+    credit = next(c for c in second.clips if c.clip_id.startswith("clip_style_reactions_credit_"))
+    shot = next(
+        c
+        for c in second.clips
+        if getattr(c, "asset_id", None) == "asset_vid_long"
+        and c.clip_id.startswith("clip_style_reactions_plan_")
+    )
+    assert (credit.from_frame, credit.duration_in_frames) == (
+        shot.from_frame,
+        shot.duration_in_frames,
+    )

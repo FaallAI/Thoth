@@ -15,6 +15,7 @@ from thoth_control_plane.domain.narration import (
     ScriptBeat,
     VoiceEstimate,
 )
+from thoth_control_plane.domain.planner import BeatPlan, DraftPlan, PlanPhrase
 from thoth_control_plane.infrastructure.narration_store import NarrationStore
 
 pytestmark = needs_postgres
@@ -150,3 +151,27 @@ def test_a_scripts_title_card_is_kept_until_the_next_narration(store: NarrationS
     run(store.set_status("edoc_1", "completed"))
     run(store.start("project_001", "edoc_1", "narration/edoc_1/2", NarrationPreset()))
     assert run(store.get_intro_frames("edoc_1")) is None
+
+
+def test_a_plan_round_trips(store: NarrationStore) -> None:
+    run(store.start("project_a", "edoc_1", "narration/edoc_1/1", NarrationPreset()))
+    assert run(store.get_plan("edoc_1")) is None
+    plan = DraftPlan(
+        model="qwen/qwen3.7-flash",
+        beats=[
+            BeatPlan(
+                beat="main",
+                words_key="k",
+                phrases=[PlanPhrase(phrase_id="P1", first_word=0, last_word=2, text="a b c")],
+            )
+        ],
+    )
+    run(store.set_plan("edoc_1", plan))
+    assert run(store.get_plan("edoc_1")) == plan
+
+
+def test_the_shot_cache_keeps_the_first_write(store: NarrationStore) -> None:
+    assert run(store.get_shots("sha256:missing")) is None
+    run(store.put_shots("sha256:x", [(0.0, 1.5), (1.5, 4.0)]))
+    run(store.put_shots("sha256:x", [(0.0, 9.0)]))
+    assert run(store.get_shots("sha256:x")) == [(0.0, 1.5), (1.5, 4.0)]

@@ -56,6 +56,7 @@ from thoth_control_plane.domain.narration import (
 )
 from thoth_control_plane.domain.prompts import PROMPT_STARTERS
 from thoth_control_plane.domain.story_beats import beat_spans
+from thoth_control_plane.domain.style_apply import edited_beats
 from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
 from thoth_control_plane.voice.loudness import normalize_loudness
 from thoth_control_plane.voice.ports import (
@@ -69,6 +70,8 @@ logger = logging.getLogger(__name__)
 
 #: The same request can be answered differently, so a refused answer is asked for once more.
 SCRIPT_ATTEMPTS = 2
+#: The planner's share of the draft write (5 min): past it, the draft cuts on phrases only.
+PLANNER_DEADLINE_SECONDS = 180.0
 
 
 @dataclass
@@ -92,6 +95,8 @@ class NarrationPorts:
     library: Any | None = None
     #: The workspace a project belongs to; None when it cannot be told (spec 2026-11-13).
     workspace_of: Callable[[str], Awaitable[str | None]] | None = None
+    #: Planner stage 1: plan(project, document, draft, materials, voices); None: no planner.
+    planner: Any | None = None
 
 
 async def workspace_sfx(
@@ -375,6 +380,25 @@ class NarrationActivities:
         # Up, never down: the card's last frame may lie just before the first read without it.
         return math.ceil(seconds * document.canvas.fps)
 
+    async def _plan(
+        self,
+        step: NarrationStepInput,
+        document: EditDocumentV2,
+        materials: Any,
+        voiced: list[VoicedBeat],
+    ) -> Any:
+        """The planner's plan, or None: past its deadline the draft cuts on phrases only."""
+        try:
+            return await asyncio.wait_for(
+                self._ports.planner.plan(  # type: ignore[union-attr]
+                    step.project_id, step.document_id, document, materials, voiced
+                ),
+                PLANNER_DEADLINE_SECONDS,
+            )
+        except TimeoutError:
+            logger.warning("planner past its deadline; cutting on phrases only")
+            return None
+
     async def _write(
         self, step: NarrationStepInput, voices: list[VoiceRef], *, place_sfx: bool
     ) -> None:
@@ -403,17 +427,25 @@ class NarrationActivities:
         cards = (
             {beat.beat: beat.card_line for beat in script.beats if beat.card_line} if script else {}
         )
+        voiced = [
+            VoicedBeat(
+                beat=voice.beat,
+                asset=voice.asset,
+                duration_seconds=voice.duration_seconds,
+                words=voice.words,
+            )
+            for voice in voices
+        ]
+        plan = None
+        if style is not None and style.cuts.planned and ports.planner is not None:
+            # A hand-edited beat is not re-cut, so its picture is not paid for again.
+            edited = set(edited_beats(document, _roles(materials)))
+            plan = await self._plan(
+                step, document, materials, [v for v in voiced if v.beat not in edited]
+            )
         narrated = narrate_document(
             document,
-            [
-                VoicedBeat(
-                    beat=voice.beat,
-                    asset=voice.asset,
-                    duration_seconds=voice.duration_seconds,
-                    words=voice.words,
-                )
-                for voice in voices
-            ],
+            voiced,
             placed,
             preset,
             _roles(materials),
@@ -422,6 +454,7 @@ class NarrationActivities:
             style=style,
             card_lines=cards,
             headline=script.headline if script else None,
+            plan=plan,
         )
         await ports.documents.write_derived_revision(
             step.project_id, step.document_id, document.revision, narrated
@@ -468,6 +501,18 @@ class NarrationActivities:
                 return NarrationStepResult(code="voice_rejected")
             await ports.store.clear_stale(step.document_id, step.beat)
         return NarrationStepResult()
+
+
+async def fetch_planner_asset(
+    assets: Any, media: Any, project_id: str, asset_id: str, directory: Path
+) -> tuple[Path, AssetRef] | None:
+    """One ready project asset fetched for the planner, with its document reference."""
+    record = await assets.get_ready_record(project_id=project_id, asset_id=asset_id)
+    if record is None:
+        return None
+    target = directory / f"{asset_id}{Path(record.artifact_location).suffix}"
+    await asyncio.to_thread(media.fetch, record.artifact_location, target)
+    return target, record.asset.to_asset_ref()
 
 
 def build_narration_activities(settings: Any, media: Any) -> NarrationActivities:
@@ -525,6 +570,7 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
     )
     transcriber = WhisperTranscriber(settings.THOTH_WHISPER_MODEL_DIR)
     usage = UsageStore.connect(database)
+    store = NarrationStore(database)
 
     async def upload_audio(project_id: str, audio: bytes, media_type: str) -> AssetRef:
         async def chunks():  # type: ignore[no-untyped-def]
@@ -550,6 +596,24 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
         target = directory / f"main{Path(record.artifact_location).suffix}"
         await asyncio.to_thread(media.fetch, record.artifact_location, target)
         return target
+
+    async def fetch_asset(
+        project_id: str, asset_id: str, directory: Path
+    ) -> tuple[Path, AssetRef] | None:
+        return await fetch_planner_asset(assets, media, project_id, asset_id, directory)
+
+    planner = None
+    if settings.THOTH_PLANNER_ENABLED:
+        from thoth_control_plane.assembly.adapters.planner_model import PlannerModel
+        from thoth_control_plane.assembly.planner_service import Planner
+
+        key = settings.openrouter_api_key
+        model = (
+            PlannerModel(key, settings.THOTH_PLANNER_MODEL, settings.THOTH_PLANNER_FALLBACK_MODEL)
+            if key
+            else None
+        )
+        planner = Planner(store, fetch_asset, model, settings.THOTH_FFMPEG, settings.THOTH_FFPROBE)
 
     async def transcribe(video: Path) -> list[TranscriptSegment]:
         # ponytail: the first 15 minutes; a longer main video is not a short-form source.
@@ -582,7 +646,7 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
 
     return NarrationActivities(
         NarrationPorts(
-            store=NarrationStore(database),
+            store=store,
             studio=studio,
             documents=EditDocumentService(PostgresEditDocumentRepository(database)),
             main_video=main_video,
@@ -606,5 +670,6 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
                 Path(settings.THOTH_FFMPEG),
             ),
             workspace_of=workspace_of,
+            planner=planner,
         )
     )

@@ -2,6 +2,128 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-13 - Planner stage 1: Style B cut per phrase, picture chosen by content
+
+The reference-faithful editing track, step 2. Style B drafts sat on the main video for about 79% of their length, cut on sentence ends, and pushed in on every shot; the WinNews references cut on every phrase, show what each phrase says, keep the camera still and credit each clip. The operator accepted the rule-based rhythm and asked that each phrase's picture be chosen by content and checked against the picture itself ("gunakan opsi 2 yaitu mencocokan isi per frasa"; "kita juga perlu melihat gambar"). Design: `docs/superpowers/specs/2026-11-13-planner-stage-1-design.md`; plan: `docs/superpowers/plans/2026-11-13-planner-stage-1.md`; brainstorm record items 24-41.
+
+**The trial that shaped it** (throwaway scripts outside the repo, USD 0.0911 in paid calls):
+- **Price buys nothing here.**
+  - On 62 held-out phrases judged blind by the operator, the cheapest model (`qwen/qwen3.7-flash`) scored about as well as the rungs above it (`qwen3-vl-30b`, `gemini-3.1-flash-lite`).
+  - Run to run, the cheapest model's first pick changed in 28 of 62 phrases.
+- **Accuracy is a range, not one number:**
+  - 50-52% when strict;
+  - 60-66% when only the first shot counts against the blind picks;
+  - 77% loose, which is an upper bound.
+- **Judging must be blind.** Judgments made with the model's answer on screen followed it in both directions.
+- **Soundbite matching needs no model.** Matching the phrase's words to the main video's speech hit the blind pick in 12 of 13 phrases.
+- **Speech must land on the right shot.** A sentence belongs to a shot only when it covers at least 1 s or half the shot; otherwise the model picks the shot before.
+- **Two layers per phrase** (operator: "kan bisa digunakan bebarengan"): a base picture plus a card overlay.
+
+**What it does:**
+- **Phrases.** A Style B narration is split into phrases: cut at punctuation, at least 0.9 s, about 2.4 s at most. Each phrase start is a cut.
+- **Picture per phrase:**
+  1. When the main video says the phrase, that moment is the base (a soundbite, deterministic and free).
+  2. Otherwise one call per draft to `THOTH_PLANNER_MODEL` (default `qwen/qwen3.7-flash`) answers from numbered contact sheets: up to 3 base shots and at most 1 card per phrase. Its answer is clamped to known ids.
+  3. When nothing fits, the phrase falls back to the main video.
+- **Layers:**
+  - the main video keeps running underneath, and a soundbite jump-cuts it;
+  - footage rides over it on the b-roll with a credit (`@account`) for exactly its span;
+  - a card sits on top, or fills the screen when no base fits;
+  - no shot repeats in a draft;
+  - card lines sit over the third phrase and never push shots.
+- **Style B revision 2:** a still camera, dim 0.45 kept, 0.9-2.4 s shots.
+- **Kept, not re-bought:**
+  - the plan is stored per draft, and a re-voice with unchanged words reuses it with no call;
+  - source shots are cached by checksum (`planner_shots`), so another draft or a re-voice reuses them.
+- **Reliability:**
+  - busy answers (429/502/503) are retried 3 times, then the fallback `THOTH_PLANNER_FALLBACK_MODEL` (`google/gemini-3.1-flash-lite`) is tried once, and every hand-over is logged (operator, 2026-11-13);
+  - with no key there are soundbites only; disabled (`THOTH_PLANNER_ENABLED=false`) or past its 180 s deadline, the draft cuts on phrase starts only;
+  - the narration never fails because of the planner.
+- **Cost:** about USD 0.0015 per draft, metered through the narration write's scope.
+
+| Commit | What |
+|---|---|
+| `9d63cd07` | Phrase split and plan reuse |
+| `9d06836c` | Speech per shot, soundbite matching, trial fixtures |
+| `6a287d6a` | ffmpeg shot detection and contact sheets |
+| `0a2d6430` | The planner model call (prompt v3, retries, fallback, clamping) |
+| `855f3364` | Editor migration 0032: `narrations.plan`, `planner_shots` |
+| `f87ffdde` | The assigner |
+| `5639240e` | Style B revision 2; planned shots, cards and credits in `style_operations` |
+| `62ddcc1a` | The planner service, narration plumbing and settings |
+
+**Verification:**
+- `make test`: 4958 passed, 243 skipped. The skipped tests are the Postgres and MinIO ones, and `make test-postgres` passes all 221 of them.
+- `make lint` is clean.
+- **Fixture guard:** the trial's 4 held-out drafts are test fixtures (`python/tests/fixtures/planner/`, made by `python/scripts/export_planner_fixtures.py`). On the blind picks, first shot, with the main-video fallback counted fine, the recorded answers score 0.66 through the assigner (trial: 0.60). This is a regression guard, not the target.
+
+**Calls made during the build** (the ledger's rulings):
+- **Model call:** raw httpx, not Agno, because `finish_reason`, `reasoning` and the data policy are needed. Prompt v3 is copied word for word and re-wrapped to the line limit.
+- **Short footage shots:** a footage shot shorter than its phrase ends at its own end over the main video. On the footage beat it plays on and holds only where its source ends.
+- **Beat roles:** planned clips carry their beat's role, so Story mode keeps them in that beat.
+- **Re-voice:** main-video planned shots are re-placed only when the re-voice recuts the main beat.
+- **Cards:** a card whose only placements are locked is not added again.
+- **Credits:** the import's footage credits are the unlocked `@...` texts of the footage role with an empty body.
+- **Assets:** `DraftPlan.assets` carries the candidates' references, so a post card from Materials can be placed.
+- **Rhythm:** rhythm cuts include each beat's own start.
+
+**Final review** (one fresh reviewer on the most capable model over the whole branch): 2 Critical and 4 Important, all fixed test-first in one pass, each test failing before its fix:
+- **A partial re-plan overwrote unchanged beats' picks.** The model's answers now go to the re-planned beats only. Shot and card ids the stored plan named are kept, so the reused picks still point at the same shots.
+- **Planner clips became the cursor's material on a later write** (uncredited footage between planned shots). Planner clips are now named for their beat (`clip_style_<beat>_plan_`/`_credit_`), removed only when that beat is planned again, and never cut by the cursor.
+- **Re-voicing main dropped the other beats' soundbites.** Every beat's planned main shots go back when the main video is cut.
+- **A locked main-video piece made the write fail.** Planned main shots are trimmed around kept pieces.
+- **Credits had no beat.** Their ids carry it, they are removed by beat, and a re-voice moves them with their shot.
+- **A plan made while no model answered was reused forever.** It is planned again once a model is configured.
+
+After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clean. The six minors were then fixed test-first too (operator: "minor tolong perbaiki dulu"), in `805a6dee`:
+- **Timeouts:** a model attempt now times out at 45 s, and a hung model hands over to the fallback at once.
+- **ffmpeg:** a cancelled ffmpeg run is killed.
+- **Odd phrase ids:** an odd phrase id from the model is skipped, not fatal.
+- **Labels:** footage labels start at F1 even when the main video cannot be fetched.
+- **Cards:** a card stays put when its beat has no b-roll track or shows nothing.
+- **Hand-edited beats:** a hand-edited beat is not sent to the planner, so it is not paid for again; its stored plan is carried over.
+
+`make test` then gives 4974 passed and 243 skipped, and lint is clean.
+
+### On stage1 (2026-11-13 to 2026-11-14)
+- **807977be deployed from the branch image** (thoth e75b85eb2660, renderer e4c0bfc8e441, web abb13f31afb7), migration head 0032. stage1 runs code that is not in master.
+- **The operator's first look:**
+  - Gibran Style B was "lumayan bagus"; Gibran Style A was "sangat bagus mantap"; Yono Bakrie Halloween was "sangat bagus".
+  - They asked that a landscape source fill the Style B frame: Gibran's 1280x720 video sat in a `contain` band, and the kinetic captions covered his face.
+  - The planner had in fact failed on both drafts (`AttributeError`: the worker called `record.to_asset_ref()` on an `EditorAssetRecord`). The drafts fell back to the phrase-start rhythm.
+- **2a3fc4a4 fixed both:**
+  - `fetch_planner_asset` takes the asset from the record;
+  - `BeatLook.fit` sets Style B's full-frame shots to `cover`.
+
+  It was checked end to end in the worker, read-only, on the Gibran draft: 21 phrases, 6 soundbites and 3 comment cards. The cheap model ended `finish=error` and the fallback answered in 39 s.
+
+  It was deployed from the branch image (thoth dee6cb603fa1, renderer 917c8543aeee, web 09a9b7d89196), with rollback `D:/thoth-tmp/bu/pins/rollback-to-807977be.sh`.
+- **First planned Style B draft** (`edoc_bfd96c34`, qwen3.7-flash, 3 beats): the operator found the white narrator card "kadang tidak sesuai".
+  - 1 of 3 card lines matched its sentence. The other two paraphrased the voice, shared one word with it, and fell back to the third phrase, over another sentence.
+  - "Netizen makin kepo!" also covered the planner's pick for that phrase.
+- **The card fix:** in a planned style, `spoken_at(..., loose=True)` falls back to the sentence naming any of the line's content words before the third phrase. The planner's `_content` became the shared `content_words`.
+  - Tests: `test_a_loose_card_lands_on_the_sentence_naming_its_word` and `test_a_planned_card_shows_over_the_sentence_naming_its_word`, both RED then GREEN.
+  - Rechecked offline on the draft's stored voices: the cards now land on "…strateginya begini?" and "Netizen pun heboh."
+  - `make test`: 4975 passed, 243 skipped, 3 failed. The 3 failures are in `test_refine.py` and `test_ocr_replay.py` (`pytest.approx` on nested tuples). They fail without this change too: `scripts/dev/pytest-wsl.sh` installs an unpinned `pytest`, and a newer release rejects nested `approx`. CI installs from `uv.lock`.
+  - Lint is clean.
+- **e53e9ffb deployed from the branch image** (CI 43626502644 green; thoth 05940a4e2846, renderer 05110f55078d, web 453ce0d742f2), healthy, with rollback `D:/thoth-tmp/bu/pins/rollback-to-2a3fc4a4.sh` (pins only; 0032 stays).
+- **The operator's verdict (2026-11-15):** "next step 1 - 3 ku cek sudah pas semua". The white cards on a new Style B draft, the planner's picture picks and the footage-beat play-on are all accepted as built.
+- **`scripts/dev/pytest-wsl.sh` pins `pytest==9.1.1`**, the `uv.lock` version. The three nested `approx` tests pass again, and `make test` gives 4978 passed, 243 skipped. Lint is clean.
+
+### Next steps
+- The merge gate, authorized on 2026-11-15.
+- The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
+- Carried forward:
+  - the narration script typo "Tobat, TG!" should read "Tobat, EGE!" (outside the planner);
+  - the footage library (track step 3);
+  - stressed narration (step 4);
+  - dropping the `sfx_library` table;
+  - automatic placement of clips and backsound;
+  - `/understand --full`;
+  - the offer to move `reports/` and `research_notes/` to `docs/research`;
+  - the pre-existing data-dependent Studio e2e failures.
+- The PR #130 merge record rides on this branch's PR.
+
 ## 2026-11-13 - Workspace asset library
 
 The operator asked for one place to keep their own reusable media for every draft: "mending gini deh di dashboard nya berikan page terkait management asset yang nanti bisa diakses ke semua draft". The brainstorm record is `.superpowers/sdd/2026-11-12-footage-library/brainstorm-notes.md`, items 17-23. The spec and plan were approved on 2026-11-13 (`docs/superpowers/specs/2026-11-13-workspace-asset-library-design.md`, `docs/superpowers/plans/2026-11-13-workspace-asset-library.md`, both local).

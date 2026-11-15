@@ -1,0 +1,922 @@
+{
+ "document": "3a20bf9f",
+ "shots": [
+  {
+   "shot": "S1",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 0.0,
+   "end": 2.87,
+   "said": "Bung Roki, apapun makanannya paling enak, minumnya lu dah sendiri, betul?",
+   "handle": null
+  },
+  {
+   "shot": "S2",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 2.87,
+   "end": 5.73,
+   "said": "Bung Roki, apapun makanannya paling enak, minumnya lu dah sendiri, betul?",
+   "handle": null
+  },
+  {
+   "shot": "S3",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 5.73,
+   "end": 6.63,
+   "said": "Tomat, TG!",
+   "handle": null
+  },
+  {
+   "shot": "S4",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 6.63,
+   "end": 7.97,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S5",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 7.97,
+   "end": 9.43,
+   "said": "Tomat, TG!",
+   "handle": null
+  },
+  {
+   "shot": "S6",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 9.43,
+   "end": 12.63,
+   "said": "Tomat, TG!",
+   "handle": null
+  },
+  {
+   "shot": "S7",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 12.63,
+   "end": 15.13,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S8",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 15.13,
+   "end": 17.45,
+   "said": "Katanya Pak Angger, gue ngeras yang pergi mana, tuh?",
+   "handle": null
+  },
+  {
+   "shot": "S9",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 17.45,
+   "end": 19.77,
+   "said": "Katanya Pak Angger, gue ngeras yang pergi mana, tuh?",
+   "handle": null
+  },
+  {
+   "shot": "S10",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 19.77,
+   "end": 22.03,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S11",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 22.03,
+   "end": 26.13,
+   "said": "Amunak masuk juga.",
+   "handle": null
+  },
+  {
+   "shot": "S12",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 26.13,
+   "end": 27.73,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S13",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 27.73,
+   "end": 29.67,
+   "said": "Belum tuak, Tomat.",
+   "handle": null
+  },
+  {
+   "shot": "S14",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 29.67,
+   "end": 31.27,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S15",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 31.27,
+   "end": 33.33,
+   "said": "Om, kongres ya, om.",
+   "handle": null
+  },
+  {
+   "shot": "S16",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 33.33,
+   "end": 36.33,
+   "said": "Cie, jadi pejabat.",
+   "handle": null
+  },
+  {
+   "shot": "S17",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 36.33,
+   "end": 39.47,
+   "said": "Bung Roki, konsisten lah.",
+   "handle": null
+  },
+  {
+   "shot": "S18",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 39.47,
+   "end": 43.87,
+   "said": "Bung Roki, konsisten lah.",
+   "handle": null
+  },
+  {
+   "shot": "S19",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 43.87,
+   "end": 45.67,
+   "said": "Konsisten, konsisten.",
+   "handle": null
+  },
+  {
+   "shot": "S20",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 45.67,
+   "end": 47.43,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S21",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 47.43,
+   "end": 48.77,
+   "said": "Radikal break.",
+   "handle": null
+  },
+  {
+   "shot": "S22",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 48.77,
+   "end": 50.73,
+   "said": "Pandangan saya tetap, radikal break.",
+   "handle": null
+  },
+  {
+   "shot": "S23",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 50.73,
+   "end": 51.63,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S24",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 51.63,
+   "end": 53.97,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S25",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 53.97,
+   "end": 56.47,
+   "said": "Penjilat nasional.",
+   "handle": null
+  },
+  {
+   "shot": "S26",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 56.47,
+   "end": 58.33,
+   "said": "Penjilat nasional.",
+   "handle": null
+  },
+  {
+   "shot": "S27",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 58.33,
+   "end": 60.73,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S28",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 60.73,
+   "end": 63.13,
+   "said": "We do one.",
+   "handle": null
+  },
+  {
+   "shot": "S29",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 63.13,
+   "end": 65.4,
+   "said": "Bung Roki, apapun makanannya paling enak, minumnya lu dah sendiri, betul?",
+   "handle": null
+  },
+  {
+   "shot": "S30",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 65.4,
+   "end": 67.67,
+   "said": "Bung Roki, apapun makanannya paling enak, minumnya lu dah sendiri, betul?",
+   "handle": null
+  },
+  {
+   "shot": "S31",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 67.67,
+   "end": 69.17,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S32",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 69.17,
+   "end": 70.03,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S33",
+   "source": "main",
+   "asset_id": "asset_a9e1a441c4a943198a44c070779e37b6",
+   "start": 70.03,
+   "end": 71.93,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S34",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 0.0,
+   "end": 2.5,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S35",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 2.5,
+   "end": 5.1,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S36",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 5.1,
+   "end": 6.94,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S37",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 6.94,
+   "end": 9.68,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S38",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 9.68,
+   "end": 12.03,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S39",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 12.03,
+   "end": 14.38,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S40",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 14.38,
+   "end": 16.64,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S41",
+   "source": "footage",
+   "asset_id": "asset_245c50b551f84cc0a259c36f2b725cb5",
+   "start": 16.64,
+   "end": 20.0,
+   "said": "",
+   "handle": "@kompastvmerauke3495"
+  },
+  {
+   "shot": "S42",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 0.0,
+   "end": 2.14,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S43",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 2.14,
+   "end": 3.74,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S44",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 3.74,
+   "end": 7.12,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S45",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 7.12,
+   "end": 8.18,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S46",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 8.18,
+   "end": 10.04,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S47",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 10.04,
+   "end": 11.12,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S48",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 11.12,
+   "end": 12.84,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S49",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 12.84,
+   "end": 14.84,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S50",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 14.84,
+   "end": 15.98,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S51",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 15.98,
+   "end": 17.34,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S52",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 17.34,
+   "end": 18.62,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S53",
+   "source": "footage",
+   "asset_id": "asset_a4dc683b50154824930e438af4b984b1",
+   "start": 18.62,
+   "end": 20.0,
+   "said": "",
+   "handle": "@kompastv"
+  },
+  {
+   "shot": "S54",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 0.0,
+   "end": 2.86,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S55",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 2.86,
+   "end": 5.72,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S56",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 5.72,
+   "end": 8.58,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S57",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 8.58,
+   "end": 11.44,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S58",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 11.44,
+   "end": 14.3,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S59",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 14.3,
+   "end": 17.16,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S60",
+   "source": "footage",
+   "asset_id": "asset_515ae880d66f476e9411b72e0e87bca0",
+   "start": 17.16,
+   "end": 20.02,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S61",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 0.0,
+   "end": 2.86,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S62",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 2.86,
+   "end": 5.73,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S63",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 5.73,
+   "end": 8.59,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S64",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 8.59,
+   "end": 11.45,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S65",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 11.45,
+   "end": 14.31,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S66",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 14.31,
+   "end": 17.18,
+   "said": "",
+   "handle": null
+  },
+  {
+   "shot": "S67",
+   "source": "footage",
+   "asset_id": "asset_92bce674174f4223903d991a23c5d4fc",
+   "start": 17.18,
+   "end": 20.04,
+   "said": "",
+   "handle": null
+  }
+ ],
+ "cards": [
+  {
+   "card": "C1",
+   "kind": "post_card",
+   "asset_id": "asset_a26df7331077472d82c2277bb44a1ec7"
+  },
+  {
+   "card": "C2",
+   "kind": "comment_card",
+   "asset_id": "asset_0f59f24c6843446db47a2e640d1415c3"
+  },
+  {
+   "card": "C3",
+   "kind": "comment_card",
+   "asset_id": "asset_20da5ec513e74357bece3a237dfc8432"
+  },
+  {
+   "card": "C4",
+   "kind": "comment_card",
+   "asset_id": "asset_c51a66d4af1648c495021c5179c487fc"
+  }
+ ],
+ "phrases": [
+  {
+   "id": "P1",
+   "beat": "main",
+   "text": "Rocky Gerung jadi sasaran eksperimen sosial.",
+   "start": 0.0,
+   "end": 2.508
+  },
+  {
+   "id": "P2",
+   "beat": "main",
+   "text": "Ada yang minta dia konsisten,",
+   "start": 2.589,
+   "end": 4.098
+  },
+  {
+   "id": "P3",
+   "beat": "main",
+   "text": "tapi ada juga yang justru menyebutnya sebagai",
+   "start": 4.342,
+   "end": 6.362
+  },
+  {
+   "id": "P4",
+   "beat": "main",
+   "text": "penjilat nasional.",
+   "start": 6.409,
+   "end": 7.709
+  },
+  {
+   "id": "P5",
+   "beat": "evidence",
+   "text": "Video ini ingin melihat bagaimana reaksi",
+   "start": 0.0,
+   "end": 1.892
+  },
+  {
+   "id": "P6",
+   "beat": "evidence",
+   "text": "masyarakat saat bertemu langsung dengan",
+   "start": 1.95,
+   "end": 4.226
+  },
+  {
+   "id": "P7",
+   "beat": "evidence",
+   "text": "Rocky Gerung di area CFD.",
+   "start": 4.284,
+   "end": 6.502
+  },
+  {
+   "id": "P8",
+   "beat": "reactions",
+   "text": "Netizen pun bereaksi. Ada yang menyuruh tobat,",
+   "start": 0.0,
+   "end": 1.95
+  },
+  {
+   "id": "P9",
+   "beat": "reactions",
+   "text": "ada yang mengira Rocky benci Jokowi karena tak diberi jabatan,",
+   "start": 1.974,
+   "end": 4.934
+  },
+  {
+   "id": "P10",
+   "beat": "reactions",
+   "text": "sampai ada yang suka semua orang di video ini.",
+   "start": 5.108,
+   "end": 8.034
+  },
+  {
+   "id": "P11",
+   "beat": "footage",
+   "text": "Momen ini menunjukkan betapa beragamnya pandangan",
+   "start": 0.0,
+   "end": 2.264
+  },
+  {
+   "id": "P12",
+   "beat": "footage",
+   "text": "publik terhadap sosok Rocky Gerung.",
+   "start": 2.322,
+   "end": 4.365
+  }
+ ],
+ "answer_v3": {
+  "P1": {
+   "base": [
+    "S1",
+    "S2",
+    "S40"
+   ],
+   "overlay": [
+    "C1"
+   ]
+  },
+  "P2": {
+   "base": [
+    "S17",
+    "S18",
+    "S19"
+   ],
+   "overlay": []
+  },
+  "P3": {
+   "base": [
+    "S21",
+    "S22"
+   ],
+   "overlay": []
+  },
+  "P4": {
+   "base": [
+    "S25",
+    "S26"
+   ],
+   "overlay": []
+  },
+  "P5": {
+   "base": [
+    "S1",
+    "S2",
+    "S3"
+   ],
+   "overlay": []
+  },
+  "P6": {
+   "base": [
+    "S8",
+    "S9",
+    "S16"
+   ],
+   "overlay": []
+  },
+  "P7": {
+   "base": [
+    "S40",
+    "S41",
+    "S48"
+   ],
+   "overlay": []
+  },
+  "P8": {
+   "base": [
+    "S3",
+    "S5",
+    "S6"
+   ],
+   "overlay": [
+    "C2"
+   ]
+  },
+  "P9": {
+   "base": [],
+   "overlay": [
+    "C3"
+   ]
+  },
+  "P10": {
+   "base": [],
+   "overlay": [
+    "C4"
+   ]
+  },
+  "P11": {
+   "base": [
+    "S3",
+    "S5",
+    "S6",
+    "S12"
+   ],
+   "overlay": []
+  },
+  "P12": {
+   "base": [
+    "S3",
+    "S5",
+    "S6",
+    "S12"
+   ],
+   "overlay": []
+  }
+ },
+ "blind": {
+  "P1": {
+   "own": [
+    "S1"
+   ],
+   "model_ok": null,
+   "v2_pick": "S1"
+  },
+  "P2": {
+   "own": [
+    "S17",
+    "S18",
+    "S19"
+   ],
+   "model_ok": null,
+   "v2_pick": "S19"
+  },
+  "P3": {
+   "own": [
+    "S23",
+    "S24"
+   ],
+   "model_ok": null,
+   "v2_pick": null
+  },
+  "P4": {
+   "own": [
+    "S25",
+    "S26"
+   ],
+   "model_ok": false,
+   "v2_pick": "C1"
+  },
+  "P5": {
+   "own": [
+    "S3",
+    "S12",
+    "S18"
+   ],
+   "model_ok": true,
+   "v2_pick": "S1"
+  },
+  "P6": {
+   "own": [
+    "S41"
+   ],
+   "model_ok": true,
+   "v2_pick": "S40"
+  },
+  "P7": {
+   "own": [
+    "S33"
+   ],
+   "model_ok": true,
+   "v2_pick": "S40"
+  },
+  "P8": {
+   "own": [
+    "S3",
+    "S4",
+    "S5",
+    "S6"
+   ],
+   "model_ok": true,
+   "v2_pick": "C2"
+  },
+  "P9": {
+   "own": [
+    "C3"
+   ],
+   "model_ok": null,
+   "v2_pick": "C3"
+  },
+  "P10": {
+   "own": [
+    "C4"
+   ],
+   "model_ok": null,
+   "v2_pick": "C4"
+  },
+  "P11": {
+   "own": [
+    "S2",
+    "S5",
+    "S8",
+    "S12",
+    "S18",
+    "S33"
+   ],
+   "model_ok": true,
+   "v2_pick": "S25"
+  },
+  "P12": {
+   "own": [
+    "S5",
+    "S8",
+    "S9",
+    "S10",
+    "S12",
+    "S17",
+    "S18",
+    "S27",
+    "S33"
+   ],
+   "model_ok": null,
+   "v2_pick": null
+  }
+ }
+}

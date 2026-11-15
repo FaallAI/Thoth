@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from thoth_control_plane.domain.narration import (
@@ -29,10 +30,12 @@ from thoth_control_plane.domain.narration import (
     VoiceEstimate,
     VoiceRef,
 )
+from thoth_control_plane.domain.planner import DraftPlan
 from thoth_control_plane.infrastructure.editor_database import editor_sessions
 from thoth_control_plane.infrastructure.editor_models import (
     NarrationPresetRow,
     NarrationRow,
+    PlannerShotsRow,
 )
 
 T = TypeVar("T")
@@ -232,6 +235,40 @@ class NarrationStore:
             return self._row(session, document_id).intro_frames
 
         return await self._run(work)
+
+    async def get_plan(self, document_id: str) -> DraftPlan | None:
+        """What each narration phrase shows, as the planner last left it (spec 2026-11-13)."""
+
+        def work(session: Session) -> DraftPlan | None:
+            row = self._row(session, document_id)
+            return DraftPlan.model_validate(row.plan) if row.plan else None
+
+        return await self._run(work)
+
+    async def set_plan(self, document_id: str, plan: DraftPlan) -> None:
+        await self._update(document_id, plan=plan.model_dump(mode="json"))
+
+    async def get_shots(self, checksum: str) -> list[tuple[float, float]] | None:
+        """A source video's shots in seconds, found once per checksum; None when not yet."""
+
+        def work(session: Session) -> list[tuple[float, float]] | None:
+            row = session.get(PlannerShotsRow, checksum)
+            return [(float(a), float(b)) for a, b in row.shots] if row is not None else None
+
+        return await self._run(work)
+
+    async def put_shots(self, checksum: str, spans: list[tuple[float, float]]) -> None:
+        """Keep the first answer: the same video always cuts the same way."""
+
+        def work(session: Session) -> None:
+            # Two drafts may cut the same video at once: the second write is dropped, not an error.
+            session.execute(
+                insert(PlannerShotsRow)
+                .values(checksum=checksum, shots=[list(span) for span in spans])
+                .on_conflict_do_nothing(index_elements=["checksum"])
+            )
+
+        await self._run(work)
 
     async def get_script(self, document_id: str) -> NarrationScript | None:
         def work(session: Session) -> NarrationScript | None:

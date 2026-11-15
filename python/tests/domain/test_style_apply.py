@@ -14,7 +14,8 @@ from thoth_control_plane.domain.edit_document_v2 import (
     TimelineTextClip,
     TimelineVideoClip,
 )
-from thoth_control_plane.domain.story_beats import clip_beats
+from thoth_control_plane.domain.planner_assign import BeatAssignment, PlannedCard, PlannedShot
+from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.style_apply import style_operations
 from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
 
@@ -285,3 +286,263 @@ def test_a_hand_edit_marks_its_beat_as_edited() -> None:
     edited = apply_edit_operations(written, [op("set_clip_dim", clip_id=shot.clip_id, dim=0.2)])
     assert edited_beats(edited, ROLES) == ["main"]
     assert edited_beats(draft(), ROLES) == []  # no style: nothing to compare
+
+
+# Planner stage 1 (spec 2026-11-13, 5.5-5.7): planned beats place their shots, cards and credits.
+CARD_PLACE = (0.0, -0.24, 0.76)
+
+
+def span_of(document: EditDocumentV2, beat: str) -> tuple[int, int]:
+    span = next(s for s in beat_spans(document, ROLES) if s.beat == beat)
+    return span.start_frame, span.start_frame + span.duration_in_frames
+
+
+def main_shot(start: int, length: int, source_from: int) -> PlannedShot:
+    return PlannedShot(start, length, "asset_main", source_from, "main", False, None)
+
+
+def broll_shot(start: int, length: int, credit: str | None = "@kompascomreport") -> PlannedShot:
+    return PlannedShot(start, length, "asset_vid_long", 60, "broll", False, credit)
+
+
+def reactions_plan(document: EditDocumentV2, *, broll: bool = True) -> BeatAssignment:
+    start, end = span_of(document, "reactions")
+    shots = [main_shot(start, 30, 500), main_shot(start + 30, end - start - 30, 530)]
+    if broll:
+        shots.append(broll_shot(start, 30))
+    return BeatAssignment(
+        beat="reactions",
+        shots=shots,
+        cards=[PlannedCard(start + 30, 30, "asset_card_a", "comment_card_001", False)],
+        phrase_starts=[start, start + 20, start + 40, start + 60],
+    )
+
+
+def text_clips(document: EditDocumentV2, slot: str) -> list[TimelineTextClip]:
+    return [c for c in document.clips if isinstance(c, TimelineTextClip) and c.style_slot == slot]
+
+
+def positioned_cards(document: EditDocumentV2) -> list[TimelineVideoClip]:
+    return [
+        c
+        for c in document.clips
+        if isinstance(c, TimelineVideoClip) and c.asset_id == "asset_card_a" and c.position
+    ]
+
+
+def videos(document: EditDocumentV2, asset_id: str) -> list[TimelineVideoClip]:
+    return [
+        c for c in document.clips if isinstance(c, TimelineVideoClip) and c.asset_id == asset_id
+    ]
+
+
+def test_planned_beat_places_shots_cards_and_credits() -> None:
+    before = narrated()
+    plan = reactions_plan(before)
+    start = plan.phrase_starts[0]
+    after = styled(before, B, assignments={"reactions": plan})
+    b_roll = [c for c in videos(after, "asset_vid_long") if c.from_frame == start]
+    assert [(c.duration_in_frames, c.source_from_frame, c.position) for c in b_roll] == [
+        (30, 60, None)
+    ]
+    credits = text_clips(after, "credit")
+    assert [(c.clip_id, c.heading, c.from_frame, c.duration_in_frames) for c in credits] == [
+        ("clip_style_reactions_credit_1", "@kompascomreport", start, 30)
+    ]
+    main_track = {t.track_id for t in after.tracks if t.kind == "main_video"}
+    mains = {(c.from_frame, c.source_from_frame) for c in after.clips if c.track_id in main_track}
+    assert (start, 500) in mains and (start + 30, 530) in mains
+    cards = positioned_cards(after)
+    assert len(cards) == len(positioned_cards(before))
+    moved = next(c for c in cards if c.from_frame == start + 30)
+    assert moved.duration_in_frames == 30 and moved.fit == "contain"
+    assert moved.position is not None
+    assert (moved.position.x, moved.position.y, moved.position.scale) == CARD_PLACE
+
+
+def test_a_full_card_fills_the_screen() -> None:
+    before = narrated()
+    plan = reactions_plan(before)
+    start = plan.phrase_starts[0]
+    full = BeatAssignment(
+        "reactions",
+        plan.shots,
+        [PlannedCard(start, 30, "asset_card_a", "comment_card_001", True)],
+        plan.phrase_starts,
+    )
+    after = styled(before, B, assignments={"reactions": full})
+    card = next(c for c in videos(after, "asset_card_a") if c.from_frame == start and not c.locked)
+    assert card.position is None and card.fit == "contain"
+
+
+def test_import_credits_are_replaced_but_locked_ones_stay() -> None:  # Review Focus 4
+    data = payload()
+    template = next(c for c in data["clips"] if c["clip_id"] == "clip_002")
+    footage = next(c for c in data["clips"] if c["clip_id"] == "clip_footage_000")
+    track = next(t for t in data["tracks"] if t["track_id"] == template["track_id"])
+    for clip_id, locked in (("clip_credit_one", False), ("clip_credit_locked", True)):
+        credit = dict(template, clip_id=clip_id, heading="@acc", body="", style_slot="credit")
+        credit.update(source_role="footage", from_frame=footage["from_frame"], locked=locked)
+        credit.update(duration_in_frames=20, scene_id=None)
+        data["clips"].append(credit)
+        track["clip_ids"].append(clip_id)
+    before = narrated(data)
+    start, end = span_of(before, "footage")
+    plan = BeatAssignment("footage", [broll_shot(start, end - start, "@new")], [], [start])
+    after = styled(before, B, assignments={"footage": plan})
+    ids = {c.clip_id for c in text_clips(after, "credit")}
+    assert "clip_credit_one" not in ids
+    assert {"clip_credit_locked", "clip_style_footage_credit_1"} <= ids
+
+
+def test_a_locked_card_does_not_move() -> None:  # Review Focus 4
+    data = payload()
+    for clip in data["clips"]:
+        if clip["clip_id"].startswith("clip_comment_card_"):
+            clip["locked"] = True
+    before = narrated(data)
+    after = styled(before, B, assignments={"reactions": reactions_plan(before)})
+    assert positioned_cards(after) == positioned_cards(before)
+
+
+def test_card_line_sits_over_the_third_phrase_and_pushes_nothing() -> None:
+    before = narrated()
+    plan = reactions_plan(before)
+    after = styled(
+        before, B, assignments={"reactions": plan}, card_lines={"reactions": "Kok bisa?"}
+    )
+    cards = [c for c in text_clips(after, "card") if c.heading == "Kok bisa?"]
+    assert [c.from_frame for c in cards] == [plan.phrase_starts[2]]
+    assert any(c.from_frame == plan.phrase_starts[0] for c in videos(after, "asset_vid_long"))
+
+
+def test_main_only_draft_has_no_broll_and_no_credits() -> None:  # Review Focus 1
+    before = narrated()
+    start, end = span_of(before, "reactions")
+    plan = reactions_plan(before, broll=False)
+    plan = BeatAssignment("reactions", plan.shots, [], plan.phrase_starts)
+    after = styled(before, B, assignments={"reactions": plan})
+    assert text_clips(after, "credit") == []
+    b_roll = {t.track_id for t in after.tracks if t.kind == "b_roll"}
+    added = [
+        c
+        for c in after.clips
+        if c.track_id in b_roll
+        and start <= c.from_frame < end
+        and c.clip_id.startswith("clip_style_")
+    ]
+    assert added == []
+
+
+# Final review fixes (2026-11-13): a planned draft written again, a re-voice of main only, a locked
+# main-video piece, and credits that keep their beat.
+def planner_clips(document: EditDocumentV2, beat: str) -> list[str]:
+    return sorted(
+        c.clip_id
+        for c in document.clips
+        if c.clip_id.startswith(f"clip_style_{beat}_plan_")
+        or c.clip_id.startswith(f"clip_style_{beat}_credit_")
+    )
+
+
+def gapped_plan(document: EditDocumentV2) -> BeatAssignment:
+    """Two footage shots with a phrase on the main video between them."""
+    plan = reactions_plan(document)
+    start = plan.phrase_starts[0]
+    shots = [s for s in plan.shots if s.layer == "main"]
+    shots += [broll_shot(start, 20), broll_shot(start + 60, 20)]
+    return BeatAssignment("reactions", shots, [], plan.phrase_starts)
+
+
+def test_a_planned_beat_written_twice_is_not_filled_with_cursor_footage() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": gapped_plan(before)})
+    twice = styled(once, B, assignments={"reactions": gapped_plan(once)})
+    start, end = span_of(once, "reactions")
+    footage = [c for c in videos(twice, "asset_vid_long") if start <= c.from_frame < end]
+    assert sorted((c.from_frame, c.duration_in_frames) for c in footage) == [
+        (start, 20),
+        (start + 60, 20),
+    ]
+    assert len(text_clips(twice, "credit")) == 2
+
+
+def test_a_planned_beat_restyled_without_a_plan_keeps_its_planned_clips() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": gapped_plan(before)})
+    again = styled(once, B)  # Studio re-apply: no assignments
+    assert planner_clips(again, "reactions") == planner_clips(once, "reactions")
+    start, end = span_of(once, "reactions")
+    footage = [c for c in videos(again, "asset_vid_long") if start <= c.from_frame < end]
+    assert len(footage) == 2
+
+
+def test_revoicing_main_keeps_the_other_beats_soundbites() -> None:
+    before = narrated()
+    voice = next(c for c in before.clips if c.clip_id == "clip_narration_main")
+    main_plan = BeatAssignment(
+        "main",
+        [main_shot(voice.from_frame, voice.duration_in_frames, 100)],
+        [],
+        [voice.from_frame],
+    )
+    plan = reactions_plan(before)
+    after = styled(before, B, assignments={"main": main_plan, "reactions": plan}, recut={"main"})
+    main_track = {t.track_id for t in after.tracks if t.kind == "main_video"}
+    mains = {(c.from_frame, c.source_from_frame) for c in after.clips if c.track_id in main_track}
+    assert (plan.phrase_starts[0], 500) in mains and (voice.from_frame, 100) in mains
+
+
+def test_a_locked_main_piece_is_built_around() -> None:
+    cut = styled(narrated(), B)
+    start, _ = span_of(cut, "reactions")
+    main_track = {t.track_id for t in cut.tracks if t.kind == "main_video"}
+    piece = next(
+        c for c in cut.clips if c.track_id in main_track and start < c.from_frame < start + 60
+    )
+    locked = cut.model_copy(
+        update={
+            "clips": [
+                c.model_copy(update={"locked": True}) if c.clip_id == piece.clip_id else c
+                for c in cut.clips
+            ]
+        }
+    )
+    after = styled(locked, B, assignments={"reactions": reactions_plan(locked)})
+    assert next(c for c in after.clips if c.clip_id == piece.clip_id) == next(
+        c for c in locked.clips if c.clip_id == piece.clip_id
+    )
+
+
+def test_a_credit_names_its_beat_and_stays_when_another_beat_is_recut() -> None:
+    before = narrated()
+    once = styled(before, B, assignments={"reactions": reactions_plan(before)})
+    credit = text_clips(once, "credit")[0]
+    assert credit.clip_id == "clip_style_reactions_credit_1"
+    voice = next(c for c in once.clips if c.clip_id == "clip_narration_main")
+    main_plan = BeatAssignment(
+        "main", [main_shot(voice.from_frame, voice.duration_in_frames, 100)], [], [voice.from_frame]
+    )
+    again = styled(once, B, assignments={"main": main_plan}, recut={"main"})
+    assert [c.clip_id for c in text_clips(again, "credit")] == [credit.clip_id]
+
+
+def test_a_card_is_not_taken_away_when_its_beat_shows_nothing() -> None:
+    before = narrated()
+    beats = dict(B.beats)
+    beats["reactions"] = beats["reactions"].model_copy(update={"use": False})
+    off = B.model_copy(update={"beats": beats})
+    after = styled(before, off, assignments={"reactions": reactions_plan(before)})
+    assert len(positioned_cards(after)) == len(positioned_cards(before))
+
+
+def test_style_b_shots_fill_the_frame() -> None:
+    # Operator, 2026-11-13: a landscape source in a portrait frame shrank to a band, and the big
+    # kinetic captions covered the speaker's face. Style B fills the frame, as WinNews does.
+    data = payload()
+    for clip in data["clips"]:
+        if clip["clip_id"] in ("clip_main", "clip_footage_000"):
+            clip["fit"] = "contain"  # as the Gibran draft's import placed them
+    document = styled(narrated(data), B)
+    shots = full_frame_shots(document)
+    assert shots and {shot.fit for shot in shots} == {"cover"}

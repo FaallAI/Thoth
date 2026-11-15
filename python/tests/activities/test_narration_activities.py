@@ -700,3 +700,109 @@ def test_only_audio_is_offered_as_an_sfx() -> None:
     run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
     user = seen["provider_requests"][0]["user"]
     assert "lib_whoosh" in user and "lib_paper" not in user
+
+
+class SlowPlanner:
+    def __init__(self, seconds: float = 0.0, plan: Any = None) -> None:
+        self.seconds = seconds
+        self.plan_value = plan
+        self.calls: list[tuple[str, int]] = []
+
+    async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+        self.calls.append((document_id, len(voices)))
+        await asyncio.sleep(self.seconds)
+        return self.plan_value
+
+
+def test_a_planned_style_asks_the_planner_once() -> None:
+    from thoth_control_plane.domain.planner import DraftPlan
+
+    planner = SlowPlanner(plan=DraftPlan())
+    built, seen = styled_ports()
+    built.planner = planner
+    narrate_once(built, seen)
+    assert len(planner.calls) == 1 and planner.calls[0][1] >= 1
+
+
+def test_an_unplanned_style_never_asks_the_planner() -> None:
+    planner = SlowPlanner()
+    built, seen = styled_ports("style_a")
+    built.planner = planner
+    narrate_once(built, seen)
+    assert planner.calls == []
+
+
+def test_write_draft_survives_a_planner_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.activities import narration
+
+    monkeypatch.setattr(narration, "PLANNER_DEADLINE_SECONDS", 0.05)
+    built, seen = styled_ports()
+    built.planner = SlowPlanner(seconds=5.0)
+    written = narrate_once(built, seen)
+    assert written.style is not None and written.style.template_id == "style_b"
+
+
+def test_a_hand_edited_beat_is_not_planned(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.activities import narration
+    from thoth_control_plane.domain.planner import DraftPlan
+
+    seen: list[list[str]] = []
+
+    class Recording(SlowPlanner):
+        async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+            seen.append([v.beat for v in voices])
+            return DraftPlan()
+
+    built, written = styled_ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(NarrationActivities(built).voice(STEP))
+    voiced = [v.beat for v in run(written["store"].get_voices(STEP.document_id))]
+    monkeypatch.setattr(narration, "edited_beats", lambda *_args: [voiced[0]])
+    built.planner = Recording()
+    run(NarrationActivities(built).write_draft(NarrationWriteInput(**STEP.model_dump())))
+    assert seen == [voiced[1:]]
+
+
+def test_the_planner_fetches_a_real_asset_record(tmp_path: Path) -> None:
+    # Stage1, 2026-11-13: the wiring called record.to_asset_ref(); the record holds the asset.
+    from thoth_control_plane.activities.narration import fetch_planner_asset
+    from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRecord
+
+    record = EditorAssetRecord(
+        asset=EditorAsset(
+            asset_id="asset_footage",
+            project_id="project_001",
+            kind="video",
+            media_type="video/mp4",
+            duration_in_frames=300,
+            width=1280,
+            height=720,
+            has_audio=True,
+            validation_state="ready",
+            checksum="sha256:" + "b" * 64,
+        ),
+        artifact_location="uploads/project_001/asset_footage.mp4",
+        provenance="operator_upload",
+    )
+
+    class Repository:
+        async def get_ready_record(self, *, project_id: str, asset_id: str):  # type: ignore[no-untyped-def]
+            return record if asset_id == "asset_footage" else None
+
+    class Media:
+        def fetch(self, location: str, target: Path) -> None:
+            target.write_bytes(location.encode())
+
+    fetched = run(
+        fetch_planner_asset(Repository(), Media(), "project_001", "asset_footage", tmp_path)
+    )
+    assert fetched is not None
+    path, ref = fetched
+    assert path.read_bytes() == b"uploads/project_001/asset_footage.mp4"
+    assert (ref.asset_id, ref.kind, ref.checksum) == (
+        "asset_footage",
+        "video",
+        record.asset.checksum,
+    )
+    missing = fetch_planner_asset(Repository(), Media(), "project_001", "asset_x", tmp_path)
+    assert run(missing) is None
