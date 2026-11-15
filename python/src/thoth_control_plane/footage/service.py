@@ -39,6 +39,7 @@ from thoth_control_plane.assembly.ports import (
     TextReader,
 )
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
+from thoth_control_plane.attribution.credit import normalize
 from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.attribution.ports import AttributionError
 from thoth_control_plane.footage.adapters.downloader import ClipError
@@ -53,6 +54,7 @@ from thoth_control_plane.footage.context import (
     card_names,
     context_objects,
     context_reason,
+    event_terms,
     in_window,
 )
 from thoth_control_plane.footage.creator import (
@@ -64,7 +66,7 @@ from thoth_control_plane.footage.creator import (
     verdict,
 )
 from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate, vision_seconds
-from thoth_control_plane.footage.gates import MainIdentity, norm, text_gate
+from thoth_control_plane.footage.gates import MAX_SECONDS, MainIdentity, norm, text_gate
 from thoth_control_plane.footage.models import (
     AdmittedClip,
     CandidateView,
@@ -75,7 +77,13 @@ from thoth_control_plane.footage.models import (
     RunView,
     SearchBatch,
 )
-from thoth_control_plane.footage.moments import CaptionPort
+from thoth_control_plane.footage.moments import (
+    SECTION_SECONDS,
+    CaptionPort,
+    parse_json3,
+    pick_moments,
+    section,
+)
 from thoth_control_plane.footage.ports import (
     ClipDownloader,
     CreatorPort,
@@ -87,7 +95,7 @@ from thoth_control_plane.footage.ports import (
     SearchPort,
 )
 from thoth_control_plane.footage.queries import footage_objects, query_prompt, top_comments
-from thoth_control_plane.footage.reposts import is_own_account
+from thoth_control_plane.footage.reposts import credited_account, is_own_account
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +124,9 @@ REFINE_TITLES = 15
 OWN_SCORE = 1.0  # own accounts are screened first
 PASS_SCORE = 0.5
 REFINED = "refined"  # set in the stored card once round two ran
+MAX_LONG_VIDEOS = 3
+CAPTION_LANGUAGE = "id"
+SECTION_MARK = "#t="
 
 T = TypeVar("T")
 
@@ -411,12 +422,16 @@ class FootageBuilder:
             # The run keeps the creator's material, but the outage must stay visible.
             logger.warning("footage search unavailable; creator material only")
         if not failed:
-            await self._gate(workflow, identity, objects, hits)
+            await self._gate(workflow, identity, objects, hits, card)
         if card is None:
             await self._story(workflow, main)
         else:
             await self._rounds(workflow, main, identity, card, run.context or {})
             current = await asyncio.to_thread(self._store.run, workflow)
+            if current is not None and current.context:
+                card = ContextCard.model_validate(current.context)
+            await self._trace(workflow, main, identity, card)
+            await self._sections(workflow, card)
             objects = current.objects if current is not None else objects
         if state.over:  # likewise an embedder
             raise asyncio.CancelledError
@@ -624,7 +639,7 @@ class FootageBuilder:
             await asyncio.to_thread(self._store.add_objects, workflow, objects)
             hits, failed = await self._search(objects)
             if not failed:
-                await self._gate(workflow, identity, objects, hits)
+                await self._gate(workflow, identity, objects, hits, refined)
         for c in await asyncio.to_thread(self._store.candidates, workflow):
             story = c.status == "rejected" and c.reason == "story" and c.media_kind == "video"
             text = f"{c.caption} {c.owner_handle}"
@@ -632,6 +647,116 @@ class FootageBuilder:
                 await asyncio.to_thread(self._store.reopen, workflow, c.url)
         await self._context_gate(workflow, main, refined)
         logger.info("footage context round two queries=%d", len(objects))
+
+    async def _trace(
+        self, workflow: str, main: SourceReport, identity: MainIdentity, card: ContextCard
+    ) -> None:
+        """A repost that credits another account is replaced by that account's original, when
+        its listing holds one on the story (spec 2026-11-15, 4.5)."""
+        if self._ports.creator is None:
+            return
+        candidates = await asyncio.to_thread(self._store.candidates, workflow)
+        known = {c.url for c in candidates}
+        listings: dict[tuple[str, str], list[DiscoveredVideo]] = {}
+        for c in candidates:
+            if c.status != "pending" or c.source != "search" or c.media_kind != "video":
+                continue
+            credited = credited_account(c.caption)
+            if not credited or credited == normalize(c.owner_handle):
+                continue
+            platform = "youtube" if "youtube" in c.caption.lower() else c.platform
+            if platform not in CREATOR_PLATFORMS:
+                continue
+            if (platform, credited) not in listings:
+                try:
+                    listing = await self._ports.creator.listing_of(
+                        platform, credited, CREATOR_LISTING
+                    )
+                except ToolMissing:
+                    raise
+                except Exception as error:
+                    logger.warning("footage trace listing failed error=%s", type(error).__name__)
+                    listing = None
+                listings[(platform, credited)] = list(listing.videos) if listing else []
+            rows: list[NewCandidate] = []
+            for video in listings[(platform, credited)]:
+                url = str(video.canonical_url)
+                if url in known:
+                    continue
+                reason = text_gate(
+                    url, video, identity, self._aggregators, long_ok=platform == "youtube"
+                )
+                text = f"{video.caption} {video.owner_handle}"
+                if reason is None and self._off_story(text, video.published_at, main, card):
+                    continue
+                known.add(url)
+                rows.append(
+                    NewCandidate(
+                        url=url,
+                        platform=platform,
+                        source="trace",
+                        query=c.query,
+                        visual=c.visual,
+                        owner_handle=video.owner_handle,
+                        caption=video.caption[:2000],
+                        published_at=video.published_at,
+                        engagement=dict(video.engagement),
+                        source_duration=video.duration_seconds,
+                        status="rejected" if reason else "pending",
+                        reason=reason,
+                    )
+                )
+            if not rows:
+                continue
+            await asyncio.to_thread(self._store.add_candidates, workflow, rows)
+            originals = [row for row in rows if row.status == "pending"]
+            for row in originals:
+                await asyncio.to_thread(self._store.score, workflow, row.url, OWN_SCORE)
+            if originals:
+                await asyncio.to_thread(self._store.reject, workflow, c.url, "repost")
+        logger.info("footage trace credited_accounts=%d", len(listings))
+
+    async def _sections(self, workflow: str, card: ContextCard) -> None:
+        """A long video is cut at the caption lines naming a card person; the video itself is
+        rejected `duration`, and nothing is downloaded when no line names one."""
+        candidates = await asyncio.to_thread(self._store.candidates, workflow)
+        known = {c.url for c in candidates}
+        handled = 0
+        for c in candidates:
+            long = (c.source_duration or 0.0) > MAX_SECONDS and SECTION_MARK not in c.url
+            if c.status != "pending" or c.platform != "youtube" or not long:
+                continue
+            moments: list[float] = []
+            if self._ports.captions_text is not None and handled < MAX_LONG_VIDEOS:
+                handled += 1
+                data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
+                if data:
+                    lines = parse_json3(data)
+                    moments = pick_moments(lines, card_names(card), event_terms(card))
+            rows = [
+                NewCandidate(
+                    url=f"{c.url}{SECTION_MARK}{moment:.1f}",
+                    platform=c.platform,
+                    source="section",
+                    query=c.query,
+                    visual=c.visual,
+                    owner_handle=c.owner_handle,
+                    caption=c.caption,
+                    published_at=c.published_at,
+                    engagement=dict(c.engagement),
+                    source_duration=SECTION_SECONDS,
+                )
+                for moment in moments
+                if f"{c.url}{SECTION_MARK}{moment:.1f}" not in known
+            ]
+            if rows:
+                await asyncio.to_thread(self._store.add_candidates, workflow, rows)
+                for row in rows:
+                    await asyncio.to_thread(
+                        self._store.score, workflow, row.url, c.story_score or PASS_SCORE
+                    )
+            await asyncio.to_thread(self._store.reject, workflow, c.url, "duration")
+            logger.info("footage long video sections=%d", len(rows))
 
     async def _scores(self, main: SourceReport, texts: list[str]) -> list[float]:
         if not texts:
@@ -793,6 +918,7 @@ class FootageBuilder:
         identity: MainIdentity,
         objects: Sequence[FootageObject],
         hits: dict[str, list[tuple[str, DiscoveredVideo]]],
+        card: ContextCard | None = None,
     ) -> None:
         known = {c.url for c in await asyncio.to_thread(self._store.candidates, workflow)}
         new: list[NewCandidate] = []
@@ -802,7 +928,8 @@ class FootageBuilder:
                 if url in known:  # the same post from another platform or query
                     continue
                 known.add(url)
-                reason = text_gate(url, video, identity, self._aggregators)
+                long_ok = card is not None and platform == "youtube"
+                reason = text_gate(url, video, identity, self._aggregators, long_ok=long_ok)
                 new.append(
                     NewCandidate(
                         url=url,
@@ -965,10 +1092,13 @@ class FootageBuilder:
     ) -> bool:
         steps = state.steps
         path = root / location
+        source, _, moment = candidate.url.partition(SECTION_MARK)
         window = clip_window(candidate.source_duration) if owned else None
+        if owned and moment:  # a long video's caption moment (spec 2026-11-15, 4.4)
+            window = section(float(moment))
         if owned:
             try:
-                await self._ports.downloader.download(candidate.url, window, path)
+                await self._ports.downloader.download(source, window, path)
             except ClipError:
                 return await self._reject(
                     workflow, root, candidate, location, owned, "media_failed", state

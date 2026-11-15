@@ -1400,3 +1400,165 @@ async def test_creator_posts_pass_the_context_gate(store: FootageStore, tmp_path
     )
     sunset = by_caption["Kuta beach sunset today"]
     assert (sunset.status, sunset.reason) == ("rejected", "story")
+
+
+# Long videos and reposts on the context path (spec 2026-11-15, 4.4-4.5).
+
+PODCAST = "https://www.youtube.com/watch?v=Sy_S4TgvKbY"
+PODCAST_TITLE = (
+    "MASTER SAIFUL MENGAMUK⁉️ JANGAN PANGGIL AKU MUTANT‼️ - AKHIRNYA BERTEMU TRETAN MUSLIM"
+)
+
+
+def _podcast(caption: str = PODCAST_TITLE) -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id="Sy_S4TgvKbY",
+        owner_handle="curhatbang",
+        canonical_url=PODCAST,
+        caption=caption,
+        duration_seconds=3219.0,
+    )
+
+
+class Captions:
+    def __init__(self, data: bytes | None) -> None:
+        self.data = data
+        self.calls: list[tuple[str, str]] = []
+
+    async def captions(self, url: str, language: str) -> bytes | None:
+        self.calls.append((url, language))
+        return self.data
+
+
+CAPTIONS = (CONTEXT / "podcast_captions.json3").read_bytes()
+
+
+def _yt(query: str, *videos: DiscoveredVideo) -> Search:
+    return Search({("youtube", query): list(videos)})
+
+
+async def test_a_long_video_becomes_sections_at_its_moments(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    sections = [c for c in rows.values() if c.source == "section"]
+    assert 1 <= len(sections) <= 3
+    starts = [float(c.url.split("#t=")[1]) for c in sections]
+    assert all(c.url.startswith(PODCAST + "#t=") for c in sections)
+    assert all(start >= 30 for start in starts)
+
+
+async def test_a_long_video_without_a_named_line_downloads_nothing(  # Review Focus 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    rocky = ContextCard(people=[CardPerson(name="Rocky Gerung")], queries=["Rocky Gerung bicara"])
+    downloader = Downloader()
+    await _builder(
+        store,
+        search=_yt("Rocky Gerung bicara", _podcast("Rocky Gerung bicara soal Wantimpres")),
+        downloader=downloader,
+        card=Cards(rocky),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    assert not [c for c in rows.values() if c.source == "section"]
+    assert downloader.calls == []
+
+
+async def test_a_section_downloads_its_window(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.moments import section
+
+    downloader = Downloader()
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        downloader=downloader,
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert downloader.calls
+    for url, _window in downloader.calls:
+        assert url == PODCAST
+    admitted = store.admitted("wf_a")
+    assert admitted
+    for clip in admitted:
+        moment = float(clip.url.split("#t=")[1])
+        assert clip.clip_start == section(moment)[0]
+        assert (PODCAST, section(moment)) in downloader.calls
+
+
+class TraceCreator:
+    """Lists only the credited account; the main creator's own listing is empty."""
+
+    def __init__(self, videos: list[DiscoveredVideo]) -> None:
+        self.videos = videos
+        self.calls: list[tuple[str, str]] = []
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None:
+        self.calls.append((platform, handle))
+        return CreatorListing(videos=self.videos if handle == "curhatbang" else [], photos=[])
+
+
+REPOST = "Master Saiful Ngamuk di depan Denny Sumargo | Sumber: YouTube curhatbang"
+
+
+async def test_a_credited_repost_is_replaced_by_its_original(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    creator = TraceCreator([_podcast()])
+    search = Search(
+        _hits(_video(1, caption=REPOST, owner="tribunbanten"), query="Mutant USS Denny Sumargo")
+    )
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.caption: c for c in store.candidates("wf_a")}
+    assert (rows[REPOST].status, rows[REPOST].reason) == ("rejected", "repost")
+    assert any(c.source == "trace" and c.url == PODCAST for c in store.candidates("wf_a"))
+    assert ("youtube", "curhatbang") in creator.calls
+
+
+async def test_a_traced_original_that_is_the_main_post_is_rejected_main(  # Review Focus 5
+    store: FootageStore, tmp_path: Path
+) -> None:
+    main = _report()
+    own = DiscoveredVideo(
+        post_id="7499999999999999999",
+        owner_handle="akun",
+        canonical_url=str(main.source.canonical_url),
+        caption="Banjir besar di Kemang pagi ini",
+        duration_seconds=20.0,
+    )
+    search = Search(
+        _hits(_video(1, caption=REPOST, owner="tribunbanten"), query="Mutant USS Denny Sumargo")
+    )
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_card()),
+        creator=TraceCreator([own]),
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path, main))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[str(main.source.canonical_url)].reason == "main"
+    assert rows[str(_video(1, owner="tribunbanten").canonical_url)].reason != "repost"

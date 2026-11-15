@@ -95,9 +95,15 @@ def same_as_main(main: MainIdentity, url: str, caption: str) -> bool:
 
 
 def text_gate(
-    url: str, video: DiscoveredVideo, main: MainIdentity, aggregators: frozenset[str]
+    url: str,
+    video: DiscoveredVideo,
+    main: MainIdentity,
+    aggregators: frozenset[str],
+    *,
+    long_ok: bool = False,
 ) -> RejectReason | None:
-    """Spec F5 steps 1 and 3-6 in order; the story gate runs apart (it needs embeddings)."""
+    """Spec F5 steps 1 and 3-6 in order; the story gate runs apart (it needs embeddings).
+    `long_ok`: a video over the cap stays in, for its caption moments (spec 2026-11-15, 4.4)."""
     if same_as_main(main, url, video.caption):
         return "main"
     if video.owner_handle.lower() in aggregators:
@@ -107,6 +113,8 @@ def text_gate(
     if looks_reaction(video.caption):
         return "reaction_text"
     duration = video.duration_seconds
-    if duration is not None and not MIN_SECONDS <= duration <= MAX_SECONDS:
+    if duration is not None and (
+        duration < MIN_SECONDS or (duration > MAX_SECONDS and not long_ok)
+    ):
         return "duration"
     return None

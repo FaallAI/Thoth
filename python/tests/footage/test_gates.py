@@ -73,3 +73,13 @@ def test_text_gate_order() -> None:
     assert gate(_video("banjir kemang", duration=None)) is None
     assert gate(_video("air naik di jalan")) is None
     assert text_gate("https://www.instagram.com/p/MAIN1/", _video("x"), main, frozenset()) == "main"
+
+
+def test_long_ok_skips_the_duration_cap() -> None:
+    main = MainIdentity.of("https://www.instagram.com/p/MAIN1/", [], "banjir kemang")
+    url = "https://www.tiktok.com/@kreator/video/7400000000000000009"
+    long = _video("banjir kemang", duration=3219.0)
+    assert text_gate(url, long, main, frozenset()) == "duration"
+    assert text_gate(url, long, main, frozenset(), long_ok=True) is None
+    short = _video("banjir kemang", duration=2.0)
+    assert text_gate(url, short, main, frozenset(), long_ok=True) == "duration"
