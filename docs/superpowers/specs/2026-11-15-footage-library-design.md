@@ -286,3 +286,142 @@ The tests are in `reports/Indeks footage video lintas platform.md`.
 
 - **Burned-in subtitles** (item 54): the original source comes before a repost (4.5). A repost
   with burned-in subtitles or a big overlay stays rejected, as today.
+
+## 9. Revision after the first live look (2026-11-16)
+
+The operator looked at draft `edoc_6979cd46` (run `wf_c345c5a04ebd9290781b2fdf`). The footage was
+"sama semua" and repeated the main, and none of the podcast's discussion of the incident made it
+in. The operator then asked for narration that also draws on what the podcast says, so that the
+story widens past the main post. The direction was approved ("ya setuju", brainstorm items 59-63,
+2026-11-15/16), and it all ships on this branch.
+
+### 9.1 What went wrong
+
+- **The card left the subject out of `people`.** Mutant/Saiful appeared only in the event text.
+  Aldi Taher, named only in comments, was listed.
+- **The podcast moments were passing name mentions** (12:50, 46:47). The incident is discussed with
+  words such as "pedang" (4:51-6:47), "marah" (3:36-8:28), "kursi" (17:17) and "diundang" (19:52,
+  30:38-32:52). The English card never holds these words, and the picker needs a name on the line.
+- **The 3 TikTok news recaps are copies of one recording.** It is a second phone's recording of the
+  incident, copied by 3 accounts with their own watermark, captions or header bar. dHash missed
+  the copies because the overlays change every pixel. They are not the main's recording: they show
+  the same moment from the other side of the booth.
+- **Nothing a footage video says reaches the narration or the planner.** `build_script_request`
+  sees only the main post, and the planner gives footage shots `said=""`.
+
+### 9.2 Context card (amends 4.1)
+
+- **Subject first.** `people[0]` is the person the post shows doing the thing, even when only a
+  nickname or a description is known ("Mutant", "pria bawa pedang"). The round-2 refine adds the
+  real names the titles use for that person ("Saiful", "Saipul", "Ipul").
+- **Comment-only names.** A person named only in comments is not one of the card's people, unless
+  the comments say that person is in the video.
+- **New field `spoken`.** Up to 12 single lowercase Indonesian words that people would say aloud
+  when discussing this event: objects, actions and feelings, such as "pedang", "marah", "kursi",
+  "diundang".
+  - The default is `[]`, and it uses the same validator as `queries`.
+  - It is stored with the card, and older stored cards decode with `spoken=[]`.
+
+### 9.3 Moments by discussion density (replaces the scoring in 4.4)
+
+- **Window scoring.** A 60 s window slides over the caption lines, past the 30 s intro. It scores:
+  - 2 per line naming the subject (people[0]'s name or aliases);
+  - 1 per line naming another card person;
+  - 1 per distinct `spoken` word or event term in the window.
+- **Qualifying.** A window qualifies with a score of at least 4 that includes at least 2 distinct
+  `spoken` or event words. A name alone never makes a moment.
+- **Moments.** Up to 3 non-overlapping windows are kept per video, best first. Each window's moment
+  is the start of its best line, and the section stays 8 s from the moment minus 1 s.
+- **No section.** A long video with no qualifying window gives no section. This drops the off-story
+  Rockaroma Tretan Muslim video, which names a card person but never the incident.
+- **`said`.** Each section keeps its window's caption lines as `said`, in source-video seconds and
+  at most 1,500 characters. The 8 s clip is the picture; `said` is what is being discussed around
+  it.
+
+### 9.4 One copy of a recording (amends 4.3 step 5 and 4.5)
+
+- **Recording match.** On top of dHash, a candidate is matched by ORB keypoints against the main
+  and every admitted clip:
+  - frames at 1 fps, 480 px wide, 1,000 features;
+  - ratio test 0.75, RANSAC with at least 25 inliers per frame.
+
+  A candidate whose frames match one other clip on at least 30% of its frames is a copy of that
+  clip. A copy of the main is rejected `duplicate`, as today.
+- **Same-video sections.** Sections of one long video are not compared to each other. They share a
+  set and a camera, and that is expected, not a copy (the spike matched them 8/9).
+- **Choosing among copies of a footage recording.** The operator ruled (item 63): the original
+  first, otherwise the copy with the least added material.
+  1. **An original wins.** An own-account clip or a traced original (4.5) is kept over any
+     reposted copy, as today.
+  2. **Otherwise the cleanest copy wins.** Clutter is the share of the frame covered by text boxes
+     from the existing OCR text reader (`TextReader.read`), summed over the clip's 3 vision frames.
+     Watermarks, burned captions and header bars all count. The lower share wins, and on a tie the
+     earlier-published copy wins.
+  3. **The loser is rejected `duplicate`.** If the loser was already admitted, it is un-admitted.
+     The reason is reused, so no CHECK change is needed.
+  4. **The trace still runs first.** A copy whose caption or OCR credits an account is traced as
+     in 4.5. When no credit names the recorder, as with these 3 recaps, the cleanest copy is the
+     best the run can do, and the operator sees which one it was.
+- **Spike evidence** (item 62):
+  - the recaps matched each other on 20/20, 16/20 and 12/20 frames;
+  - they matched the main and the podcast on 0 frames;
+  - the cost is a few seconds of CPU per run, and there is no paid call.
+- **Another angle of the main's moment.** One such clip is kept, as the operator agreed. It is used
+  only under phrases about that moment (9.6).
+
+### 9.5 Narration draws on footage speech
+
+- **Content Set.** `Footage` gains `said: list[TranscriptSegment] = []` in source-video seconds.
+  Its existing `clip_start` places the clip within the lines. Library clips carry `said` too.
+- **Migration.** Editor migration 0034 adds `said JSONB NOT NULL DEFAULT '[]'` to
+  `footage_candidates` and `footage_library`. 0033 is already applied on stage1, so it stays
+  unchanged.
+- **Studio.** `said` and `clip_start` travel in the footage item's provenance (`why`).
+  `StudioMaterial` gains both, with a default.
+- **Script facts.** `ScriptFacts` gains `footage_talk`: one entry per footage item, holding a label
+  ("YouTube/CURHAT BANG Denny Sumargo", or "@handle") and the joined `said` text.
+  `build_script_request` adds: "What people say in other videos (auto-captions, may be misheard):
+  - from <label>: <text>".
+- **Source rules.** `SOURCE_RULES` gains one sentence: footage speech is what people said in
+  another video. The narration names who said it and where ("di podcast Denny Sumargo, Saiful
+  mengaku ..."), and never presents it as the main video's speech or as fact.
+- **Evidence.** `footage_talk` counts as evidence for `unsupported_tokens` and the headline check.
+- **Unchanged.** The main stays the hook (the beat guide is unchanged), and the length stays the
+  preset's: the story gets wider, not longer.
+
+### 9.6 The planner places it
+
+- **Footage `said`.** Footage shots get `said` from the item's `said` lines that fall inside the
+  shot's span in the source (`clip_start` + shot time). The sources block becomes "WHAT EACH VIDEO
+  SAYS DURING EACH SHOT".
+- **Soundbites.** `soundbite()` stays main-only, because only the main's audio plays.
+- **Two prompt rules are added:**
+  - a phrase retelling what someone said in a footage video takes that video's shots, best where
+    it is said;
+  - a footage clip showing the same scene as the main from another angle is used only for phrases
+    about that moment.
+
+### 9.7 Evaluation
+
+- **Offline, test-first:**
+  - the card parses `spoken` and drops odd types;
+  - the density picker on `podcast_captions.json3` picks a window inside 3:36-8:28, and nothing at
+    a bare name mention;
+  - ORB matches a synthetic textured frame against a cropped, overlaid copy, and not against a
+    different texture;
+  - sections of one URL are not compared;
+  - among two copies, the one with less text area is kept, and an admitted loser is un-admitted;
+  - an original beats a cleaner copy;
+  - `said` flows from the candidate to the Content Set, the materials, the narration request and
+    the planner sources;
+  - migration 0034 has a Postgres test.
+- **Live, each its own operator gate:**
+  - one new footage run on the Mutant post: the operator judges the clips;
+  - one narration write on that draft (a paid call, with its cost shown first): the operator reads
+    whether the podcast talk is used and attributed.
+
+### 9.8 Left to the builder
+
+- Where the ORB features of admitted clips are kept during a run.
+- The exact prompt wording.
+- How an admitted copy is un-admitted in the store.
