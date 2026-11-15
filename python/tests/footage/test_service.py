@@ -1816,3 +1816,32 @@ async def test_a_library_clip_from_another_story_of_the_same_person_is_not_reuse
     )
     assert media.calls == []
     assert not [c for c in store.candidates("wf_b") if c.source == "library"]
+
+
+async def test_the_same_pair_of_people_reuses_the_library_without_event_words(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-15: two people in common mark the same story
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    saiful = ContextCard(
+        people=[
+            CardPerson(name="Saiful", aliases=["Mutant", "Master Saiful"]),
+            CardPerson(name="Denny Sumargo", aliases=["Densu"]),
+        ],
+        event="Saiful marah di podcast Curhat Bang",
+        queries=["Saiful marah Denny Sumargo"],
+    )
+    media = Media(tmp_path)
+    await _builder(store, card=Cards(saiful), library_media=media, context_enabled=True).build(
+        _inputs_b(tmp_path)
+    )
+    assert [c.source for c in store.admitted("wf_b")] == ["library"]
+
+
+def test_one_person_under_several_names_counts_once() -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard, same_event
+
+    densu = ContextCard(people=[CardPerson(name="Denny Sumargo", aliases=["Densu", "Bang Densu"])])
+    assert not same_event(densu, "Vior curhat", ["denny sumargo", "densu", "bang densu", "vior"])
