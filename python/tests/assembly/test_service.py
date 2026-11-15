@@ -474,3 +474,35 @@ def test_the_caption_read_gets_the_decode_pass_and_the_band_reader(
     asyncio.run(assembler.build(AssemblyInputs("wf_a", main, None, None, tmp_path)))
 
     assert seen["decoder"] is decoder and seen["bands"] is bands
+
+
+def test_context_path_clips_reach_the_content_set(tmp_path: Path) -> None:
+    """Footage library (spec 2026-11-15): a caption section, a traced original and a library clip
+    are footage like any other."""
+    from dataclasses import replace
+
+    base = _clip_view(_clean_ocr())
+    views = [
+        replace(
+            base,
+            source="section",
+            url="https://www.youtube.com/watch?v=Sy_S4TgvKbY#t=165.4",
+            platform="youtube",
+        ),
+        replace(
+            base,
+            source="trace",
+            url="https://www.youtube.com/watch?v=Sy_S4TgvKbZ",
+            platform="youtube",
+            media_location="reports/wf_a/footage/b.mp4",
+        ),
+        replace(
+            base,
+            source="library",
+            url="https://www.tiktok.com/@broll/video/7400000000000000003",
+            story_score=None,
+            media_location="reports/wf_a/footage/c.mp4",
+        ),
+    ]
+    content = _footage_build(tmp_path, FootageReader(_run(), views))
+    assert [item.source for item in content.footage] == ["section", "trace", "library"]

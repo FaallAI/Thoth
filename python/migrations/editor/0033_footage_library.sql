@@ -22,3 +22,14 @@ CREATE TABLE footage_library (
     UNIQUE (workspace_id, url, section_start)
 );
 CREATE INDEX footage_library_workspace ON footage_library (workspace_id);
+-- The context path's candidates: a long video's caption section, a repost's traced original, and
+-- a clip reused from the library; and the reject reason of a repost an original replaced.
+ALTER TABLE footage_candidates
+    DROP CONSTRAINT footage_candidates_source_check,
+    ADD CONSTRAINT footage_candidates_source_check
+        CHECK (source IN ('search', 'carousel', 'creator', 'section', 'trace', 'library')),
+    DROP CONSTRAINT footage_candidates_reason_check,
+    ADD CONSTRAINT footage_candidates_reason_check CHECK (reason IN (
+        'main', 'aggregator', 'spam', 'reaction_text', 'duration', 'story', 'subtitle',
+        'commentary', 'object_absent', 'duplicate', 'media_failed', 'vision_unavailable', 'repost'
+    ));

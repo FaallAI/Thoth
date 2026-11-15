@@ -156,7 +156,8 @@ class Figure(StrictModel):
 class Footage(StrictModel):
     """One b-roll clip (spec 2026-10-14, section 6): a window file and its checks."""
 
-    source: Literal["search", "carousel", "creator"]
+    # Footage library (spec 2026-11-15): a caption section, a traced original, a library reuse.
+    source: Literal["search", "carousel", "creator", "section", "trace", "library"]
     url: HttpUrl
     platform: Literal["tiktok", "youtube", "x", "instagram"]
     owner_handle: TikTokHandle
