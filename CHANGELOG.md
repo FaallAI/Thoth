@@ -50,9 +50,27 @@ Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 
 | `c0fd20d` | Library read and write |
 | `f204b6c0` | Production wiring |
 
+**Final whole-branch review** (one fresh reviewer on the most capable model) found 2 Critical and 6 Important issues. Two Minors were raised to Important because they could fail the stage. All were fixed test-first, each test failing before its fix:
+- **Postgres CHECKs** refused the new candidate sources (`section`, `trace`, `library`) and the `repost` reason. Migration 0033 widens both. A new Postgres store test was RED with CheckViolation.
+- **Assembly** silently dropped those clips from the content set (`Footage.source` literal).
+- **Event terms:**
+  - before: English filler words ("the", "while", "event") counted as event terms;
+  - after: event terms are the event's and place's proper nouns and acronyms.
+- **The main post** could come back from the library as its own footage; it is now rejected by address and by pictures.
+- **Trace:**
+  - it listed normalised handles, which lost the dots;
+  - it treated an own-account clip that tags someone as a repost;
+  - it was unbounded; it is now capped at 3 accounts.
+
+  A search outage also dropped already-reused library clips.
+- **The long-video caption cap** went in URL order; own accounts now come first.
+- **Untrusted inputs:** a non-object model body or a malformed caption event raised instead of degrading.
+
+Ruled out of the pass, with its cost: a hard deadline before the checks phase still reports `unavailable` even when library clips are admitted. Nine minors are deferred (see Next steps).
+
 **Verification:**
-- `make test`: 5023 passed, 243 skipped.
-- `make test-postgres`: 221 passed, with 0033 applied.
+- `make test`: 5033 passed, 245 skipped.
+- `make test-postgres`: 223 passed, with 0033 applied.
 - `make lint` is clean.
 - **Fixtures** from the spike (`python/tests/fixtures/footage/context/`):
   - the 4 cards;
@@ -66,10 +84,21 @@ Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 
 - No change was made.
 
 ### Next steps
-- The whole-branch review, then push and CI (its own gate).
+- Push and CI (its own gate).
 - Deploy to stage1 from the branch image, which applies migration 0033 (its own gate).
 - One live run on the Mutant post, with its footage judged blind by the operator (its own gate); the accuracy target is agreed from that.
 - Merge (its own gate).
+- Deferred review minors:
+  - the card and the run start are not one transaction;
+  - library clips reopened on a retry are not re-checked;
+  - round 2, trace and captions still run after the library fills the quota;
+  - a NUL in the card is not stripped;
+  - the caption language is fixed to `id`;
+  - the Studio import titles YouTube footage `@handle`;
+  - `add_library` has no lock;
+  - the YouTube channel name is not gated;
+  - a missing ffprobe is swallowed in the library copy;
+  - the deadline-before-checks status with library clips.
 - Carried forward:
   - small-creator stories (Erio Manan) stay out of scope (item 53);
   - stressed narration (track step 4);
