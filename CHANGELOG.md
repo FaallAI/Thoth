@@ -2,6 +2,90 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-16 - Footage revision after the first live look
+
+The operator looked at draft `edoc_6979cd46` (run `wf_c345c5a04ebd9290781b2fdf`, Mutant at USS). They found two problems: "masih menampilkan footage footage yang dari main", and "tidak ada pembahasan di podcast nya denny sumargo". They also asked for narration that draws on what the podcast says ("narasi nya jadi luas dan tidak terfokus ke main saja").
+
+The design revision is spec section 9 plus 9.9, approved 2026-11-16 ("ya sesuai"). Plan: `docs/superpowers/plans/2026-11-16-footage-revision.md`, executed natively. The brainstorm record is items 59-65.
+
+**What the look showed.**
+- **The 3 TikTok news recaps** (`@jawaposofficial`, `@koranjakarta`, `@bontangpost.id`) were one second-phone recording of the incident, copied 3 times with their own watermark, captions or header bar. dHash missed the copies.
+- **The podcast sections** sat at passing name mentions (12:50, 46:47), not at the discussion (pedang 4:51-6:47, marah 3:36-8:28). The card had left Mutant out of its people, and listed Aldi Taher, who is named only in comments.
+
+**Spikes** (read-only on stage1, no paid call).
+- **ORB keypoints and the recaps.** The recaps matched each other on 12-20 of 20 frames. They matched the main and the podcast on 0.
+- **Time alignment.** Two podcast moments matched on 9 of 9 frames (same set, same camera). Only 3 of those lined up in time, with a peak of 1.2x over the row median. The copies lined up on 17-20 frames, with peaks of 11-28x. Time alignment is therefore the copy test.
+
+**What changed.**
+- **Context card.**
+  - `people[0]` is the subject, even under a nickname.
+  - People named only in comments are left out.
+  - The card has a new `spoken` list: up to 12 Indonesian words said when the event is discussed.
+- **Moments by discussion density** (`pick_discussions`).
+  - A 60 s window scores 2 per subject line, 1 per other person, and 1 per distinct spoken or event word. Name words are never discussion words.
+  - It needs a score of 4 and 2 distinct words, so a name alone makes no moment.
+  - Windows and their chosen moments stay a minute apart.
+  - Each section keeps its window's caption lines as `said`. They are stored on `footage_candidates` and `footage_library` (editor migration 0034, `said JSONB NOT NULL DEFAULT '[]'`).
+- **One copy of a recording** (`footage/recording.py`, the attribution `OrbMatcher` on 480 px frames at 1 fps).
+  - **Stage 1:** 3 frames are compared against every second frame of the other clip.
+  - **Stage 2:** at least 3 matched frames are needed, 60% of them on one offset within 1 s, with a median peak of 3x or more.
+  - **Choosing among copies:** an original (creator, traced, or an own account) wins. After that, the copy with the lower on-screen text share wins, then the earlier one.
+  - **The losing copy** is rejected `duplicate`, and its library row from this run is dropped. A loser is only dropped after the winner's admit has landed.
+  - **Library clips** go through the same check.
+  - **Sections of one video** are never compared with each other.
+- **Studio and narration.**
+  - `said` travels in the Content Set's `Footage` and in Studio materials (`StudioMaterial.said`, `clip_start`).
+  - The narration request lists "What people say in other videos", labelled only "YouTube video 1" and so on, with no account.
+  - A new source rule says who said it and where, never as the main video's speech and never as fact.
+  - Footage talk counts as evidence.
+- **Planner.** Footage shots carry what their source says during the shot. The speech block is "WHAT EACH VIDEO SAYS DURING EACH SHOT", labelled by video. Two rules are added: retold footage speech takes that video's shots, and a second angle of the main's scene is only for phrases about that moment.
+- **Data on stage1.** The library rows of `wf_c345` (the 5 clips above) were backed up to `D:/thoth-tmp/bu/footage_library-wf_c345-2026-11-16.jsonl` and deleted (operator "ya tolong ini"). Their media stays, because the old draft uses it.
+
+**Cost:** no new paid call. The copy check costs CPU: one 1 fps decode, an ORB pass and 3 OCR reads per clip that reaches it, plus the main at 1 fps once per run. It runs outside the admit lock.
+
+**Verification.**
+- `make test`: 5077 passed, 249 skipped.
+- `make test-postgres`: 227 passed.
+- `make lint`: clean.
+- Dashboard: 2024 tests pass, `tsc -b` and the build pass.
+- `openapi.json` and the generated client were regenerated.
+
+**Final review** (a fresh reviewer): 0 Critical, 3 Important.
+- **Fixed, test first:**
+  - a kept copy was displaced before the winner's admit;
+  - a clip copying two kept clips could displace one and still lose;
+  - the heavy reads ran under the lock.
+- **Regraded to Important and fixed:**
+  - two sections a few seconds apart;
+  - an account handle in the footage-talk label.
+- **Deferred minors:**
+  - a library clip loses its "original" status on reuse (only an own account still counts);
+  - dHash removal misses a displaced library clip;
+  - a displaced clip's file stays in the run folder;
+  - ORB drops flat frames, so a fade can cost a copy match (missed copies only);
+  - a dHash-merged earlier-run library row is not dropped.
+
+**Rulings during the build** (ledger `.superpowers/sdd/2026-11-16-footage-revision/progress.md`):
+- the service switched to `pick_discussions` in Task 2, with the fixture card given `spoken`;
+- event terms that are name words are not discussion words;
+- a `recording_frames` port at 480 px (one ffmpeg run per clip);
+- the trigger and text share come from the clip's own 1 fps frames;
+- the share is computed for every clip that reaches the check;
+- `StudioMaterial.said` uses a local `SpokenLine` (an import cycle);
+- the planner speech lines are labelled by video;
+- library clips go through the copy decision.
+
+**Next steps.**
+1. Push the branch, and let CI publish the branch image (own gate).
+2. Deploy the branch image to stage1, which applies migration 0034 (own gate).
+3. One live footage run on the Mutant post, with the operator judging the clips (own gate).
+4. One narration write on that draft. It is a paid call, and its cost is shown first (own gate). The operator reads whether the podcast talk is used and attributed.
+5. Merge PR #133 (own gate).
+
+Carried forward:
+- the 5 deferred minors above, and the 9 from 2026-11-15;
+- stressed narration (track step 4).
+
 ## 2026-11-15 - Footage library: footage found from the main post's context
 
 The reference-faithful editing track, step 3. The operator's case is draft `edoc_c570bd32`, on Mutant wanting to be invited to Denny Sumargo's podcast. It "harusnya bisa menambahkan beberapa potongan footage youtube dari channel denny sumargo … karena satu context". A person knows such a video exists from following social media every day; Thoth runs once, so it has to find it from the main post's own context (operator, 2026-11-15).
