@@ -161,6 +161,26 @@ async def _tiktok_direct_url(url: str) -> str:
         return (await TikWmResolver(client).resolve(url)).media.ephemeral_url.get_secret_value()
 
 
+def context_ports(settings: Settings, key: str, media: MediaStore) -> dict[str, object]:
+    """The footage library's ports (spec 2026-11-15): the card model with the query model as its
+    fallback, long videos' captions, and a copy of a library clip's stored media."""
+    from thoth_control_plane.acquisition.youtube_service import YtDlpClient
+    from thoth_control_plane.footage.adapters.captions import YtDlpCaptionFetcher
+    from thoth_control_plane.footage.adapters.context_model import OpenRouterCardModel
+
+    async def library_media(location: str, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(media.fetch, location, target)
+
+    return {
+        "card": OpenRouterCardModel(
+            key, [settings.THOTH_FOOTAGE_CARD_MODEL, settings.THOTH_FOOTAGE_QUERY_MODEL]
+        ),
+        "captions_text": YtDlpCaptionFetcher(YtDlpClient()),
+        "library_media": library_media,
+    }
+
+
 def build_production_footage(settings: Settings) -> FootageBuilder:
     from thoth_control_plane.activities.source_investigation import (
         _account_profiles,
@@ -210,11 +230,13 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             # account access policy as every other listing.
             creator=CreatorListings(ProfileDiscoverer(DEFAULT_FACTORIES, leases=leases)),
             photos=HttpPhotoFetcher(),
+            **context_ports(settings, key, build_media_store(settings)),  # type: ignore[arg-type]
         ),
         # The curated JSON list is not a filter (operator, 2026-10-31).
         aggregators=frozenset(),
         story_min=settings.THOTH_FOOTAGE_STORY_MIN,
         max_frames=settings.THOTH_SUBTITLE_OCR_MAX_FRAMES,
+        context_enabled=settings.THOTH_FOOTAGE_CONTEXT_ENABLED,
     )
 
 
