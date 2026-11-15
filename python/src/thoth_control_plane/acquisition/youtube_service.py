@@ -215,12 +215,16 @@ class YtDlpClient:
         factory: Callable[[dict[str, Any]], Any] | None = None,
         *,
         signed_in: bool = False,
+        options: dict[str, Any] | None = None,
     ) -> None:
         self._factory = factory or _default_factory
         self._signed_in = signed_in
+        #: Merged into every call before the call's own options (footage: `lang=id` titles).
+        self._options = dict(options or {})
 
     def _call(self, options: dict[str, Any], call: Callable[[Any], Any]) -> Any:
-        with self._factory({**YTDLP_OPTIONS, "logger": _Silent(), **options}) as ydl:
+        merged = {**YTDLP_OPTIONS, "logger": _Silent(), **self._options, **options}
+        with self._factory(merged) as ydl:
             return call(ydl)
 
     async def _run(

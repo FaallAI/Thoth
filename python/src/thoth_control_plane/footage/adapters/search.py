@@ -29,7 +29,10 @@ def _youtube(access: SessionAccess | None, scratch: Path) -> Any:
     from thoth_control_plane.footage.adapters.youtube import YouTubeSearchDiscovery
 
     factory = _yt_dlp_factory(access, scratch)
-    return YouTubeSearchDiscovery(YtDlpClient(factory, signed_in=access is not None))
+    # Original Indonesian titles, not YouTube's auto-translation (footage library spec 2026-11-15).
+    return YouTubeSearchDiscovery(
+        YtDlpClient(factory, signed_in=access is not None, options={"extractor_args": ID_TITLES})
+    )
 
 
 def _x_search(access: SessionAccess | None) -> Any:
@@ -112,6 +115,9 @@ class PlatformSearch:
             logger.warning("footage search stopped platform=x reason=login_wall")
         failed = batch.login_wall or batch.refused or (batch.unavailable and not batch.found)
         return SearchBatch(found=batch.found, failed=failed)
+
+
+ID_TITLES = {"youtube": {"lang": ["id"]}}
 
 
 def build_platform_search(leases: AccountLeases | None) -> PlatformSearch:
