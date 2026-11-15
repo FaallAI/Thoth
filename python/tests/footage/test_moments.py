@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from pathlib import Path
 
 from thoth_control_plane.footage.moments import parse_json3, pick_moments, section
@@ -26,7 +27,7 @@ def test_moments_need_a_name_and_skip_the_intro() -> None:
     moments = pick_moments(parse_json3(CAPTIONS), ["mutan", "denny sumargo"], ["podcast"])
     assert 1 <= len(moments) <= 3
     assert all(moment >= 30 for moment in moments)
-    assert all(b - a >= 60 for a, b in zip(moments, moments[1:], strict=False))
+    assert all(b - a >= 60 for a, b in pairwise(moments))
     assert moments == sorted(moments)
     assert abs(moments[0] - 165.4) <= 5
 
