@@ -1,3 +1,4 @@
+<!-- Approved by the operator on 2026-11-15 ("ya sesuai dan setuju"). -->
 # Footage library: context-searched footage per story (design)
 
 Reference-faithful editing track, step 3. The brainstorm record is
