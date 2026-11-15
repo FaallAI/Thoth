@@ -26,10 +26,13 @@ from thoth_control_plane.domain.narration import (
     SfxEntry,
     TranscriptSegment,
 )
+from thoth_control_plane.footage.reposts import credit_label
 
 logger = logging.getLogger(__name__)
 
 STAGE = "narration_script"
+FOOTAGE_ROLES = frozenset({"footage", "creator_footage"})
+FOOTAGE_TALK_LIMIT = 1500  # the section's discussion window (spec 2026-11-15, 9.3)
 #: Always asked for, whatever a project's saved prompt says, so the answer stays parseable.
 ANSWER_CONTRACT = (
     'Answer with one JSON object: {"beats": [{"beat": a beat id from the list, "text": the '
@@ -48,7 +51,9 @@ SOURCE_RULES = (
     "The transcript is what the people in the video say: never present it as written by viewers. "
     "It is machine-heard and may be misheard: use only what clearly makes sense and never quote "
     "an unclear part. The title and description are raw captions: use what they mean, never read "
-    "them out word for word. Never write an account handle in the narration."
+    "them out word for word. Never write an account handle in the narration. "
+    "What people say in other videos is what they said there (a podcast, an interview): say "
+    "who said it and where, never present it as said in the main video or as fact."
 )
 #: What is on screen during each beat, so the voice talks about what the viewer sees.
 BEAT_GUIDE: dict[BeatId, str] = {
@@ -80,6 +85,13 @@ class ScriptInvalid(ValueError):
     """The model's answer is not a script this draft can use."""
 
 
+class FootageTalk(StrictModel):
+    """What people say in one footage video (spec 2026-11-15, 9.5), labelled by its source."""
+
+    label: str
+    text: str
+
+
 class ScriptFacts(StrictModel):
     """Everything the script may state, taken from the run's Content Set and attribution."""
 
@@ -89,6 +101,7 @@ class ScriptFacts(StrictModel):
     platform: str = ""
     figures: list[str] = Field(default_factory=list)
     comments: list[str] = Field(default_factory=list)
+    footage_talk: list[FootageTalk] = Field(default_factory=list)
 
 
 def _clean(text: str, limit: int) -> str:
@@ -129,6 +142,9 @@ def build_script_request(
     spoken = _clean(" ".join(segment.text for segment in transcript), TRANSCRIPT_LIMIT)
     if spoken:
         lines.append(f"Machine transcript of the people in the video, may be misheard: {spoken}")
+    if facts.footage_talk:
+        lines.append("What people say in other videos (auto-captions, may be misheard):")
+        lines += [f"- from {talk.label}: {talk.text}" for talk in facts.footage_talk]
     if sfx:
         lines.append(f"Sound effects (at most {preset.max_sfx_cues}):")
         for entry in sfx:
@@ -264,6 +280,7 @@ def _evidence(
             facts.platform,
             *facts.figures,
             *facts.comments,
+            *(talk.text for talk in facts.footage_talk),
             *(segment.text for segment in transcript),
         ]
     )
@@ -334,4 +351,12 @@ def facts_from_materials(
         figures=[figure.name for figure in materials.figures],
         # Older runs stored comments raw, so emote tokens can still arrive here.
         comments=[text for comment in comments if (text := without_emotes(comment))],
+        footage_talk=[
+            FootageTalk(
+                label=credit_label(item.platform, item.owner_handle) or item.label,
+                text=_clean(" ".join(line.text for line in item.said), FOOTAGE_TALK_LIMIT),
+            )
+            for item in materials.items
+            if item.role in FOOTAGE_ROLES and getattr(item, "said", None)
+        ],
     )

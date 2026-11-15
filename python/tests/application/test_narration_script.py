@@ -395,3 +395,82 @@ def test_a_dropped_headline_is_logged_with_what_the_facts_lack(
     with caplog.at_level("WARNING"):
         assert supported_headline(script, FACTS, TRANSCRIPT).headline is None
     assert "Joko" in caplog.text
+
+
+# Footage talk (spec 2026-11-15, 9.5): what people say in the footage videos.
+
+PODCAST_TALK = "Saiful bilang dia bawa pedang karena mau diundang ke podcast"
+
+
+def _talk_facts() -> ScriptFacts:
+    from thoth_control_plane.application.narration_script import FootageTalk
+
+    return FACTS.model_copy(
+        update={"footage_talk": [FootageTalk(label="YouTube/CURHAT BANG", text=PODCAST_TALK)]}
+    )
+
+
+def test_footage_talk_is_sent_with_its_source() -> None:
+    _system, user = build_script_request(
+        prompt="Tulis naskah.",
+        beats=BEATS,  # type: ignore[arg-type]
+        facts=_talk_facts(),
+        transcript=TRANSCRIPT,
+        preset=NarrationPreset(),
+        sfx=[],
+    )
+    assert "What people say in other videos (auto-captions, may be misheard):" in user
+    assert f"- from YouTube/CURHAT BANG: {PODCAST_TALK}" in user
+
+
+def test_no_footage_talk_no_block() -> None:
+    assert "other videos" not in _request()[1]
+
+
+def test_the_system_prompt_says_to_attribute_footage_talk() -> None:
+    system, _user = _request()
+    assert "other videos" in system and "who said it and where" in system
+
+
+def test_footage_talk_counts_as_evidence() -> None:
+    script = NarrationScript(
+        beats=[ScriptBeat(beat="main", text="Di podcast, Saiful mengaku membawa pedang.")],
+        sfx_cues=[],
+    )
+    assert unsupported_tokens(script, FACTS, TRANSCRIPT) == {"main": ["Saiful"]}
+    assert unsupported_tokens(script, _talk_facts(), TRANSCRIPT) == {}
+
+
+def test_footage_said_becomes_footage_talk_in_the_facts() -> None:
+    from thoth_control_plane.application.narration_script import facts_from_materials
+    from thoth_control_plane.domain.studio_imports import (
+        SpokenLine,
+        StudioMaterial,
+        StudioMaterials,
+    )
+
+    def item(item_id: str, role: str, said: list[SpokenLine]) -> StudioMaterial:
+        return StudioMaterial(
+            item_id=item_id,
+            role=role,  # type: ignore[arg-type]
+            label="Footage",
+            media_kind="video",
+            disposition="attached",
+            platform="youtube",
+            owner_handle="CURHAT BANG",
+            said=said,
+        )
+
+    lines = [
+        SpokenLine(text="Saiful bilang dia bawa pedang", start_seconds=292.0, end_seconds=296.0),
+        SpokenLine(text="karena mau diundang", start_seconds=296.0, end_seconds=298.0),
+    ]
+    materials = StudioMaterials(
+        document_id="edoc_1",
+        provenance_available=True,
+        items=[item("footage_000", "footage", lines), item("footage_001", "footage", [])],
+    )
+    facts = facts_from_materials(materials, None)
+    assert [(t.label, t.text) for t in facts.footage_talk] == [
+        ("YouTube/CURHAT BANG", "Saiful bilang dia bawa pedang karena mau diundang")
+    ]
