@@ -92,6 +92,7 @@ Item 52: 4 posts, model cost USD 0.0042, read only.
     people.
   - Slower or more fragile runs: the footage stage must never fail a run, as today.
   - A clip shown twice in one draft, or the same clip from two platforms counted as two.
+  - A news channel's repost used when its original source could be found (item 54).
 
 ## 4. Design
 
@@ -157,7 +158,7 @@ Gates run cheap before expensive, and every decision is stored as today.
 4. **Vision check (existing `FootageJudge`):** `visual` comes from the card. With a card person it
    is "<name> in person …" with `person=True`, else the event's look.
 5. **OCR, duplicate hash and the quota** (`MAX_FOOTAGE = 6`) stay as today. *(My call; see the
-   open question on burned-in subtitles.)*
+   source-over-repost rule in 4.5.)*
 6. **The creator listing** (the main creator's own posts) stays, but its posts go through the same
    context gate. On the Mutant run, all 29 posts of `@jnrksn` were unrelated travel posts.
 
@@ -176,7 +177,31 @@ Gates run cheap before expensive, and every decision is stored as today.
   vision like a short clip, with `clip_start` set to the moment.
 - **No captions:** the video stays rejected `duration`.
 
-### 4.5 The library
+### 4.5 Originals before reposts
+
+The operator: "jika bisa berita relevannya langsung dari source video nya, bukan dari reposting"
+(item 54). A news channel's recap of the CURHAT BANG podcast is a repost. The podcast itself is the
+source.
+
+1. **Own accounts first.** A candidate from an account or channel the card lists for one of its
+   people (for example Denny Sumargo, then `@curhatbang`/"CURHAT BANG Denny Sumargo") is an
+   original. It is tried before other candidates within the quota.
+2. **Reposts are recognised by their credit.** A candidate whose title, caption or OCR text credits
+   another account is a repost of that account. The credit is read with the existing
+   `attribution/credit.py` (`text_handles`, `text_rule_credit`, `frame_handles`), plus the common
+   "Sumber:", "via" and "YouTube/<channel>" forms.
+3. **A repost is traced.** The credited account is searched with the card's queries, through the
+   existing `CreatorPort.listing_of` or a channel search. A match within the date window takes the
+   repost's place, and the repost is rejected `repost` (a new `RejectReason`).
+4. **Kept copies are matched by picture.** A repost whose frames match (`is_duplicate`) a clip
+   already kept from an original is rejected `repost` too.
+5. **The fallback.** A repost whose original cannot be found may still be used, but only if it
+   passes OCR as today. Burned-in subtitles and big overlays stay rejected. *(My reading of "jika
+   bisa".)*
+
+The library (4.6) keeps the original's credit when copies are merged.
+
+### 4.6 The library
 
 - **Table `footage_library`** (editor migration 0033), per workspace. One row per kept clip:
   - workspace;
@@ -198,7 +223,7 @@ Gates run cheap before expensive, and every decision is stored as today.
   search and no download, and count towards the quota first.
 - **Workspace scope:** a workspace only ever sees its own rows.
 
-### 4.6 Into the draft
+### 4.7 Into the draft
 
 - **Draft path:** kept clips (new, or from the library) go out exactly as footage does today: the
   content set's `footage`, the Studio import's `footage` items, then the project's assets.
@@ -206,7 +231,7 @@ Gates run cheap before expensive, and every decision is stored as today.
   - **Style A:** its footage beat shows them, as it shows footage today.
 - **Credit:** "YouTube/<channel>" for YouTube, "@<handle>" for TikTok and X.
 
-### 4.7 Cost and time
+### 4.8 Cost and time
 
 | Item | Cost | Time |
 |---|---|---|
@@ -256,8 +281,7 @@ The tests are in `reports/Indeks footage video lintas platform.md`.
 - How round 2 is merged into the card.
 - Whether the library lookup lives in the footage store or its own repository.
 
-## 8. Open question for the operator
+## 8. Decided after review
 
-- **Burned-in subtitles:** footage with burned-in subtitles or a big overlay is rejected today
-  (`subtitle`). Many relevant news recaps (Tribun, Bukamata) carry such text. Should they stay
-  rejected, or be kept and blurred like the main video?
+- **Burned-in subtitles** (item 54): the original source comes before a repost (4.5). A repost
+  with burned-in subtitles or a big overlay stays rejected, as today.
