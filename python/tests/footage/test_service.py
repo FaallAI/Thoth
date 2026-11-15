@@ -1640,7 +1640,7 @@ async def test_an_admit_writes_the_library_with_the_card_names(
     kept = store.library("ws1", ["mutant"], since, until)
     assert [c.url for c in kept] == [str(_video(1).canonical_url)]
     assert {"mutant", "denny sumargo"} <= set(kept[0].names)
-    assert kept[0].event == _card().event and kept[0].ocr
+    assert kept[0].event == f"{_card().event} {_card().place}" and kept[0].ocr
 
 
 async def test_a_second_run_on_the_story_reuses_the_library(
@@ -1795,3 +1795,24 @@ async def test_own_long_videos_get_their_captions_first(  # final review, Import
         context_enabled=True,
     ).build(_inputs(tmp_path))
     assert captions.calls[0][0] == "https://www.youtube.com/watch?v=zzzzzzzzzzz"
+
+
+async def test_a_library_clip_from_another_story_of_the_same_person_is_not_reused(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-15: the event must match too
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    other = ContextCard(
+        people=[CardPerson(name="Denny Sumargo", aliases=["Densu"]), CardPerson(name="Vior")],
+        event="Vior curhat soal pernikahan di podcast Curhat Bang",
+        place="Jakarta",
+        queries=["Vior Denny Sumargo podcast"],
+    )
+    media = Media(tmp_path)
+    await _builder(store, card=Cards(other), library_media=media, context_enabled=True).build(
+        _inputs_b(tmp_path)
+    )
+    assert media.calls == []
+    assert not [c for c in store.candidates("wf_b") if c.source == "library"]

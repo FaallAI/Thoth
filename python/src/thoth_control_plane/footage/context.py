@@ -240,3 +240,13 @@ def context_reason(text: str, card: ContextCard) -> Literal["story"] | None:
     if sum(_says(said, term) for term in event_terms(card)) >= 2:
         return None
     return "story"
+
+
+def same_event(card: ContextCard, event: str, names: Sequence[str]) -> bool:
+    """A stored clip's event is this card's when they share two distinctive event words; the
+    people's own words do not count, as one person appears in many stories (operator,
+    2026-11-15)."""
+    people = {word for name in [*card_names(card), *names] for word in name.split()}
+    now = set(event_terms(card)) - people
+    then = set(event_terms(ContextCard(event=event))) - people
+    return len(now & then) >= 2

@@ -57,6 +57,7 @@ from thoth_control_plane.footage.context import (
     context_reason,
     event_terms,
     in_window,
+    same_event,
 )
 from thoth_control_plane.footage.creator import (
     CREATOR_LISTING,
@@ -1246,7 +1247,7 @@ class FootageBuilder:
             media_checksum=clip.media_checksum,
             hashes=hashes,
             names=card_names(state.card),
-            event=state.card.event,
+            event=f"{state.card.event} {state.card.place}".strip(),
             ocr=clip.ocr,
         )
         try:
@@ -1272,7 +1273,11 @@ class FootageBuilder:
             logger.warning("footage library read failed error=%s", type(error).__name__)
             return
         known = {c.url for c in await asyncio.to_thread(self._store.candidates, workflow)}
-        chosen = [clip for clip in clips if clip.url not in known][:MAX_FOOTAGE]
+        chosen = [
+            clip
+            for clip in clips
+            if clip.url not in known and same_event(card, clip.event, clip.names)
+        ][:MAX_FOOTAGE]
         if not chosen:
             return
         # Never the main post as its own footage: by its address, then by its pictures.
