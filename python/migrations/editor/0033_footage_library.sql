@@ -15,6 +15,7 @@ CREATE TABLE footage_library (
     media_checksum TEXT NOT NULL,
     hashes JSONB NOT NULL DEFAULT '[]',
     names JSONB NOT NULL DEFAULT '[]',
+    ocr JSONB NOT NULL DEFAULT '{}',
     event TEXT NOT NULL DEFAULT '',
     first_workflow_id TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

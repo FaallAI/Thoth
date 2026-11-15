@@ -1562,3 +1562,116 @@ async def test_a_traced_original_that_is_the_main_post_is_rejected_main(  # Revi
     rows = {c.url: c for c in store.candidates("wf_a")}
     assert rows[str(main.source.canonical_url)].reason == "main"
     assert rows[str(_video(1, owner="tribunbanten").canonical_url)].reason != "repost"
+
+
+# The library across runs (spec 2026-11-15, 4.6).
+
+
+def _in_workspace(store: FootageStore, workspace: str, *workflows: str) -> None:
+    from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
+
+    with store._sessions.begin() as session:
+        for workflow in workflows:
+            session.add(
+                ProjectRow(
+                    project_id=f"p_{workflow}",
+                    name="p",
+                    created_at=NOW,
+                    updated_at=NOW,
+                    workspace_id=workspace,
+                )
+            )
+            session.add(
+                WorkflowRunRow(
+                    workflow_id=workflow,
+                    project_id=f"p_{workflow}",
+                    actor_type="user",
+                    actor_id="u",
+                    display_url="https://example.com",
+                    platform="tiktok",
+                    status="running",
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+
+
+class Media:
+    """The media store's fetch: copies a stored location into the run."""
+
+    def __init__(self, root: Path, fail: bool = False) -> None:
+        self.root, self.fail = root, fail
+        self.calls: list[str] = []
+
+    async def __call__(self, location: str, target: Path) -> None:
+        self.calls.append(location)
+        if self.fail:
+            raise OSError("gone")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((self.root / location).read_bytes())
+
+
+SHOWN = "Mutant datang ke podcast Densu"
+
+
+async def _run_a(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+
+
+def _inputs_b(tmp_path: Path) -> FootageInputs:
+    return FootageInputs(
+        workflow_id="wf_b",
+        report=_report(),
+        attribution=None,
+        original=None,
+        artifact_root=tmp_path,
+    )
+
+
+async def test_an_admit_writes_the_library_with_the_card_names(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a")
+    await _run_a(store, tmp_path)
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    kept = store.library("ws1", ["mutant"], since, until)
+    assert [c.url for c in kept] == [str(_video(1).canonical_url)]
+    assert {"mutant", "denny sumargo"} <= set(kept[0].names)
+    assert kept[0].event == _card().event and kept[0].ocr
+
+
+async def test_a_second_run_on_the_story_reuses_the_library(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    downloader, search, media = Downloader(), Search(), Media(tmp_path)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]  # run A's queries are cached for 24 h
+    await _builder(
+        store,
+        search=search,
+        downloader=downloader,
+        card=Cards(card_b),
+        library_media=media,
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    reused = [c for c in store.admitted("wf_b") if c.source == "library"]
+    assert [c.url for c in reused] == [str(_video(1).canonical_url)]
+    assert downloader.calls == []
+    assert media.calls
+    assert "Mutant podcast Densu terbaru" in _searched(search)  # the rest is still searched
+
+
+async def test_a_library_copy_failure_is_one_reject(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    result = await _builder(
+        store, card=Cards(_card()), library_media=Media(tmp_path, fail=True), context_enabled=True
+    ).build(_inputs_b(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_b")}
+    assert rows[str(_video(1).canonical_url)].reason == "media_failed"
+    assert result.status == "none"

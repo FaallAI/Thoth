@@ -109,6 +109,7 @@ def _library_clip(row: FootageLibraryRow) -> LibraryClip:
         hashes=list(row.hashes or []),
         names=list(row.names or []),
         event=row.event,
+        ocr=dict(row.ocr or {}),
     )
 
 
@@ -411,6 +412,7 @@ class FootageStore:
             "hashes": list(clip.hashes),
             "names": sorted(set(clip.names)),
             "event": clip.event,
+            "ocr": dict(clip.ocr),
         }
 
     def library(

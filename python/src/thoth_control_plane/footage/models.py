@@ -111,6 +111,8 @@ class LibraryClip:
     hashes: list[int]
     names: list[str]
     event: str
+    # The admission's OCR dump: the import reads it as `MainOcr`.
+    ocr: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

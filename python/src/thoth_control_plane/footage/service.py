@@ -48,6 +48,7 @@ from thoth_control_plane.footage.adapters.photos import PhotoError
 from thoth_control_plane.footage.context import (
     CARD_PROMPT,
     REFINE_PROMPT,
+    WINDOW_BEFORE,
     CardModel,
     ContextCard,
     card_material,
@@ -73,6 +74,7 @@ from thoth_control_plane.footage.models import (
     FootageObject,
     FootageResult,
     FootageStatus,
+    LibraryClip,
     NewCandidate,
     RunView,
     SearchBatch,
@@ -127,6 +129,7 @@ REFINED = "refined"  # set in the stored card once round two ran
 MAX_LONG_VIDEOS = 3
 CAPTION_LANGUAGE = "id"
 SECTION_MARK = "#t="
+LIBRARY = "library"  # the query library clips are counted under
 
 T = TypeVar("T")
 
@@ -149,6 +152,10 @@ class _Build:
     closed: set[str] = field(default_factory=set)  # decided elsewhere: the check writes nothing
     phase: str = "search"
     over: bool = False
+    # The context path (spec 2026-11-15): the card admits are tagged with, and the library's
+    # workspace; None on the object path or for a run without a project.
+    card: ContextCard | None = None
+    workspace: str | None = None
 
 
 async def _together(work: Iterable[Coroutine[Any, Any, T]]) -> list[T]:
@@ -387,6 +394,7 @@ class FootageBuilder:
             return await self._check_all(inputs, main, started, state, [CAROUSEL], slides)
 
         card = ContextCard.model_validate(run.context) if run and run.context else None
+        begun = None
         if run is None and self._context_enabled and self._ports.card is not None:
             begun = await self._start_context(workflow, main, inputs)
             if state.over:  # a card model that ignored its cancellation came back late
@@ -407,6 +415,11 @@ class FootageBuilder:
         if not objects:
             await asyncio.to_thread(self._store.finish_run, workflow, "none")
             return FootageResult(status="none")
+        if card is not None:
+            state.card = card
+            state.workspace = await asyncio.to_thread(self._store.workspace_of, workflow)
+            if begun is not None:
+                await self._from_library(inputs, main, card, state)
 
         hits, failed = await self._search(objects)
         identity = MainIdentity.of(
@@ -430,6 +443,7 @@ class FootageBuilder:
             current = await asyncio.to_thread(self._store.run, workflow)
             if current is not None and current.context:
                 card = ContextCard.model_validate(current.context)
+                state.card = card
             await self._trace(workflow, main, identity, card)
             await self._sections(workflow, card)
             objects = current.objects if current is not None else objects
@@ -1189,7 +1203,109 @@ class FootageBuilder:
         if candidate.url in state.closed:
             return False
         await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
+        if state.card is not None and state.workspace is not None:
+            await self._remember(workflow, candidate, clip, window, hashes, state)
         return True
+
+    async def _remember(
+        self,
+        workflow: str,
+        candidate: CandidateView,
+        clip: AdmittedClip,
+        window: tuple[float, float] | None,
+        hashes: list[int],
+        state: _Build,
+    ) -> None:
+        """A kept clip joins the workspace's library; a failure there never undoes the admit."""
+        assert state.card is not None and state.workspace is not None
+        kept = LibraryClip(
+            url=candidate.url,
+            platform=candidate.platform,
+            owner_handle=candidate.owner_handle,
+            published_at=candidate.published_at,
+            section_start=clip.clip_start,
+            section_end=window[1] if window else None,
+            media_location=clip.media_location,
+            media_checksum=clip.media_checksum,
+            hashes=hashes,
+            names=card_names(state.card),
+            event=state.card.event,
+            ocr=clip.ocr,
+        )
+        try:
+            await asyncio.to_thread(self._store.add_library, state.workspace, workflow, kept)
+        except Exception as error:
+            logger.warning("footage library write failed error=%s", type(error).__name__)
+
+    async def _from_library(
+        self, inputs: FootageInputs, main: SourceReport, card: ContextCard, state: _Build
+    ) -> None:
+        """Clips an earlier run kept for the same people join this run admitted: copied from
+        storage, never searched, downloaded or checked again (spec 2026-11-15, 4.6)."""
+        if state.workspace is None or self._ports.library_media is None:
+            return
+        workflow, root = inputs.workflow_id, inputs.artifact_root
+        now = self._clock()
+        since = (_when(main.post.published_at) or now) - WINDOW_BEFORE
+        try:
+            clips = await asyncio.to_thread(
+                self._store.library, state.workspace, card_names(card), since, now
+            )
+        except Exception as error:
+            logger.warning("footage library read failed error=%s", type(error).__name__)
+            return
+        known = {c.url for c in await asyncio.to_thread(self._store.candidates, workflow)}
+        chosen = [clip for clip in clips if clip.url not in known][:MAX_FOOTAGE]
+        if not chosen:
+            return
+        await asyncio.to_thread(
+            self._store.add_candidates,
+            workflow,
+            [
+                NewCandidate(
+                    url=clip.url,
+                    platform=clip.platform,
+                    source=LIBRARY,
+                    query=LIBRARY,
+                    visual=(card.event or DEFAULT_VISUAL)[:300],
+                    owner_handle=clip.owner_handle,
+                    caption=clip.event[:2000],
+                    published_at=clip.published_at,
+                    source_duration=(
+                        clip.section_end - clip.section_start if clip.section_end else None
+                    ),
+                )
+                for clip in chosen
+            ],
+        )
+        reused = 0
+        for clip in chosen:
+            name = hashlib.sha256(clip.url.encode()).hexdigest()[:20] + ".mp4"
+            location = PurePosixPath("reports") / workflow / "footage" / name
+            path = root / location
+            try:
+                await self._ports.library_media(clip.media_location, path)
+                duration = await self._ports.probe.duration(path)
+            except Exception as error:
+                logger.warning("footage library copy failed error=%s", type(error).__name__)
+                path.unlink(missing_ok=True)
+                await asyncio.to_thread(self._store.reject, workflow, clip.url, "media_failed")
+                continue
+            admitted = AdmittedClip(
+                kind="footage",
+                shows_object="yes",
+                description=clip.event[:500],
+                media_location=location.as_posix(),
+                media_checksum=_sha256(path),
+                media_bytes=path.stat().st_size,
+                clip_duration=duration,
+                clip_start=clip.section_start,
+                ocr=clip.ocr,
+                position=next(state.positions),
+            )
+            await asyncio.to_thread(self._store.admit, workflow, clip.url, admitted)
+            reused += 1
+        logger.info("footage library reused=%d of=%d", reused, len(chosen))
 
     async def _reject(
         self,

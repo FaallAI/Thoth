@@ -91,6 +91,7 @@ class FootageLibraryRow(Base):
     media_checksum: Mapped[str] = mapped_column(String)
     hashes: Mapped[list[int]] = mapped_column(JSON, default=list)
     names: Mapped[list[str]] = mapped_column(JSON, default=list)
+    ocr: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     event: Mapped[str] = mapped_column(String, default="")
     first_workflow_id: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
