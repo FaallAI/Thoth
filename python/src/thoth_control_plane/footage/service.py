@@ -184,6 +184,14 @@ class _Build:
     copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
+@dataclass(frozen=True)
+class _Evidence:
+    features: list[Any]
+    facts: CopyFacts
+    source: str
+    copies_main: bool
+
+
 @dataclass
 class _Recording:
     url: str
@@ -1241,12 +1249,24 @@ class FootageBuilder:
             return await self._reject(
                 workflow, root, candidate, location, owned, "duplicate", state, **seen
             )
+        steps[candidate.url] = "copy"
+        # The heavy reads (frames, ORB, OCR, the main) run before the lock (final review, 3).
+        evidence = await self._evidence(candidate, path, state)
+        if evidence is not None and evidence.copies_main:
+            return await self._reject(
+                workflow, root, candidate, location, owned, "duplicate", state, **seen
+            )
         async with state.copy_lock:  # the copy decision and the admit are one step
-            steps[candidate.url] = "copy"
-            if not await self._unique(workflow, candidate, path, hashes, admitted_hashes, state):
-                return await self._reject(
-                    workflow, root, candidate, location, owned, "duplicate", state, **seen
+            losers: list[_Recording] = []
+            if evidence is not None:
+                found = await self._losers(
+                    evidence.features, evidence.facts, evidence.source, state
                 )
+                if found is None:
+                    return await self._reject(
+                        workflow, root, candidate, location, owned, "duplicate", state, **seen
+                    )
+                losers = found
             steps[candidate.url] = "store"
             if candidate.url in state.closed:  # abandoned: its media_failed is recorded
                 return False
@@ -1269,6 +1289,10 @@ class FootageBuilder:
             if candidate.url in state.closed:
                 return False
             await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
+            # Only an admit that landed displaces a kept copy (final review, 1).
+            await self._settle(
+                workflow, candidate, evidence, losers, hashes, admitted_hashes, state
+            )
             if state.card is not None and state.workspace is not None:
                 await self._remember(workflow, candidate, clip, window, hashes, state)
             return True
@@ -1314,35 +1338,60 @@ class FootageBuilder:
         share = text_share([await self._ports.text.read(frame) for frame in picked])
         return CopyFacts(candidate.url, original, share, candidate.published_at)
 
-    async def _unique(
-        self,
-        workflow: str,
-        candidate: CandidateView,
-        path: Path,
-        hashes: list[int],
-        admitted_hashes: list[list[int]],
-        state: _Build,
-    ) -> bool:
-        """False when the clip copies the main or a kept clip that stays; a kept copy it beats
-        is rejected `duplicate` and leaves this run's library (spec 2026-11-15, 9.4)."""
+    async def _evidence(
+        self, candidate: CandidateView, path: Path, state: _Build
+    ) -> _Evidence | None:
+        """What the copy check needs about a clip (spec 2026-11-15, 9.4): its 1 fps features,
+        whether it copies the main, and whether it is an original and how clean; None when the
+        check is off."""
         if not self._copy_check:
-            return True
+            return None
         frames, features = await self._recording(path)
-        if await self._copy_of(features, state.main_recording or []):
-            return False
-        facts = await self._copy_facts(candidate, frames, state)
-        source = candidate.url.partition(SECTION_MARK)[0]
+        return _Evidence(
+            features=features,
+            facts=await self._copy_facts(candidate, frames, state),
+            source=candidate.url.partition(SECTION_MARK)[0],
+            copies_main=await self._copy_of(features, state.main_recording or []),
+        )
+
+    async def _losers(
+        self, features: list[Any], facts: CopyFacts, source: str, state: _Build
+    ) -> list[_Recording] | None:
+        """The kept copies this clip beats, or None when any kept copy stays over it: every
+        comparison runs before anything is displaced (final review, 2)."""
+        losers: list[_Recording] = []
         for other in list(state.recordings.values()):
             # Sections of one video share a set and a camera: that is no copy (spec 9.9).
             if other.source == source or not await self._copy_of(features, other.frames):
                 continue
             if keep_first(other.facts, facts):
-                return False
-            await self._displace(workflow, other, admitted_hashes, state)
+                return None
+            losers.append(other)
+        return losers
+
+    async def _settle(
+        self,
+        workflow: str,
+        candidate: CandidateView,
+        evidence: _Evidence | None,
+        losers: list[_Recording],
+        hashes: list[int],
+        admitted_hashes: list[list[int]],
+        state: _Build,
+    ) -> None:
+        """After the admit: the beaten copies go, and this clip joins the copy check."""
+        if evidence is None:
+            return
+        for loser in losers:
+            await self._displace(workflow, loser, admitted_hashes, state)
         state.recordings[candidate.url] = _Recording(
-            candidate.url, source, candidate.query, features, facts, hashes
+            candidate.url,
+            evidence.source,
+            candidate.query,
+            evidence.features,
+            evidence.facts,
+            hashes,
         )
-        return True
 
     async def _displace(
         self, workflow: str, other: _Recording, admitted_hashes: list[list[int]], state: _Build
@@ -1472,7 +1521,17 @@ class FootageBuilder:
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
                 continue
             # Copies kept in the library come back once (spec 9.4, item 65).
-            if not await self._unique(workflow, rows[clip.url], path, clip.hashes, [], state):
+            evidence = await self._evidence(rows[clip.url], path, state)
+            losers: list[_Recording] | None = []
+            if evidence is not None:
+                losers = (
+                    None
+                    if evidence.copies_main
+                    else await self._losers(
+                        evidence.features, evidence.facts, evidence.source, state
+                    )
+                )
+            if losers is None:
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
                 continue
@@ -1489,6 +1548,9 @@ class FootageBuilder:
                 position=next(state.positions),
             )
             await asyncio.to_thread(self._store.admit, workflow, clip.url, admitted)
+            await self._settle(
+                workflow, rows[clip.url], evidence, losers, list(clip.hashes), [], state
+            )
             reused += 1
         reused -= len(state.displaced)
         state.displaced.clear()  # the checks count admitted clips from the store

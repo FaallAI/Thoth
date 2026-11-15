@@ -2086,3 +2086,78 @@ async def test_copies_kept_in_the_library_come_back_once(
         **_copies(),
     ).build(_inputs_b(tmp_path))
     assert len([c for c in store.admitted("wf_b") if c.source == "library"]) == 1
+
+
+class SlowAdmit:
+    """The store, with one clip's admit stuck past the check's budget."""
+
+    def __init__(self, store: FootageStore, url: str) -> None:
+        self._store, self._url = store, url
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._store, name)
+
+    def admit(self, workflow_id: str, url: str, clip: Any) -> None:
+        if url == self._url:
+            time.sleep(1.0)
+        self._store.admit(workflow_id, url, clip)
+
+
+async def test_a_copy_cut_off_after_beating_a_kept_one_leaves_it(  # final review, Important 1
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    builder = _builder(
+        SlowAdmit(store, _url(2)),  # type: ignore[arg-type]
+        search=search,
+        per_candidate_seconds=0.3,
+        **_copies(frozenset({_url(1)})),
+    )
+    builder._concurrency = 1  # clip 1 is kept before clip 2 is checked
+    await builder.build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[_url(1)].status == "admitted"
+
+
+async def test_a_copy_of_two_kept_clips_that_loses_to_one_displaces_neither(  # Important 2
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.recording import CopyFacts
+    from thoth_control_plane.footage.service import _Build, _Recording
+
+    builder = _builder(store, **_copies())
+    features = [f"rec1:{i}".encode() for i in range(10)]
+    state = _Build()
+    for url, share in (("a", 0.3), ("c", 0.05)):
+        state.recordings[url] = _Recording(
+            url, url, "q", features, CopyFacts(url, False, share, None), []
+        )
+    losers = await builder._losers(features, CopyFacts("b", False, 0.1, None), "b", state)
+    assert losers is None
+    assert set(state.recordings) == {"a", "c"}
+
+
+class CountingFrames(RecFrames):
+    """Records how many recording reads run at once."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.now = self.most = 0
+
+    async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
+        self.now += 1
+        self.most = max(self.most, self.now)
+        await asyncio.sleep(0.05)
+        self.now -= 1
+        return await super().frames(video, fps=fps, seconds=seconds)
+
+
+async def test_copy_evidence_is_read_outside_the_lock(  # final review, Important 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    frames = CountingFrames({_url(1): "rec1", _url(2): "rec2"})
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(
+        store, search=search, recording_frames=frames, matcher=Matcher(), text=Clutter()
+    ).build(_inputs(tmp_path))
+    assert frames.most >= 2

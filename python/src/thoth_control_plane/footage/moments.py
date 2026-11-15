@@ -96,23 +96,29 @@ def pick_discussions(
         score = named + len(distinct)
         if score >= MIN_SCORE and len(distinct) >= MIN_WORDS:
             windows.append((score, line.start, first, last))
-    kept: list[tuple[float, int, int]] = []
-    for _, start, first, last in sorted(windows, key=lambda w: (-w[0], w[1])):
-        if all(abs(start - other) >= WINDOW_SECONDS for other, _, _ in kept):
-            kept.append((start, first, last))
-            if len(kept) == limit:
-                break
-    found: list[Discussion] = []
-    for _, first, last in sorted(kept):
+
+    def moment(first: int, last: int) -> float:
         weights = {
             i: 2 * bool(_count(said[i], subject))
             + bool(_count(said[i], others))
             + _count(said[i], words)
             for i in range(first, last + 1)
         }
-        best = max(weights, key=lambda i: (weights[i], -i))
-        found.append(Discussion(lines[best].start, _segments(lines, first, last)))
-    return found
+        return lines[max(weights, key=lambda i: (weights[i], -i))].start
+
+    # Windows and their moments both stay a minute apart: two windows a minute apart can still
+    # pick lines seconds apart, which would be the same footage twice (final review, 8).
+    kept: list[tuple[float, float, int, int]] = []
+    for _, start, first, last in sorted(windows, key=lambda w: (-w[0], w[1])):
+        at = moment(first, last)
+        if all(
+            abs(start - other) >= WINDOW_SECONDS and abs(at - shown) >= APART_SECONDS
+            for other, shown, _, _ in kept
+        ):
+            kept.append((start, at, first, last))
+            if len(kept) == limit:
+                break
+    return [Discussion(at, _segments(lines, first, last)) for _, at, first, last in sorted(kept)]
 
 
 def _segments(lines: Sequence[CaptionLine], first: int, last: int) -> list[dict[str, float | str]]:

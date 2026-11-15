@@ -26,12 +26,12 @@ from thoth_control_plane.domain.narration import (
     SfxEntry,
     TranscriptSegment,
 )
-from thoth_control_plane.footage.reposts import credit_label
 
 logger = logging.getLogger(__name__)
 
 STAGE = "narration_script"
 FOOTAGE_ROLES = frozenset({"footage", "creator_footage"})
+PLATFORM_NAMES = {"youtube": "YouTube", "tiktok": "TikTok", "x": "X", "instagram": "Instagram"}
 FOOTAGE_TALK_LIMIT = 1500  # the section's discussion window (spec 2026-11-15, 9.3)
 #: Always asked for, whatever a project's saved prompt says, so the answer stays parseable.
 ANSWER_CONTRACT = (
@@ -351,12 +351,22 @@ def facts_from_materials(
         figures=[figure.name for figure in materials.figures],
         # Older runs stored comments raw, so emote tokens can still arrive here.
         comments=[text for comment in comments if (text := without_emotes(comment))],
-        footage_talk=[
+        footage_talk=_footage_talk(materials),
+    )
+
+
+def _footage_talk(materials: Any) -> list[FootageTalk]:
+    """What each footage video says, labelled by platform and number only: the voice never sees
+    an account, so it cannot read one out (final review, 9)."""
+    talk: list[FootageTalk] = []
+    for item in materials.items:
+        if item.role not in FOOTAGE_ROLES or not getattr(item, "said", None):
+            continue
+        platform = PLATFORM_NAMES.get(item.platform or "", "Social media")
+        talk.append(
             FootageTalk(
-                label=credit_label(item.platform, item.owner_handle) or item.label,
+                label=f"{platform} video {len(talk) + 1}",
                 text=_clean(" ".join(line.text for line in item.said), FOOTAGE_TALK_LIMIT),
             )
-            for item in materials.items
-            if item.role in FOOTAGE_ROLES and getattr(item, "said", None)
-        ],
-    )
+        )
+    return talk

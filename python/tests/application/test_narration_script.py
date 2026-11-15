@@ -406,7 +406,7 @@ def _talk_facts() -> ScriptFacts:
     from thoth_control_plane.application.narration_script import FootageTalk
 
     return FACTS.model_copy(
-        update={"footage_talk": [FootageTalk(label="YouTube/CURHAT BANG", text=PODCAST_TALK)]}
+        update={"footage_talk": [FootageTalk(label="YouTube video 1", text=PODCAST_TALK)]}
     )
 
 
@@ -420,7 +420,7 @@ def test_footage_talk_is_sent_with_its_source() -> None:
         sfx=[],
     )
     assert "What people say in other videos (auto-captions, may be misheard):" in user
-    assert f"- from YouTube/CURHAT BANG: {PODCAST_TALK}" in user
+    assert f"- from YouTube video 1: {PODCAST_TALK}" in user
 
 
 def test_no_footage_talk_no_block() -> None:
@@ -472,5 +472,7 @@ def test_footage_said_becomes_footage_talk_in_the_facts() -> None:
     )
     facts = facts_from_materials(materials, None)
     assert [(t.label, t.text) for t in facts.footage_talk] == [
-        ("YouTube/CURHAT BANG", "Saiful bilang dia bawa pedang karena mau diundang")
+        ("YouTube video 1", "Saiful bilang dia bawa pedang karena mau diundang")
     ]
+    # The voice never sees an account (final review, Important 9).
+    assert "CURHAT" not in facts.model_dump_json()

@@ -110,3 +110,20 @@ def test_malformed_events_are_skipped() -> None:  # final review, Minor 5 raised
     )
     assert parse_json3(bad_time) == []
     assert [line.text for line in parse_json3(bad_segs)] == ["ok"]
+
+
+def test_chosen_moments_are_a_minute_apart() -> None:  # final review, Important 8
+    from thoth_control_plane.footage.moments import CaptionLine
+
+    lines = [
+        CaptionLine(121.0, "mutan"),
+        CaptionLine(152.0, "mutan"),
+        CaptionLine(168.0, "mutan marah kursi"),
+        CaptionLine(203.0, "pedang marah"),
+        CaptionLine(206.0, "pedang marah"),
+        CaptionLine(215.0, "mutan"),
+        CaptionLine(227.0, "x"),
+    ]
+    found = pick_discussions(lines, ["mutan"], [], ["pedang", "marah", "kursi"])
+    assert found
+    assert all(b.moment - a.moment >= 60 for a, b in pairwise(found))
