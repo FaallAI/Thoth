@@ -44,6 +44,17 @@ from thoth_control_plane.attribution.ports import AttributionError
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.embedder import cosine
 from thoth_control_plane.footage.adapters.photos import PhotoError
+from thoth_control_plane.footage.context import (
+    CARD_PROMPT,
+    REFINE_PROMPT,
+    CardModel,
+    ContextCard,
+    card_material,
+    card_names,
+    context_objects,
+    context_reason,
+    in_window,
+)
 from thoth_control_plane.footage.creator import (
     CREATOR_LISTING,
     MAX_PHOTOS,
@@ -64,6 +75,7 @@ from thoth_control_plane.footage.models import (
     RunView,
     SearchBatch,
 )
+from thoth_control_plane.footage.moments import CaptionPort
 from thoth_control_plane.footage.ports import (
     ClipDownloader,
     CreatorPort,
@@ -74,18 +86,6 @@ from thoth_control_plane.footage.ports import (
     QueryModel,
     SearchPort,
 )
-from thoth_control_plane.footage.context import (
-    CARD_PROMPT,
-    REFINE_PROMPT,
-    CardModel,
-    ContextCard,
-    card_material,
-    card_names,
-    context_objects,
-    context_reason,
-    in_window,
-)
-from thoth_control_plane.footage.moments import CaptionPort
 from thoth_control_plane.footage.queries import footage_objects, query_prompt, top_comments
 from thoth_control_plane.footage.reposts import is_own_account
 
