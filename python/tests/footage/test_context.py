@@ -9,6 +9,8 @@ from pathlib import Path
 from tests.assembly.support import report as support_report
 from thoth_control_plane.acquisition.models import ReportComment
 from thoth_control_plane.footage.context import (
+    CARD_PROMPT,
+    REFINE_PROMPT,
     CardPerson,
     ContextCard,
     card_material,
@@ -16,6 +18,7 @@ from thoth_control_plane.footage.context import (
     context_objects,
     context_reason,
     in_window,
+    subject_names,
 )
 
 CARDS = Path(__file__).resolve().parents[1] / "fixtures" / "footage" / "context"
@@ -116,3 +119,41 @@ def test_english_filler_words_are_not_event_terms() -> None:  # final review, Im
     assert context_reason("Podcast terbaru di Jakarta bareng komika", mutant) == "story"
     assert context_reason("the sneaker drop event this weekend", mutant) == "story"
     assert context_reason("Keseruan Urban Sneaker Society hari kedua", mutant) is None
+
+
+def test_spoken_words_are_single_lowercase_words() -> None:  # spec 9.2
+    card = ContextCard.model_validate(
+        {
+            "spoken": [
+                "Pedang",
+                "marah",
+                None,
+                {"x": 1},
+                "dua kata",
+                "marah",
+                *[f"w{i}" for i in range(20)],
+            ]
+        }
+    )
+    assert card.spoken[:2] == ["pedang", "marah"]
+    assert "dua kata" not in card.spoken
+    assert len(card.spoken) == 12
+
+
+def test_an_old_card_decodes_without_spoken() -> None:
+    assert ContextCard.model_validate({"event": "x"}).spoken == []
+
+
+def test_subject_names_are_the_first_persons() -> None:
+    card = ContextCard.model_validate(
+        {"people": [{"name": "Mutant", "aliases": ["Saiful", "Ipul"]}, {"name": "Denny Sumargo"}]}
+    )
+    assert subject_names(card) == ["mutant", "saiful", "ipul"]  # longest first, stable
+    assert subject_names(ContextCard()) == []
+
+
+def test_the_prompts_ask_for_the_subject_first_and_spoken_words() -> None:
+    assert '"spoken"' in CARD_PROMPT
+    assert "people[0]" in CARD_PROMPT
+    assert "only in comments" in CARD_PROMPT
+    assert "people[0]" in REFINE_PROMPT

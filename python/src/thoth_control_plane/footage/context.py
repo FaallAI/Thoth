@@ -22,6 +22,7 @@ MAX_COMMENTS = 25
 MAX_TRANSCRIPT = 1500
 MIN_NAME = 3  # "TG" or "RG" would match unrelated posts
 MIN_TERM = 4
+MAX_SPOKEN = 12
 WINDOW_BEFORE = timedelta(days=30)
 DEFAULT_VISUAL = "the scene the post is about"
 
@@ -29,9 +30,13 @@ CARD_PROMPT = """You read one social media post from Indonesia and write a conte
 footage of the same story on YouTube, TikTok and X. Return only JSON:
 {"people": [{"name": str, "aliases": [str], "role": str, "accounts": [str]}],
  "event": str, "place": str, "when": str, "meme_or_joke": str,
- "queries": [str], "notes": str}
-Rules: people are the real persons the story is about; aliases are every other name they go by
-(nicknames, real names, spellings, labels used in comments). queries: up to 6 short searches as
+ "queries": [str], "spoken": [str], "notes": str}
+Rules: people are the real persons the story is about. people[0] is the person the post shows
+doing the thing, even when only a nickname or a description is known ("pria bawa pedang"). A
+person named only in comments is not one of the people, unless the comments say that person is
+in the video. aliases are every other name they go by (nicknames, real names, spellings, labels
+used in comments). spoken: up to 12 single lowercase Indonesian words people would say aloud when
+discussing this event (objects, actions, feelings), never names. queries: up to 6 short searches as
 Indonesian viewers would type them, each pairing a person's name or alias with the event or the
 other person; no hashtags, no generic objects. Use the material and your general knowledge of
 Indonesian public figures; put "?" after anything you are unsure of.
@@ -39,7 +44,8 @@ Queries are in the language of the post."""
 
 REFINE_PROMPT = """You keep a context card used to find footage of one story. You get the card
 and the titles and channels a first search returned. Return the same JSON shape as the card:
-add every other name the titles use for the card's people (real names, spellings), correct the
+keep people[0] first and add the real names the titles use for people[0], add every other name
+the titles use for the card's people (real names, spellings), keep "spoken", correct the
 people, event or place where the titles show the card is wrong, and set "queries" to at most 3
 NEW short searches (not already in the card) that pair a person's name or alias with the event.
 Ignore titles about other stories. Put "?" after anything you are unsure of."""
@@ -84,6 +90,8 @@ class ContextCard(StrictModel):
     when: str = ""
     meme_or_joke: str = ""
     queries: list[str] = Field(default_factory=list)
+    # Words people say aloud when discussing the event (spec 2026-11-15, 9.2).
+    spoken: list[str] = Field(default_factory=list)
     notes: str = ""
 
     @field_validator("people", mode="before")
@@ -97,6 +105,14 @@ class ContextCard(StrictModel):
     @classmethod
     def _queries(cls, value: object) -> list[str]:
         return _texts(value)
+
+    @field_validator("spoken", mode="before")
+    @classmethod
+    def _spoken(cls, value: object) -> list[str]:
+        words = (word.strip().lower() for word in _texts(value))
+        return list(dict.fromkeys(w for w in words if w and not any(c.isspace() for c in w)))[
+            :MAX_SPOKEN
+        ]
 
     @field_validator("event", "place", "when", "meme_or_joke", "notes", mode="before")
     @classmethod
@@ -129,6 +145,13 @@ def card_material(main: SourceReport, figures: Sequence[dict[str, Any]], transcr
 def _names(person: CardPerson) -> list[str]:
     found = (norm(text.replace("?", "")) for text in [person.name, *person.aliases])
     return [name for name in found if len(name) >= MIN_NAME]
+
+
+def subject_names(card: ContextCard) -> list[str]:
+    """The subject's (people[0]) name and aliases, normalised, longest first (spec 9.2)."""
+    if not card.people:
+        return []
+    return sorted(dict.fromkeys(_names(card.people[0])), key=len, reverse=True)
 
 
 def card_names(card: ContextCard) -> list[str]:
