@@ -90,6 +90,7 @@ from thoth_control_plane.footage.models import (
 from thoth_control_plane.footage.moments import (
     SECTION_SECONDS,
     CaptionPort,
+    Discussion,
     parse_json3,
     pick_discussions,
     section,
@@ -759,19 +760,20 @@ class FootageBuilder:
             long = (c.source_duration or 0.0) > MAX_SECONDS and SECTION_MARK not in c.url
             if c.status != "pending" or c.platform != "youtube" or not long:
                 continue
-            moments: list[float] = []
+            found: list[Discussion] = []
             if self._ports.captions_text is not None and handled < MAX_LONG_VIDEOS:
                 handled += 1
                 data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
                 if data:
                     subject = subject_names(card)
                     others = [name for name in card_names(card) if name not in subject]
-                    words = [*card.spoken, *event_terms(card)]
+                    # A name is never a discussion word: "Denny" from the event is a person.
+                    named = {word for name in card_names(card) for word in name.split()}
+                    words = [*card.spoken, *(t for t in event_terms(card) if t not in named)]
                     found = pick_discussions(parse_json3(data), subject, others, words)
-                    moments = [discussion.moment for discussion in found]
             rows = [
                 NewCandidate(
-                    url=f"{c.url}{SECTION_MARK}{moment:.1f}",
+                    url=f"{c.url}{SECTION_MARK}{discussion.moment:.1f}",
                     platform=c.platform,
                     source="section",
                     query=c.query,
@@ -781,9 +783,10 @@ class FootageBuilder:
                     published_at=c.published_at,
                     engagement=dict(c.engagement),
                     source_duration=SECTION_SECONDS,
+                    said=discussion.said,
                 )
-                for moment in moments
-                if f"{c.url}{SECTION_MARK}{moment:.1f}" not in known
+                for discussion in found
+                if f"{c.url}{SECTION_MARK}{discussion.moment:.1f}" not in known
             ]
             if rows:
                 await asyncio.to_thread(self._store.add_candidates, workflow, rows)
@@ -1253,6 +1256,7 @@ class FootageBuilder:
             names=card_names(state.card),
             event=f"{state.card.event} {state.card.place}".strip(),
             ocr=clip.ocr,
+            said=list(candidate.said),
         )
         try:
             await asyncio.to_thread(self._store.add_library, state.workspace, workflow, kept)
@@ -1312,6 +1316,7 @@ class FootageBuilder:
                     source_duration=(
                         clip.section_end - clip.section_start if clip.section_end else None
                     ),
+                    said=list(clip.said),
                 )
                 for clip in chosen
             ],

@@ -1845,3 +1845,70 @@ def test_one_person_under_several_names_counts_once() -> None:
 
     densu = ContextCard(people=[CardPerson(name="Denny Sumargo", aliases=["Densu", "Bang Densu"])])
     assert not same_event(densu, "Vior curhat", ["denny sumargo", "densu", "bang densu", "vior"])
+
+
+async def test_a_section_keeps_what_is_said_around_it(  # spec 2026-11-15, 9.3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert sections and all(c.said for c in sections)
+    assert any("pedang" in " ".join(str(s["text"]) for s in c.said).lower() for c in sections)
+
+
+async def test_a_long_video_naming_only_people_gives_no_section(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    names_only = ContextCard(
+        people=[
+            CardPerson(name="Mutant", aliases=["Mutan"]),
+            CardPerson(name="Denny Sumargo", aliases=["Densu"]),
+        ],
+        queries=["Mutant USS Denny Sumargo"],
+    )
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(names_only),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    assert not [c for c in rows.values() if c.source == "section"]
+
+
+async def test_a_library_clip_brings_its_said(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    kept = store.library("ws1", ["mutant"], since, until)
+    assert kept and all(clip.said for clip in kept)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store,
+        search=Search(),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    reused = {c.url: c for c in store.admitted("wf_b") if c.source == "library"}
+    assert reused
+    for clip in kept:
+        if clip.url in reused:
+            assert reused[clip.url].said == clip.said
