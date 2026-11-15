@@ -58,6 +58,7 @@ from thoth_control_plane.footage.context import (
     event_terms,
     in_window,
     same_event,
+    subject_names,
 )
 from thoth_control_plane.footage.creator import (
     CREATOR_LISTING,
@@ -90,7 +91,7 @@ from thoth_control_plane.footage.moments import (
     SECTION_SECONDS,
     CaptionPort,
     parse_json3,
-    pick_moments,
+    pick_discussions,
     section,
 )
 from thoth_control_plane.footage.ports import (
@@ -763,8 +764,11 @@ class FootageBuilder:
                 handled += 1
                 data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
                 if data:
-                    lines = parse_json3(data)
-                    moments = pick_moments(lines, card_names(card), event_terms(card))
+                    subject = subject_names(card)
+                    others = [name for name in card_names(card) if name not in subject]
+                    words = [*card.spoken, *event_terms(card)]
+                    found = pick_discussions(parse_json3(data), subject, others, words)
+                    moments = [discussion.moment for discussion in found]
             rows = [
                 NewCandidate(
                     url=f"{c.url}{SECTION_MARK}{moment:.1f}",

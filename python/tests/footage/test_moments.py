@@ -1,11 +1,11 @@
-"""Moments in a long video, found by its captions (footage library spec 2026-11-15, 4.4)."""
+"""Discussions in a long video, found by its captions (footage library spec 2026-11-15, 9.3)."""
 
 from __future__ import annotations
 
 from itertools import pairwise
 from pathlib import Path
 
-from thoth_control_plane.footage.moments import parse_json3, pick_moments, section
+from thoth_control_plane.footage.moments import parse_json3, pick_discussions, section
 
 CAPTIONS = (
     Path(__file__).resolve().parents[1]
@@ -23,17 +23,39 @@ def test_the_podcast_captions_parse() -> None:
     assert lines[0].text == "Bang Densu pasti ngeremehin gua karena"
 
 
-def test_moments_need_a_name_and_skip_the_intro() -> None:
-    moments = pick_moments(parse_json3(CAPTIONS), ["mutan", "denny sumargo"], ["podcast"])
-    assert 1 <= len(moments) <= 3
-    assert all(moment >= 30 for moment in moments)
-    assert all(b - a >= 60 for a, b in pairwise(moments))
-    assert moments == sorted(moments)
-    assert abs(moments[0] - 165.4) <= 5
+SUBJECT = ["mutan", "saiful"]
+OTHERS = ["denny sumargo", "densu", "aldi taher"]
+WORDS = ["pedang", "marah", "kursi", "diundang", "ngamuk", "uss"]
 
 
-def test_no_name_no_moment() -> None:
-    assert pick_moments(parse_json3(CAPTIONS), ["rocky gerung"], ["podcast"]) == []
+def test_the_incident_discussion_is_found() -> None:
+    found = pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, WORDS)
+    assert any(240 <= d.moment <= 300 for d in found)  # mutan + pedang + USS, 4:05-5:00
+    assert all(d.moment >= 30 for d in found)
+    assert all(b.moment - a.moment >= 60 for a, b in pairwise(found))
+    assert len(found) <= 3
+
+
+def test_a_bare_name_mention_is_no_discussion() -> None:
+    found = pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, WORDS)
+    assert not any(560 <= d.moment <= 600 for d in found)  # "Aldi Taher" only
+
+
+def test_names_without_words_give_nothing() -> None:
+    assert pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, []) == []
+
+
+def test_words_alone_work_without_people() -> None:  # Review Focus 1
+    assert isinstance(pick_discussions(parse_json3(CAPTIONS), [], [], WORDS), list)
+
+
+def test_said_holds_the_window_lines() -> None:
+    found = pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, WORDS)
+    d = next(d for d in found if 240 <= d.moment <= 300)
+    text = " ".join(str(line["text"]) for line in d.said)
+    assert "pedang" in text.lower()
+    assert len(text) <= 1500
+    assert all(float(line["end_seconds"]) >= float(line["start_seconds"]) for line in d.said)
 
 
 def test_a_section_is_eight_seconds_from_a_second_before() -> None:

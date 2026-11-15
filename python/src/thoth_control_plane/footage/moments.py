@@ -1,5 +1,5 @@
-"""Moments inside a long video, found by its auto-captions: where a card person is said
-(footage library spec 2026-11-15, 4.4). Pure functions; the fetch is an adapter."""
+"""Moments inside a long video, found by its auto-captions: where the story is discussed
+(footage library spec 2026-11-15, 4.4 and 9.3). Pure functions; the fetch is an adapter."""
 
 from __future__ import annotations
 
@@ -15,6 +15,11 @@ APART_SECONDS = 60.0
 LEAD_SECONDS = 1.0
 SECTION_SECONDS = 8.0
 MAX_MOMENTS = 3
+WINDOW_SECONDS = 60.0
+MIN_SCORE = 4
+MIN_WORDS = 2
+SAID_CHARS = 1500
+LAST_LINE_SECONDS = 3.0
 
 
 @dataclass(frozen=True)
@@ -54,30 +59,74 @@ def _says(text: str, phrase: str) -> bool:
     return f" {phrase} " in f" {text} "
 
 
-def pick_moments(
+@dataclass(frozen=True)
+class Discussion:
+    """A moment where the story is discussed, and the caption lines around it (`said`, as
+    TranscriptSegment dumps in source-video seconds)."""
+
+    moment: float
+    said: list[dict[str, float | str]]
+
+
+def _count(text: str, phrases: Sequence[str]) -> int:
+    return sum(_says(text, phrase) for phrase in phrases)
+
+
+def pick_discussions(
     lines: Sequence[CaptionLine],
-    names: Sequence[str],
-    terms: Sequence[str],
+    subject: Sequence[str],
+    others: Sequence[str],
+    words: Sequence[str],
     limit: int = MAX_MOMENTS,
-) -> list[float]:
-    """Up to `limit` line starts that name a card person: 2 per name, 1 per term, best first
-    (earlier on ties), past the intro, at least a minute apart; returned in time order."""
-    scored: list[tuple[int, float]] = []
-    for line in lines:
+) -> list[Discussion]:
+    """Up to `limit` 60 s windows where the story is discussed (spec 2026-11-15, 9.3): 2 per line
+    naming the subject, 1 per line naming another person, 1 per distinct word said; a window
+    needs a score of 4 and 2 distinct words, so a name alone is never a discussion."""
+    said = [norm(line.text) for line in lines]
+    windows: list[tuple[int, float, int, int]] = []  # (score, start, first, last) line indexes
+    for first, line in enumerate(lines):
         if line.start < INTRO_SECONDS:
             continue
-        said = norm(line.text)
-        named = sum(_says(said, name) for name in names)
-        if not named:
-            continue
-        scored.append((2 * named + sum(_says(said, term) for term in terms), line.start))
-    kept: list[float] = []
-    for _, start in sorted(scored, key=lambda item: (-item[0], item[1])):
-        if all(abs(start - other) >= APART_SECONDS for other in kept):
-            kept.append(start)
+        last = first
+        while last + 1 < len(lines) and lines[last + 1].start < line.start + WINDOW_SECONDS:
+            last += 1
+        inside = said[first : last + 1]
+        distinct = {word for word in words if any(_says(text, word) for text in inside)}
+        named = sum(2 * bool(_count(t, subject)) + bool(_count(t, others)) for t in inside)
+        score = named + len(distinct)
+        if score >= MIN_SCORE and len(distinct) >= MIN_WORDS:
+            windows.append((score, line.start, first, last))
+    kept: list[tuple[float, int, int]] = []
+    for _, start, first, last in sorted(windows, key=lambda w: (-w[0], w[1])):
+        if all(abs(start - other) >= WINDOW_SECONDS for other, _, _ in kept):
+            kept.append((start, first, last))
             if len(kept) == limit:
                 break
-    return sorted(kept)
+    found: list[Discussion] = []
+    for _, first, last in sorted(kept):
+
+        def weight(index: int) -> int:
+            text = said[index]
+            return 2 * bool(_count(text, subject)) + bool(_count(text, others)) + _count(text, words)
+
+        best = max(range(first, last + 1), key=lambda i: (weight(i), -i))
+        found.append(Discussion(lines[best].start, _segments(lines, first, last)))
+    return found
+
+
+def _segments(lines: Sequence[CaptionLine], first: int, last: int) -> list[dict[str, float | str]]:
+    segments: list[dict[str, float | str]] = []
+    used = 0
+    for index in range(first, last + 1):
+        line = lines[index]
+        used += len(line.text) + 1
+        if used > SAID_CHARS:
+            break
+        end = lines[index + 1].start if index + 1 < len(lines) else line.start + LAST_LINE_SECONDS
+        segments.append(
+            {"text": line.text, "start_seconds": line.start, "end_seconds": max(end, line.start)}
+        )
+    return segments
 
 
 def section(moment: float) -> tuple[float, float]:
