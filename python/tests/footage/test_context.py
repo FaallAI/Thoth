@@ -108,3 +108,11 @@ def test_context_objects_mark_person_queries() -> None:
     assert person.person and person.visual.startswith("Mutant in person")
     assert person.query == "Mutant USS Denny Sumargo"
     assert not place.person and place.visual
+
+
+def test_english_filler_words_are_not_event_terms() -> None:  # final review, Important 3
+    rocky, mutant = card("rocky_card"), card("mutant_card")
+    assert context_reason("The best street food and the night market", rocky) == "story"
+    assert context_reason("Podcast terbaru di Jakarta bareng komika", mutant) == "story"
+    assert context_reason("the sneaker drop event this weekend", mutant) == "story"
+    assert context_reason("Keseruan Urban Sneaker Society hari kedua", mutant) is None

@@ -5,6 +5,7 @@ already has, and the matching that finds footage of the same story (footage libr
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any, Literal, Protocol
@@ -20,6 +21,7 @@ from thoth_control_plane.footage.models import FootageObject
 MAX_COMMENTS = 25
 MAX_TRANSCRIPT = 1500
 MIN_NAME = 3  # "TG" or "RG" would match unrelated posts
+MIN_TERM = 4
 WINDOW_BEFORE = timedelta(days=30)
 DEFAULT_VISUAL = "the scene the post is about"
 
@@ -135,9 +137,53 @@ def card_names(card: ContextCard) -> list[str]:
     return sorted(names, key=len, reverse=True)
 
 
+# Capitalised words a card's English event text starts sentences or names generic groups with.
+GENERIC_TERMS = frozenset(
+    {
+        "after",
+        "before",
+        "while",
+        "during",
+        "with",
+        "from",
+        "this",
+        "that",
+        "their",
+        "there",
+        "about",
+        "event",
+        "area",
+        "video",
+        "viral",
+        "indonesia",
+        "indonesian",
+        "national",
+        "team",
+        "player",
+        "players",
+        "people",
+        "netizen",
+        "netizens",
+        "public",
+        "local",
+        "social",
+        "media",
+    }
+)
+TOKEN = re.compile(r"[A-Za-z0-9]+")
+
+
 def event_terms(card: ContextCard) -> list[str]:
-    words = content_words(norm(f"{card.event} {card.place}"))
-    return sorted(word for word in words if len(word) >= MIN_NAME)
+    """The event's and place's distinctive words: proper nouns of 4+ letters and acronyms of 3+
+    ("Urban", "Sneaker", "USS", "Melbourne"), never filler ("the", "while", "event")."""
+    tokens = TOKEN.findall(f"{card.event} {card.place}")
+    terms = {
+        token.lower()
+        for token in tokens
+        if (token.isupper() and len(token) >= MIN_NAME)
+        or (token[0].isupper() and len(token) >= MIN_TERM)
+    }
+    return sorted(term for term in terms - GENERIC_TERMS if term in content_words(term))
 
 
 def _says(text: str, phrase: str) -> bool:
