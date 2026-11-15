@@ -92,6 +92,25 @@ class RunView:
     objects: list[FootageObject]
     # The TikTok profile page card from the creator listing (spec 5c-2), a CardArtifact dump.
     profile_page: dict[str, Any] | None = None
+    # The context card (footage library spec 2026-11-15, 4.1); None on the object path.
+    context: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class LibraryClip:
+    """One clip in a workspace's footage library (spec 2026-11-15, 4.5)."""
+
+    url: str
+    platform: str
+    owner_handle: str
+    published_at: str | None
+    section_start: float
+    section_end: float | None
+    media_location: str
+    media_checksum: str
+    hashes: list[int]
+    names: list[str]
+    event: str
 
 
 @dataclass(frozen=True)

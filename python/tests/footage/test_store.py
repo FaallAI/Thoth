@@ -211,3 +211,106 @@ def test_a_run_keeps_its_profile_page_card(store: FootageStore) -> None:
     store.set_profile_page("wf_1", card)
     run = store.run("wf_1")
     assert run is not None and run.profile_page == card
+
+
+# Footage library (spec 2026-11-15, 4.5): the run's card and the per-workspace clip library.
+
+
+def _library_clip(url: str = "https://www.youtube.com/watch?v=Sy_S4TgvKbY", **changes: object):
+    from thoth_control_plane.footage.models import LibraryClip
+
+    fields: dict[str, object] = {
+        "url": url,
+        "platform": "youtube",
+        "owner_handle": "@curhatbang",
+        "published_at": "2026-11-12T10:00:00Z",
+        "section_start": 164.4,
+        "section_end": 172.4,
+        "media_location": "reports/wf_a/footage/a.mp4",
+        "media_checksum": "sha256:" + "a" * 64,
+        "hashes": [1, 2, 3, 4],
+        "names": ["mutant", "denny sumargo"],
+        "event": "Mutant ingin diundang podcast Densu",
+    }
+    fields.update(changes)
+    return LibraryClip(**fields)  # type: ignore[arg-type]
+
+
+def _workspaces(store: FootageStore, **runs: str) -> None:
+    """Projects and runs in workspaces: run id -> workspace id."""
+    from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
+
+    with store._sessions.begin() as session:
+        for workflow, workspace in runs.items():
+            session.add(
+                ProjectRow(
+                    project_id=f"p_{workflow}",
+                    name="p",
+                    created_at=NOW,
+                    updated_at=NOW,
+                    workspace_id=workspace,
+                )
+            )
+            session.add(
+                WorkflowRunRow(
+                    workflow_id=workflow,
+                    project_id=f"p_{workflow}",
+                    actor_type="user",
+                    actor_id="u",
+                    display_url="https://example.com",
+                    platform="tiktok",
+                    status="running",
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+
+
+SINCE = datetime(2026, 10, 1, tzinfo=UTC)
+UNTIL = datetime(2026, 11, 20, tzinfo=UTC)
+
+
+def test_context_round_trips(store: FootageStore) -> None:
+    store.start_run("wf_a", OBJECTS)
+    store.set_context("wf_a", {"people": [{"name": "Mutant"}]})
+    run = store.run("wf_a")
+    assert run is not None and run.context == {"people": [{"name": "Mutant"}]}
+    store.add_objects("wf_a", [FootageObject(query="saiful denny sumargo", visual="a podcast")])
+    run = store.run("wf_a")
+    assert run is not None and [o.query for o in run.objects] == [
+        "banjir jakarta",
+        "saiful denny sumargo",
+    ]
+
+
+def test_the_run_finds_its_workspace(store: FootageStore) -> None:
+    _workspaces(store, wf_a="ws1")
+    assert store.workspace_of("wf_a") == "ws1"
+    assert store.workspace_of("wf_none") is None
+
+
+def test_a_library_clip_is_found_by_a_shared_name(store: FootageStore) -> None:
+    store.add_library("ws1", "wf_a", _library_clip())
+    found = store.library("ws1", ["saiful", "denny sumargo"], SINCE, UNTIL)
+    assert [c.url for c in found] == ["https://www.youtube.com/watch?v=Sy_S4TgvKbY"]
+    assert found[0].section_start == 164.4 and found[0].hashes == [1, 2, 3, 4]
+    assert store.library("ws1", ["rocky gerung"], SINCE, UNTIL) == []
+    later = datetime(2026, 11, 13, tzinfo=UTC)
+    assert store.library("ws1", ["mutant"], later, UNTIL) == []
+
+
+def test_another_workspace_sees_nothing(store: FootageStore) -> None:  # Review Focus 4
+    store.add_library("ws1", "wf_a", _library_clip())
+    assert store.library("ws2", ["mutant", "denny sumargo"], SINCE, UNTIL) == []
+
+
+def test_a_copy_merges_into_the_earlier_original(store: FootageStore) -> None:
+    store.add_library("ws1", "wf_a", _library_clip())
+    repost = "https://www.youtube.com/watch?v=hDLHWIonVJc"
+    store.add_library("ws1", "wf_b", _library_clip(repost, published_at="2026-11-13T00:00:00Z"))
+    assert [c.url for c in store.library("ws1", ["mutant"], SINCE, UNTIL)] == [
+        "https://www.youtube.com/watch?v=Sy_S4TgvKbY"
+    ]
+    earlier = "https://www.tiktok.com/@curhatbang/video/7700000000000000001"
+    store.add_library("ws1", "wf_c", _library_clip(earlier, published_at="2026-11-11T00:00:00Z"))
+    assert [c.url for c in store.library("ws1", ["mutant"], SINCE, UNTIL)] == [earlier]
