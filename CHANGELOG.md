@@ -66,12 +66,17 @@ Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 
 - **The long-video caption cap** went in URL order; own accounts now come first.
 - **Untrusted inputs:** a non-object model body or a malformed caption event raised instead of degrading.
 
-**Library reuse matches the event too** (operator, 2026-11-15: "klip dari library harus cocok dengan kejadiannya juga"). A stored clip is reused only when it shares a card name and at least two distinctive event words with the new card. People's own words do not count, so another Denny Sumargo story does not get the Mutant podcast cuts (`test_a_library_clip_from_another_story_of_the_same_person_is_not_reused`, RED then GREEN).
+**Library reuse matches the story, not only one name** (operator, 2026-11-15: "klip dari library harus cocok dengan kejadiannya juga", then "ya setuju" to the revised rule). A stored clip is reused when two of the new card's people are among its names, or when one is and they share two distinctive event words.
+- A person counts once, whatever their aliases.
+- People's own words are not event words.
+- So "Saiful marah di podcast Curhat Bang" reuses the Mutant clips, and a Densu story with another guest does not.
+- The tests `test_a_library_clip_from_another_story_of_the_same_person_is_not_reused` and `test_the_same_pair_of_people_reuses_the_library_without_event_words` were RED, then GREEN.
+- Accepted risk: the same pair meeting again in another event within 30 days reuses the old clips.
 
 Ruled out of the pass, with its cost: a hard deadline before the checks phase still reports `unavailable` even when library clips are admitted. Nine minors are deferred (see Next steps).
 
 **Verification:**
-- `make test`: 5034 passed, 245 skipped.
+- `make test`: 5036 passed, 245 skipped.
 - `make test-postgres`: 223 passed, with 0033 applied.
 - `make lint` is clean.
 - **Fixtures** from the spike (`python/tests/fixtures/footage/context/`):
