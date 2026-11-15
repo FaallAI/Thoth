@@ -4590,6 +4590,19 @@ export interface components {
             /** Split Frame */
             split_frame: number;
         };
+        /**
+         * SpokenLine
+         * @description One caption line a footage source says, in its own seconds (a TranscriptSegment's
+         *     fields; `domain.narration` cannot be imported here without a cycle).
+         */
+        SpokenLine: {
+            /** End Seconds */
+            end_seconds: number;
+            /** Start Seconds */
+            start_seconds: number;
+            /** Text */
+            text: string;
+        };
         /** StageProgress */
         StageProgress: {
             /** Name */
@@ -4769,6 +4782,8 @@ export interface components {
             asset_id?: string | null;
             /** Author */
             author?: string | null;
+            /** Clip Start */
+            clip_start?: number | null;
             /**
              * Disposition
              * @enum {string}
@@ -4803,6 +4818,8 @@ export interface components {
             query?: string | null;
             /** Role */
             role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            /** Said */
+            said?: components["schemas"]["SpokenLine"][];
             /** Shows Object */
             shows_object?: ("yes" | "partly") | null;
             /** Story Score */

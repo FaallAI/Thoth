@@ -52,6 +52,7 @@ from thoth_control_plane.assembly.ports import (
     TextReader,
 )
 from thoth_control_plane.attribution.models import SourceAttribution
+from thoth_control_plane.domain.narration import TranscriptSegment
 
 logger = logging.getLogger(__name__)
 HEADLINE_PREFIX = "headline: "
@@ -142,6 +143,17 @@ def _headline(attribution: SourceAttribution | None) -> str:
     return ""
 
 
+def _said(lines: Any) -> list[TranscriptSegment]:
+    """The stored lines a footage source says; a bad line is dropped, never the clip."""
+    kept = []
+    for line in lines if isinstance(lines, list) else []:
+        try:
+            kept.append(TranscriptSegment.model_validate(line, strict=False))
+        except ValidationError:
+            continue
+    return kept[:200]
+
+
 def _footage_item(view: Any) -> Footage | None:
     try:
         return Footage(
@@ -165,6 +177,7 @@ def _footage_item(view: Any) -> Footage | None:
             clip_start=view.clip_start or 0.0,
             ocr=MainOcr.model_validate(view.ocr or {}, strict=False),  # jsonb holds a JSON dump
             story_score=min(1.0, max(0.0, view.story_score or 0.0)),
+            said=_said(view.said),
             shows_object=view.shows_object,
         )
     except (ValidationError, TypeError, ValueError):

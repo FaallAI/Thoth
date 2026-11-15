@@ -7877,6 +7877,31 @@
         "title": "SplitClip",
         "type": "object"
       },
+      "SpokenLine": {
+        "additionalProperties": false,
+        "description": "One caption line a footage source says, in its own seconds (a TranscriptSegment's\nfields; `domain.narration` cannot be imported here without a cycle).",
+        "properties": {
+          "end_seconds": {
+            "title": "End Seconds",
+            "type": "number"
+          },
+          "start_seconds": {
+            "title": "Start Seconds",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "start_seconds",
+          "end_seconds"
+        ],
+        "title": "SpokenLine",
+        "type": "object"
+      },
       "StageProgress": {
         "additionalProperties": false,
         "properties": {
@@ -8614,6 +8639,17 @@
             ],
             "title": "Author"
           },
+          "clip_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Start"
+          },
           "disposition": {
             "enum": [
               "unresolved",
@@ -8760,6 +8796,13 @@
               }
             ],
             "title": "Role"
+          },
+          "said": {
+            "items": {
+              "$ref": "#/components/schemas/SpokenLine"
+            },
+            "title": "Said",
+            "type": "array"
           },
           "shows_object": {
             "anyOf": [

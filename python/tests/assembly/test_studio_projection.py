@@ -261,3 +261,12 @@ def test_an_old_content_set_places_as_before() -> None:
     projected = project_content_set(parse(content_set()))
     assert [(i.role, i.order) for i in projected.projection.items] == [("main", 0)]
     assert projected.projection.unsupported == []
+
+
+def test_footage_provenance_carries_said_and_clip_start() -> None:  # spec 2026-11-15, 9.5
+    said = [{"text": "dia bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0}]
+    data = content_set() | {"footage": [footage(0, said=said)], "footage_status": "ok"}
+    projected = project_content_set(parse(data))
+    why = projected.provenance["footage_000"]
+    assert why["said"] == said and why["clip_start"] == 3.0
+    assert "said" not in projected.provenance["main_000"]

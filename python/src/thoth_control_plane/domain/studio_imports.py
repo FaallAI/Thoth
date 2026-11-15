@@ -225,6 +225,15 @@ class MaterialFigure(StrictModel):
     role: str
 
 
+class SpokenLine(StrictModel):
+    """One caption line a footage source says, in its own seconds (a TranscriptSegment's
+    fields; `domain.narration` cannot be imported here without a cycle)."""
+
+    text: str
+    start_seconds: float
+    end_seconds: float
+
+
 class StudioMaterial(StrictModel):
     """One inventory item and, when the run's Content Set is readable, where it came from.
 
@@ -246,6 +255,9 @@ class StudioMaterial(StrictModel):
     shows_object: Literal["yes", "partly"] | None = None
     query: str | None = None
     likes: int | None = None
+    # A footage item's source speech and where the clip starts in it (spec 2026-11-15, 9.5).
+    said: list[SpokenLine] = Field(default_factory=list)
+    clip_start: float | None = None
     author: str | None = None
     verdict: Literal["original", "replaced", "unresolved", "none"] | None = None
     ocr_outcome: Literal["clean", "cover", "subtitle", "overlay"] | None = None

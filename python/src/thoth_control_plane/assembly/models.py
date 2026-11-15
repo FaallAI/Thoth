@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.models import (
     TikTokHandle,
 )
 from thoth_control_plane.domain.models import Checksum, OpaqueId, StrictModel
+from thoth_control_plane.domain.narration import TranscriptSegment
 
 MAX_COMMENTS = 12
 MAX_FIGURES = 5
@@ -172,6 +173,8 @@ class Footage(StrictModel):
     ocr: MainOcr
     story_score: Fraction
     shows_object: Literal["yes", "partly"]
+    # What the source video says around the clip, in its own seconds (spec 2026-11-15, 9.5).
+    said: Annotated[list[TranscriptSegment], Field(max_length=200)] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def renderable(self) -> Footage:

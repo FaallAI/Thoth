@@ -674,6 +674,9 @@ def materialized() -> dict[str, Any]:
     data["comments"].append(plain)
     data["figures"] = [{"name": "Ani", "type": "person", "role": "warga", "description": "x"}]
     data["figures_status"] = "ok"
+    data["footage"][1]["said"] = [
+        {"text": "dia bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0}
+    ]
     return data
 
 
@@ -702,6 +705,8 @@ async def test_materials_join_provenance(tmp_path: Path) -> None:
         "yes",
     )
     assert (footage.owner_handle, footage.host) == ("kreator", "www.tiktok.com")
+    assert [s.text for s in footage.said] == ["dia bawa pedang"]  # spec 2026-11-15, 9.5
+    assert footage.clip_start is not None and main.said == []
     card = items["comment_card_000"]
     assert (card.author, card.likes, card.media_kind) == ("viewer", 3, "image")
     assert [(figure.name, figure.type, figure.role) for figure in materials.figures] == [

@@ -170,6 +170,9 @@ def _footage(built: _Builder, role: SourceRole, clips: list[Footage]) -> None:
                 "story_score": clip.story_score,
                 "shows_object": clip.shows_object,
                 "query": clip.query,
+                # What the source says around the clip, for the narration and the planner.
+                "said": [line.model_dump(mode="json") for line in clip.said],
+                "clip_start": clip.clip_start,
             },
         )
 

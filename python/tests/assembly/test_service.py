@@ -506,3 +506,19 @@ def test_context_path_clips_reach_the_content_set(tmp_path: Path) -> None:
     ]
     content = _footage_build(tmp_path, FootageReader(_run(), views))
     assert [item.source for item in content.footage] == ["section", "trace", "library"]
+
+
+def test_admitted_said_reaches_the_footage(tmp_path: Path) -> None:  # spec 2026-11-15, 9.5
+    said = [
+        {"text": "dia bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0},
+        {"text": 5},  # a bad entry is dropped, not the clip
+    ]
+    reader = FootageReader(_run(), [replace(_clip_view(_clean_ocr()), said=said)])
+    content = _footage_build(tmp_path, reader)
+    [item] = content.footage
+    assert [(s.text, s.start_seconds) for s in item.said] == [("dia bawa pedang", 292.0)]
+
+
+def test_a_clip_without_said_has_none(tmp_path: Path) -> None:
+    content = _footage_build(tmp_path, FootageReader(_run(), [_clip_view(_clean_ocr())]))
+    assert content.footage[0].said == []
