@@ -75,9 +75,19 @@ The design revision is spec section 9 plus 9.9, approved 2026-11-16 ("ya sesuai"
 - the planner speech lines are labelled by video;
 - library clips go through the copy decision.
 
+**Deploy (2026-11-16, operator "ya boleh").**
+- `2416f83a` was pushed to PR #133, and CI was green: offline quality gates, publish image, template release parity, validate image build.
+- The branch image was deployed to stage1, detached with setsid. The running digests match the CI publish log:
+  - thoth `e5f2d33c7186`;
+  - renderer `78125db8e846`;
+  - web `8c2e7ae07248`.
+- Health after the deploy: web 200, 0 worker error lines and 0 API 5xx.
+- Migration head 0034, with `said` on both tables.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-15ae81f5.sh`. It is pins only, and 0034 stays.
+
 **Next steps.**
-1. Push the branch, and let CI publish the branch image (own gate).
-2. Deploy the branch image to stage1, which applies migration 0034 (own gate).
+1. Push and deploy: done (above).
+2. Merge PR #133 (own gate), after the live checks below.
 3. One live footage run on the Mutant post, with the operator judging the clips (own gate).
 4. One narration write on that draft. It is a paid call, and its cost is shown first (own gate). The operator reads whether the podcast talk is used and attributed.
 5. Merge PR #133 (own gate).
