@@ -6,15 +6,22 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from typing import Any, Protocol
+from datetime import datetime, timedelta
+from typing import Any, Literal, Protocol
 
 from pydantic import ConfigDict, Field, field_validator
 
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.domain.models import StrictModel
+from thoth_control_plane.domain.planner import content_words
+from thoth_control_plane.footage.gates import norm
+from thoth_control_plane.footage.models import FootageObject
 
 MAX_COMMENTS = 25
 MAX_TRANSCRIPT = 1500
+MIN_NAME = 3  # "TG" or "RG" would match unrelated posts
+WINDOW_BEFORE = timedelta(days=30)
+DEFAULT_VISUAL = "the scene the post is about"
 
 CARD_PROMPT = """You read one social media post from Indonesia and write a context card used to find
 footage of the same story on YouTube, TikTok and X. Return only JSON:
@@ -80,7 +87,9 @@ class ContextCard(StrictModel):
     @field_validator("people", mode="before")
     @classmethod
     def _people(cls, value: object) -> list[Any]:
-        return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, (dict, CardPerson))]
 
     @field_validator("queries", mode="before")
     @classmethod
@@ -113,3 +122,75 @@ def card_material(main: SourceReport, figures: Sequence[dict[str, Any]], transcr
         },
         ensure_ascii=False,
     )
+
+
+def _names(person: CardPerson) -> list[str]:
+    found = (norm(text.replace("?", "")) for text in [person.name, *person.aliases])
+    return [name for name in found if len(name) >= MIN_NAME]
+
+
+def card_names(card: ContextCard) -> list[str]:
+    """Every person's name and alias, normalised, at least 3 characters, longest first."""
+    names = dict.fromkeys(name for person in card.people for name in _names(person))
+    return sorted(names, key=len, reverse=True)
+
+
+def event_terms(card: ContextCard) -> list[str]:
+    words = content_words(norm(f"{card.event} {card.place}"))
+    return sorted(word for word in words if len(word) >= MIN_NAME)
+
+
+def _says(text: str, phrase: str) -> bool:
+    return f" {phrase} " in f" {text} "
+
+
+def context_objects(card: ContextCard, queries: Sequence[str]) -> list[FootageObject]:
+    """One search per query; a query naming a person checks that person on screen."""
+    objects: list[FootageObject] = []
+    for query in queries:
+        text = norm(query)
+        if not text:
+            continue
+        person = next(
+            (p for p in card.people if any(_says(text, name) for name in _names(p))), None
+        )
+        if person is not None:
+            visual = f"{person.name.replace('?', '').strip()} in person, at {card.event}"
+        else:
+            visual = card.event or DEFAULT_VISUAL
+        objects.append(
+            FootageObject(
+                query=query.strip()[:100],
+                visual=" ".join(visual.split())[:300] or DEFAULT_VISUAL,
+                person=person is not None,
+            )
+        )
+    return objects
+
+
+def _when(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def in_window(published_at: str | None, main_published: str | None, now: datetime) -> bool:
+    """From 30 days before the main post to the run; an unknown time stays in."""
+    when = _when(published_at)
+    if when is None:
+        return True
+    main = _when(main_published)
+    return (main is None or when >= main - WINDOW_BEFORE) and when <= now
+
+
+def context_reason(text: str, card: ContextCard) -> Literal["story"] | None:
+    """None when the text names a card person, or two event terms, as whole words."""
+    said = norm(text)
+    if any(_says(said, name) for name in card_names(card)):
+        return None
+    if sum(_says(said, term) for term in event_terms(card)) >= 2:
+        return None
+    return "story"

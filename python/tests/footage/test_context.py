@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from tests.assembly.support import report as support_report
 from thoth_control_plane.acquisition.models import ReportComment
-from thoth_control_plane.footage.context import ContextCard, card_material
+from thoth_control_plane.footage.context import (
+    CardPerson,
+    ContextCard,
+    card_material,
+    card_names,
+    context_objects,
+    context_reason,
+    in_window,
+)
 
 CARDS = Path(__file__).resolve().parents[1] / "fixtures" / "footage" / "context"
 
@@ -48,3 +57,54 @@ def test_card_material_takes_the_top_comments_by_likes() -> None:
     assert material["caption"] == "Mutant pengen diundang podcast Densu"
     assert material["figures"] == [{"name": "Mutant"}]
     assert len(material["transcript"]) == 1500
+
+
+def _candidates() -> list[dict[str, object]]:
+    return json.loads((CARDS / "mutant_candidates.json").read_text(encoding="utf-8"))
+
+
+def test_short_and_marked_aliases_are_dropped() -> None:
+    rocky = ContextCard(people=[CardPerson(name="Bung Rocky", aliases=["TG", "Rocky?"])])
+    assert card_names(rocky) == ["bung rocky", "rocky"]
+
+
+def test_a_name_matches_whole_words_only() -> None:
+    sandy = ContextCard(people=[CardPerson(name="Sandy")])
+    assert context_reason("Sandyakala di Bandung", sandy) == "story"
+    assert context_reason("Sandy Walsh cetak gol", sandy) is None
+
+
+def test_the_mutant_candidates_pass_on_the_card() -> None:
+    mutant = card("mutant_card")
+    mutant.people[0].aliases.append("Saiful")
+    by_caption = {str(c["caption"]): c for c in _candidates()}
+    for start in (
+        "SAIFUL BUKAN MUTAN",
+        "Momen Saeful temui Denny Sumargo di acara Urban Sneaker Society",
+        "Detik-detik Pria Mengamuk di Depan Denny Sumargo hingga Tendang Kursi",
+    ):
+        matches = [text for text in by_caption if text.startswith(start)]
+        assert matches, start
+        assert context_reason(matches[0], mutant) is None, start
+    sneakers = [str(c["caption"]) for c in _candidates() if c["query"] == "sneakers"]
+    assert len(sneakers) == 13
+    assert all(context_reason(text, mutant) == "story" for text in sneakers)
+
+
+def test_an_unknown_time_stays_in_the_window() -> None:
+    now = datetime(2026, 11, 14, tzinfo=UTC)
+    main = "2026-11-10T11:16:32Z"
+    assert in_window(None, main, now)
+    assert not in_window("2026-10-01T00:00:00Z", main, now)
+    assert in_window("2026-11-12T00:00:00Z", main, now)
+    assert not in_window("2026-11-15T00:00:00Z", main, now)
+
+
+def test_context_objects_mark_person_queries() -> None:
+    mutant = card("mutant_card")
+    person, place = context_objects(
+        mutant, ["Mutant USS Denny Sumargo", "Urban Sneaker Society 2026 viral"]
+    )
+    assert person.person and person.visual.startswith("Mutant in person")
+    assert person.query == "Mutant USS Denny Sumargo"
+    assert not place.person and place.visual
