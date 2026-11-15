@@ -27,7 +27,7 @@ from thoth_control_plane.assembly.planner_shots import (
     keyframes,
 )
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2, TimelineVideoClip
-from thoth_control_plane.domain.narration import BEAT_ORDER
+from thoth_control_plane.domain.narration import BEAT_ORDER, TranscriptSegment
 from thoth_control_plane.domain.planner import (
     BeatPlan,
     DraftPlan,
@@ -228,6 +228,16 @@ class Planner:
         footage: list[str] = [
             i.asset_id for i in materials.items if i.role == "footage" and i.asset_id
         ]
+        # What each footage source says, in its own seconds, and where its clip starts there
+        # (spec 2026-11-15, 9.6).
+        talk = {
+            i.asset_id: (
+                [TranscriptSegment.model_validate(line.model_dump()) for line in i.said],
+                i.clip_start or 0.0,
+            )
+            for i in materials.items
+            if i.role == "footage" and i.asset_id and i.said
+        }
         footage += [
             c.asset_id
             for c in videos
@@ -245,6 +255,7 @@ class Planner:
         ]
         transcript = await self._store.get_transcript(document_id)
         shots: list[PlanShot] = []
+        labels: dict[str, str] = {}  # shot id -> its video's label, for the speech block
         assets: list[AssetRef] = []
         files: dict[str, Path] = {}
         sources: list[str] = ["SOURCES:"]
@@ -278,10 +289,11 @@ class Planner:
                         source=kind,  # type: ignore[arg-type]
                         start_seconds=start,
                         end_seconds=end,
-                        said=shot_speech(transcript, start, end) if kind == "main" else "",
+                        said=self._said(kind, asset_id, start, end, transcript, talk),
                         handle=handle,
                     )
                 )
+                labels[shots[-1].shot_id] = label
         cards: list[PlanCard] = []
         for asset_id, item_id, role in card_items:
             if asset_id in seen:
@@ -298,10 +310,24 @@ class Planner:
             sources.append(
                 "- CARDS: " + ", ".join(f"{c.card_id} = {c.kind.replace('_', ' ')}" for c in cards)
             )
-        said = [f"- {s.shot_id}: {s.said}" for s in shots if s.said]
+        said = [f"- {s.shot_id} ({labels[s.shot_id]}): {s.said}" for s in shots if s.said]
         if said:
-            sources += ["", "WHAT THE MAIN VIDEO SAYS DURING EACH SHOT:", *said]
+            sources += ["", "WHAT EACH VIDEO SAYS DURING EACH SHOT:", *said]
         return shots, cards, assets, files, sources
+
+    @staticmethod
+    def _said(
+        kind: str,
+        asset_id: str,
+        start: float,
+        end: float,
+        transcript: Sequence[TranscriptSegment],
+        talk: dict[str, tuple[list[TranscriptSegment], float]],
+    ) -> str:
+        if kind == "main":
+            return shot_speech(transcript, start, end)
+        lines, offset = talk.get(asset_id, ([], 0.0))
+        return shot_speech(lines, offset + start, offset + end)
 
     async def _ask(
         self,

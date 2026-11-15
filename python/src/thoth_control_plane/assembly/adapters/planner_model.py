@@ -43,8 +43,8 @@ Each phrase gets two layers:
 - overlay: an optional card shown on top of the base (at most 1).
 
 Rules, from the editor who judges this:
-1. Soundbite first. When the main video's speech ("WHAT THE MAIN VIDEO SAYS") contains the
-   phrase's statement or its key
+1. Soundbite first. When the main video's speech (its MAIN shots in "WHAT EACH VIDEO SAYS")
+   contains the phrase's statement or its key
    words, the base is the shot(s) where that sentence is spoken, not a card and not the shot
    before it.
 2. The picture decides everything else: the person, event, place or action must be visible and
@@ -76,6 +76,10 @@ Rules, from the editor who judges this:
 8. Prefer clean footage over clips that carry a big heading or another channel's frame.
 9. "none" (empty base and empty overlay) is right whenever nothing shows the phrase; the editor
    falls back to the main video.
+10. A phrase that retells what someone said in a footage video (a podcast, an interview) takes
+   that video's shots, best the shot where it is said ("WHAT EACH VIDEO SAYS").
+11. A footage clip showing the same scene as the main video from another angle is used only for
+   phrases about that moment.
 
 For every phrase answer:
 - base: list of S ids; overlay: list with at most one C id;

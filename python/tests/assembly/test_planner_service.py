@@ -110,7 +110,9 @@ class Model:
         self.model_used: str | None = None
 
     async def ask(self, sources, sheets, cards, script, phrases, shot_ids, card_ids):  # type: ignore[no-untyped-def]
-        self.calls.append({"phrases": phrases, "shot_ids": shot_ids, "card_ids": card_ids})
+        self.calls.append(
+            {"phrases": phrases, "shot_ids": shot_ids, "card_ids": card_ids, "sources": sources}
+        )
         if self.fail:
             raise PlannerUnavailable()
         self.model_used = "cheap/model"
@@ -337,3 +339,24 @@ async def test_a_youtube_footage_item_is_credited_with_its_platform() -> None:
     assert plan is not None
     footage = next(s for s in plan.shots if s.source == "footage")
     assert footage.handle == "YouTube/curhatbang"
+
+
+async def test_footage_shots_carry_what_their_source_says() -> None:  # spec 2026-11-15, 9.6
+    from thoth_control_plane.domain.studio_imports import SpokenLine
+
+    store = Store()
+    said = [SpokenLine(text="dia bawa pedang", start_seconds=290.5, end_seconds=292.5)]
+    item = MATERIALS.items[0].model_copy(update={"said": said, "clip_start": 290.0})
+    materials = MATERIALS.model_copy(update={"items": [item, *MATERIALS.items[1:]]})
+    model = Model([PhraseAnswer("P1", ["S3"], "C1", "terlihat")])
+    plan = await planner(store, model).plan(
+        "project_001", DOC, draft(), materials, [voice("main", "Saiful bawa pedang ke podcast")]
+    )
+    assert plan is not None
+    footage = sorted(
+        (s for s in plan.shots if s.source == "footage"), key=lambda s: s.start_seconds
+    )
+    assert [s.said for s in footage] == ["dia bawa pedang", ""]
+    sources = model.calls[0]["sources"]
+    assert "WHAT EACH VIDEO SAYS DURING EACH SHOT:" in sources
+    assert f"- {footage[0].shot_id} (F1): dia bawa pedang" in sources.splitlines()
