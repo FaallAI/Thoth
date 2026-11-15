@@ -32,3 +32,8 @@ def test_credit_labels() -> None:
     assert credit_label("x", "@akun") == "@akun"
     assert credit_label(None, "@kompascomreport") == "@kompascomreport"
     assert credit_label(None, None) is None
+
+
+def test_a_credited_handle_keeps_its_dots_for_the_listing() -> None:  # final review, Important 5
+    assert credited_account("Master Saiful ngamuk cr: @denny.sumargo") == "denny.sumargo"
+    assert credited_account("tt/@tretan_muslim.") == "tretan_muslim"

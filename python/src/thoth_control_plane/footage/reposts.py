@@ -17,13 +17,14 @@ MIN_ACCOUNT_NAME = 6
 
 
 def credited_account(text: str) -> str | None:
-    """The account a caption credits, normalised, or None."""
+    """The account a caption credits, or None: an @handle as written (without "@"), so it can be
+    listed; a named credit ("Sumber: YouTube Curhat Bang") normalised."""
     rule = text_rule_credit(text)
     if rule is not None:
-        return normalize(rule[0])
+        return rule[0].lstrip("@").rstrip(".")
     handles = text_handles(text)
     if handles:
-        return normalize(handles[0])
+        return handles[0].lstrip("@").rstrip(".")
     match = NAMED_CREDIT.search(text)
     if match is None:
         return None

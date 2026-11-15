@@ -8,7 +8,6 @@ import logging
 from collections.abc import Sequence
 
 import httpx
-from pydantic import ValidationError
 
 from thoth_control_plane import metering
 from thoth_control_plane.footage.context import ContextCard
@@ -86,6 +85,6 @@ class OpenRouterCardModel:
             text = (data["choices"][0].get("message") or {}).get("content") or ""
             parsed = json.loads(text[text.find("{") : text.rfind("}") + 1])
             return ContextCard.model_validate(parsed)
-        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, ValidationError):
+        except Exception:  # untrusted JSON of any shape, or a transport failure
             logger.warning("footage card answer unusable model=%s", model)
             return None

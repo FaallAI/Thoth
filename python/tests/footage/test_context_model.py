@@ -43,3 +43,14 @@ async def test_every_model_failing_gives_none() -> None:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     model = OpenRouterCardModel("key", ["first", "second"], client=client)
     assert await model.card("system", "material") is None
+
+
+async def test_a_non_object_body_falls_to_the_next_model() -> None:  # final review, Minor 4
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        return httpx.Response(200, json=[1, 2] if model == "first" else _answer(CARD))
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    model = OpenRouterCardModel("key", ["first", "second"], client=client)
+    result = await model.card("system", "material")
+    assert result is not None and len(result.people) == 2

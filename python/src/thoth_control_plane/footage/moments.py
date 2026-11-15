@@ -38,9 +38,15 @@ def parse_json3(data: bytes) -> list[CaptionLine]:
         if not isinstance(event, dict) or "tStartMs" not in event:
             continue
         segments = event.get("segs") or []
+        if not isinstance(segments, list):
+            continue
         text = "".join(str(s.get("utf8", "")) for s in segments if isinstance(s, dict)).strip()
+        try:
+            start = float(event["tStartMs"]) / 1000
+        except (TypeError, ValueError):
+            continue
         if text:
-            lines.append(CaptionLine(float(event["tStartMs"]) / 1000, text))
+            lines.append(CaptionLine(start, text))
     return lines
 
 

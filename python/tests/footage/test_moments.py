@@ -79,3 +79,12 @@ async def test_the_fetcher_takes_the_json3_track_in_the_language() -> None:
     assert await fetcher.captions("https://youtu.be/x", "id") == CAPTIONS
     assert fetched == ["https://captions/id"]
     assert await YtDlpCaptionFetcher(_Client({}), http).captions("u", "id") is None  # type: ignore[arg-type]
+
+
+def test_malformed_events_are_skipped() -> None:  # final review, Minor 5 raised to Important
+    bad_time = b'{"events": [{"tStartMs": "x", "segs": [{"utf8": "Mutan"}]}]}'
+    bad_segs = (
+        b'{"events": [{"tStartMs": 1000, "segs": 5}, {"tStartMs": 2000, "segs": [{"utf8": "ok"}]}]}'
+    )
+    assert parse_json3(bad_time) == []
+    assert [line.text for line in parse_json3(bad_segs)] == ["ok"]

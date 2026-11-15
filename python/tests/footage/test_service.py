@@ -1696,3 +1696,102 @@ async def test_a_library_clip_that_is_the_main_post_is_not_reused(  # final revi
     rows = {c.url: c for c in store.candidates("wf_b")}
     assert rows[str(kept.canonical_url)].reason == "main"
     assert not store.admitted("wf_b")
+
+
+class AnyCreator:
+    """Lists the same videos for every account but the main creator's."""
+
+    def __init__(self, videos: list[DiscoveredVideo]) -> None:
+        self.videos = videos
+        self.calls: list[tuple[str, str]] = []
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None:
+        self.calls.append((platform, handle))
+        return CreatorListing(videos=[] if handle == "akun" else self.videos, photos=[])
+
+
+async def test_an_own_account_clip_tagging_someone_is_not_a_repost(  # final review, Important 6
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+    own = _video(1, caption="Mutant bareng @tretanmuslim di podcast Densu", owner="curhatbang")
+    other = _video(2, caption="Mutant di podcast tretan", owner="tretanmuslim")
+    creator = AnyCreator([other])
+    await _builder(
+        store,
+        search=Search(_hits(own, query="Mutant USS Denny Sumargo")),
+        card=Cards(card),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[str(own.canonical_url)].reason != "repost"
+    assert ("tiktok", "tretanmuslim") not in creator.calls
+
+
+async def test_trace_lists_at_most_three_accounts(  # final review, Important 7
+    store: FootageStore, tmp_path: Path
+) -> None:
+    reposts = [
+        _video(n, caption=f"Mutant ngamuk di depan Densu cr: @sumber{n}", owner=f"repost{n}")
+        for n in range(1, 6)
+    ]
+    creator = AnyCreator([])
+    await _builder(
+        store,
+        search=Search(_hits(*reposts, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    traced = [call for call in creator.calls if call[1].startswith("sumber")]
+    assert len(traced) == 3
+
+
+async def test_library_clips_survive_a_search_outage(  # final review, Important 7
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    result = await _builder(
+        store,
+        search=Search(fail={"tiktok", "youtube", "x"}),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    assert result.status == "ok" and result.admitted == 1
+
+
+async def test_own_long_videos_get_their_captions_first(  # final review, Important 8
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+
+    def long(video_id: str, owner: str) -> DiscoveredVideo:
+        return DiscoveredVideo(
+            post_id=video_id,
+            owner_handle=owner,
+            canonical_url=f"https://www.youtube.com/watch?v={video_id}",
+            caption="Mutant ngamuk di depan Denny Sumargo",
+            duration_seconds=3000.0,
+        )
+
+    videos = [long(f"AAAAAAAAAA{n}", f"recap{n}") for n in range(3)] + [
+        long("zzzzzzzzzzz", "curhatbang")
+    ]
+    captions = Captions(CAPTIONS)
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", *videos),
+        card=Cards(card),
+        captions_text=captions,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert captions.calls[0][0] == "https://www.youtube.com/watch?v=zzzzzzzzzzz"

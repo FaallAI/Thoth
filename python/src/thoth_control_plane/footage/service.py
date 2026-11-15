@@ -136,6 +136,7 @@ MAX_LONG_VIDEOS = 3
 CAPTION_LANGUAGE = "id"
 SECTION_MARK = "#t="
 LIBRARY = "library"  # the query library clips are counted under
+MAX_TRACE_LISTINGS = 3  # creator listings are browser work; a run traces few accounts
 
 T = TypeVar("T")
 
@@ -434,7 +435,8 @@ class FootageBuilder:
             main.post.text,
         )
         creators = await self._creator(inputs, main, identity, objects, card)
-        if failed and not creators:
+        reused = await asyncio.to_thread(self._store.admitted, workflow)
+        if failed and not creators and not reused:
             await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
             return await self._result(workflow, "unavailable")
         if failed:
@@ -677,17 +679,25 @@ class FootageBuilder:
             return
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         known = {c.url for c in candidates}
+        kept = sum(1 for c in candidates if c.status in ("admitted", "pending"))
+        if kept >= MAX_FOOTAGE * 2:  # plenty to screen already
+            return
         listings: dict[tuple[str, str], list[DiscoveredVideo]] = {}
         for c in candidates:
             if c.status != "pending" or c.source != "search" or c.media_kind != "video":
                 continue
+            if is_own_account(c.owner_handle, card):  # an own clip tagging someone is the original
+                continue
             credited = credited_account(c.caption)
-            if not credited or credited == normalize(c.owner_handle):
+            if not credited or normalize(credited) == normalize(c.owner_handle):
                 continue
             platform = "youtube" if "youtube" in c.caption.lower() else c.platform
             if platform not in CREATOR_PLATFORMS:
                 continue
-            if (platform, credited) not in listings:
+            key = (platform, normalize(credited))
+            if key not in listings and len(listings) >= MAX_TRACE_LISTINGS:
+                continue
+            if key not in listings:
                 try:
                     listing = await self._ports.creator.listing_of(
                         platform, credited, CREATOR_LISTING
@@ -697,9 +707,9 @@ class FootageBuilder:
                 except Exception as error:
                     logger.warning("footage trace listing failed error=%s", type(error).__name__)
                     listing = None
-                listings[(platform, credited)] = list(listing.videos) if listing else []
+                listings[key] = list(listing.videos) if listing else []
             rows: list[NewCandidate] = []
-            for video in listings[(platform, credited)]:
+            for video in listings[key]:
                 url = str(video.canonical_url)
                 if url in known:
                     continue
@@ -742,7 +752,8 @@ class FootageBuilder:
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         known = {c.url for c in candidates}
         handled = 0
-        for c in candidates:
+        # Own accounts and traced originals first: the caption fetches are capped.
+        for c in sorted(candidates, key=lambda c: -(c.story_score or 0.0)):
             long = (c.source_duration or 0.0) > MAX_SECONDS and SECTION_MARK not in c.url
             if c.status != "pending" or c.platform != "youtube" or not long:
                 continue
