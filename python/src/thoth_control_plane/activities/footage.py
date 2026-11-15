@@ -195,6 +195,7 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     )
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
     from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
@@ -202,6 +203,7 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
     from thoth_control_plane.footage.adapters.search import build_platform_search
     from thoth_control_plane.footage.adapters.vision import AgnoFootageJudge
+    from thoth_control_plane.footage.recording import RECORDING_WIDTH
     from thoth_control_plane.footage.service import FootagePorts
     from thoth_control_plane.infrastructure.footage_store import FootageStore
 
@@ -230,6 +232,9 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             # account access policy as every other listing.
             creator=CreatorListings(ProfileDiscoverer(DEFAULT_FACTORIES, leases=leases)),
             photos=HttpPhotoFetcher(),
+            # One copy of a recording (spec 2026-11-15, 9.9): 1 fps at 480 px, ORB in time.
+            recording_frames=FfmpegFrameSource(settings.THOTH_FFMPEG, width=RECORDING_WIDTH),
+            matcher=OrbMatcher(step=1),
             **context_ports(settings, key, build_media_store(settings)),  # type: ignore[arg-type]
         ),
         # The curated JSON list is not a filter (operator, 2026-10-31).

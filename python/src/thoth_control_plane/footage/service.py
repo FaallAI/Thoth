@@ -41,7 +41,7 @@ from thoth_control_plane.assembly.ports import (
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
 from thoth_control_plane.attribution.credit import normalize
 from thoth_control_plane.attribution.models import SourceAttribution
-from thoth_control_plane.attribution.ports import AttributionError
+from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.embedder import cosine
 from thoth_control_plane.footage.adapters.photos import PhotoError
@@ -106,6 +106,13 @@ from thoth_control_plane.footage.ports import (
     SearchPort,
 )
 from thoth_control_plane.footage.queries import footage_objects, query_prompt, top_comments
+from thoth_control_plane.footage.recording import (
+    CopyFacts,
+    is_copy,
+    keep_first,
+    text_share,
+    triggered,
+)
 from thoth_control_plane.footage.reposts import credited_account, is_own_account
 
 logger = logging.getLogger(__name__)
@@ -140,6 +147,8 @@ CAPTION_LANGUAGE = "id"
 SECTION_MARK = "#t="
 LIBRARY = "library"  # the query library clips are counted under
 MAX_TRACE_LISTINGS = 3  # creator listings are browser work; a run traces few accounts
+COPY_SHARES = (0.2, 0.5, 0.8)  # the frames a copy is first tried on, and read for text
+ORIGINAL_SOURCES = ("creator", "trace")
 
 T = TypeVar("T")
 
@@ -166,6 +175,23 @@ class _Build:
     # workspace; None on the object path or for a run without a project.
     card: ContextCard | None = None
     workspace: str | None = None
+    # One copy of a recording (spec 2026-11-15, 9.4 and 9.9): the main's 1 fps features, every
+    # kept clip's, the queries of clips a cleaner copy displaced, and the lock that makes the
+    # copy decision and the admit one step.
+    main_recording: list[Any] | None = None
+    recordings: dict[str, _Recording] = field(default_factory=dict)
+    displaced: list[str] = field(default_factory=list)
+    copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+@dataclass
+class _Recording:
+    url: str
+    source: str  # the address before a section's `#t=`
+    query: str
+    frames: list[Any]  # 1 fps features
+    facts: CopyFacts
+    hashes: list[int]
 
 
 async def _together(work: Iterable[Coroutine[Any, Any, T]]) -> list[T]:
@@ -198,6 +224,10 @@ class FootagePorts:
     card: CardModel | None = None
     captions_text: CaptionPort | None = None
     library_media: Callable[[str, Path], Awaitable[None]] | None = None
+    # One copy of a recording (spec 2026-11-15, 9.9): 1 fps frames at 480 px and ORB features;
+    # without both, the copy check is skipped.
+    recording_frames: Any | None = None
+    matcher: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -1018,8 +1048,9 @@ class FootageBuilder:
     ) -> FootageResult:
         state.phase = "checks"
         workflow, root = inputs.workflow_id, inputs.artifact_root
-        admitted_hashes = await self._verify_admitted(workflow, root)
+        admitted_hashes = await self._verify_admitted(workflow, root, state)
         main_hashes = await self._main_hashes(main, root)
+        await self._main_recording(main, root, state)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         clips = [c for c in candidates if c.media_kind == "video"]  # photos are checked apart
         pending = [c for c in clips if c.status == "pending"]
@@ -1059,6 +1090,10 @@ class FootageBuilder:
                     total += 1
                 screened += 1
                 await progress.step("footage.screen_clips", n=screened, total=len(pending))
+            for query in state.displaced:  # a cleaner copy took its place (spec 9.4)
+                admitted[query] -= 1
+                total -= 1
+            state.displaced.clear()
         photos = await asyncio.to_thread(self._store.admitted, workflow, "image")
         status: FootageStatus = "ok" if total or photos else "none"
         if inputs.publish is not None:
@@ -1206,31 +1241,124 @@ class FootageBuilder:
             return await self._reject(
                 workflow, root, candidate, location, owned, "duplicate", state, **seen
             )
-        steps[candidate.url] = "store"
-        if candidate.url in state.closed:  # abandoned: its media_failed is recorded
+        async with state.copy_lock:  # the copy decision and the admit are one step
+            steps[candidate.url] = "copy"
+            if not await self._unique(workflow, candidate, path, hashes, admitted_hashes, state):
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "duplicate", state, **seen
+                )
+            steps[candidate.url] = "store"
+            if candidate.url in state.closed:  # abandoned: its media_failed is recorded
+                return False
+            admitted_hashes.append(hashes)
+            position = next(state.positions)
+            clip = AdmittedClip(
+                kind=answer.kind,
+                shows_object=answer.shows_object,
+                description=answer.description,
+                media_location=location.as_posix(),
+                media_checksum=_sha256(path),
+                media_bytes=path.stat().st_size,
+                clip_duration=duration,
+                clip_start=window[0] if window else 0.0,
+                ocr=ocr.model_dump(mode="json"),
+                position=position,
+            )
+            if candidate.source == "carousel":  # scored first: an admitted slide always has its 1.0
+                await asyncio.to_thread(self._store.score, workflow, candidate.url, 1.0)
+            if candidate.url in state.closed:
+                return False
+            await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
+            if state.card is not None and state.workspace is not None:
+                await self._remember(workflow, candidate, clip, window, hashes, state)
+            return True
+
+    async def _recording(self, path: Path) -> tuple[list[Frame], list[Any]]:
+        """A clip's 1 fps frames and their ORB features; empty when they cannot be read."""
+        try:
+            frames = await self._ports.recording_frames.frames(path, fps=1.0)
+        except FrameError:
+            return [], []
+        return frames, list(await self._ports.matcher.prepare(frames) or [])
+
+    async def _main_recording(self, main: SourceReport, root: Path, state: _Build) -> list[Any]:
+        if state.main_recording is None:
+            state.main_recording = []
+            videos = [media for media in main.media if media.kind == "video"]
+            path = root / videos[0].location if videos else None
+            if self._copy_check and path is not None and path.is_file():
+                state.main_recording = (await self._recording(path))[1]
+        return state.main_recording
+
+    @property
+    def _copy_check(self) -> bool:
+        return self._ports.matcher is not None and self._ports.recording_frames is not None
+
+    async def _copy_of(self, frames: list[Any], other: list[Any]) -> bool:
+        """Stage 1 on three frames against every second frame, then the 1 fps alignment."""
+        if not frames or not other:
             return False
-        admitted_hashes.append(hashes)
-        position = next(state.positions)
-        clip = AdmittedClip(
-            kind=answer.kind,
-            shows_object=answer.shows_object,
-            description=answer.description,
-            media_location=location.as_posix(),
-            media_checksum=_sha256(path),
-            media_bytes=path.stat().st_size,
-            clip_duration=duration,
-            clip_start=window[0] if window else 0.0,
-            ocr=ocr.model_dump(mode="json"),
-            position=position,
+        trigger = [frames[int(len(frames) * share)] for share in COPY_SHARES]
+        if not triggered(await self._ports.matcher.compare(trigger, other[::2])):
+            return False
+        return is_copy(await self._ports.matcher.matrix(frames, other))
+
+    async def _copy_facts(
+        self, candidate: CandidateView, frames: list[Frame], state: _Build
+    ) -> CopyFacts:
+        """An original or a copy, and how much on-screen text covers it (spec 9.4)."""
+        original = candidate.source in ORIGINAL_SOURCES or (
+            state.card is not None and is_own_account(candidate.owner_handle, state.card)
         )
-        if candidate.source == "carousel":  # scored first: an admitted slide always has its 1.0
-            await asyncio.to_thread(self._store.score, workflow, candidate.url, 1.0)
-        if candidate.url in state.closed:
+        picked = [frames[int(len(frames) * share)] for share in COPY_SHARES] if frames else []
+        share = text_share([await self._ports.text.read(frame) for frame in picked])
+        return CopyFacts(candidate.url, original, share, candidate.published_at)
+
+    async def _unique(
+        self,
+        workflow: str,
+        candidate: CandidateView,
+        path: Path,
+        hashes: list[int],
+        admitted_hashes: list[list[int]],
+        state: _Build,
+    ) -> bool:
+        """False when the clip copies the main or a kept clip that stays; a kept copy it beats
+        is rejected `duplicate` and leaves this run's library (spec 2026-11-15, 9.4)."""
+        if not self._copy_check:
+            return True
+        frames, features = await self._recording(path)
+        if await self._copy_of(features, state.main_recording or []):
             return False
-        await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
-        if state.card is not None and state.workspace is not None:
-            await self._remember(workflow, candidate, clip, window, hashes, state)
+        facts = await self._copy_facts(candidate, frames, state)
+        source = candidate.url.partition(SECTION_MARK)[0]
+        for other in list(state.recordings.values()):
+            # Sections of one video share a set and a camera: that is no copy (spec 9.9).
+            if other.source == source or not await self._copy_of(features, other.frames):
+                continue
+            if keep_first(other.facts, facts):
+                return False
+            await self._displace(workflow, other, admitted_hashes, state)
+        state.recordings[candidate.url] = _Recording(
+            candidate.url, source, candidate.query, features, facts, hashes
+        )
         return True
+
+    async def _displace(
+        self, workflow: str, other: _Recording, admitted_hashes: list[list[int]], state: _Build
+    ) -> None:
+        logger.info("footage copy displaced by a cleaner copy")
+        await asyncio.to_thread(self._store.reject, workflow, other.url, "duplicate")
+        if state.workspace is not None:
+            try:
+                await asyncio.to_thread(
+                    self._store.drop_library, state.workspace, workflow, other.url
+                )
+            except Exception as error:
+                logger.warning("footage library drop failed error=%s", type(error).__name__)
+        del state.recordings[other.url]
+        admitted_hashes[:] = [h for h in admitted_hashes if h is not other.hashes]
+        state.displaced.append(other.query)
 
     async def _remember(
         self,
@@ -1322,6 +1450,8 @@ class FootageBuilder:
             ],
         )
         reused = 0
+        await self._main_recording(main, root, state)
+        rows = {c.url: c for c in await asyncio.to_thread(self._store.candidates, workflow)}
         for clip in chosen:
             if clip.url in itself:
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "main")
@@ -1341,6 +1471,11 @@ class FootageBuilder:
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
                 continue
+            # Copies kept in the library come back once (spec 9.4, item 65).
+            if not await self._unique(workflow, rows[clip.url], path, clip.hashes, [], state):
+                path.unlink(missing_ok=True)
+                await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
+                continue
             admitted = AdmittedClip(
                 kind="footage",
                 shows_object="yes",
@@ -1355,6 +1490,8 @@ class FootageBuilder:
             )
             await asyncio.to_thread(self._store.admit, workflow, clip.url, admitted)
             reused += 1
+        reused -= len(state.displaced)
+        state.displaced.clear()  # the checks count admitted clips from the store
         logger.info("footage library reused=%d of=%d", reused, len(chosen))
 
     async def _reject(
@@ -1376,7 +1513,9 @@ class FootageBuilder:
         await asyncio.to_thread(self._store.reject, workflow, candidate.url, reason, **seen)
         return False
 
-    async def _verify_admitted(self, workflow: str, root: Path) -> list[list[int]]:
+    async def _verify_admitted(
+        self, workflow: str, root: Path, state: _Build | None = None
+    ) -> list[list[int]]:
         # A photo or page card an earlier attempt kept but cannot be found again is dropped:
         # its ephemeral link is gone, so it can never be fetched again (spec 5c-2).
         for photo in await asyncio.to_thread(self._store.admitted, workflow, "image"):
@@ -1396,7 +1535,23 @@ class FootageBuilder:
             # The frames admission hashed: after the stored OCR's trim (spec F7 step 4).
             trim = float((candidate.ocr or {}).get("trim_start") or 0.0)
             hashes.append(await self._hashes(path, trim, candidate.clip_duration or 0.0))
+            if state is not None and self._copy_check and candidate.url not in state.recordings:
+                await self._record(candidate, path, hashes[-1], state)
         return hashes
+
+    async def _record(
+        self, candidate: CandidateView, path: Path, hashes: list[int], state: _Build
+    ) -> None:
+        """A clip kept before this check (a retry, a library reuse) joins the copy check."""
+        frames, features = await self._recording(path)
+        state.recordings[candidate.url] = _Recording(
+            candidate.url,
+            candidate.url.partition(SECTION_MARK)[0],
+            candidate.query,
+            features,
+            await self._copy_facts(candidate, frames, state),
+            hashes,
+        )
 
     async def _main_hashes(self, main: SourceReport, root: Path) -> list[int]:
         videos = [media for media in main.media if media.kind == "video"]

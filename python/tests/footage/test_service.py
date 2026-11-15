@@ -1912,3 +1912,177 @@ async def test_a_library_clip_brings_its_said(store: FootageStore, tmp_path: Pat
     for clip in kept:
         if clip.url in reused:
             assert reused[clip.url].said == clip.said
+
+
+# One copy of a recording (spec 2026-11-15, 9.4 and 9.9).
+
+
+class RecFrames:
+    """1 fps recording frames: files whose bytes start with a `tags` key show one recording, so
+    frame i of one copy is frame i of the other; others are their own recording."""
+
+    def __init__(self, tags: dict[str, str], cluttered: frozenset[str] = frozenset()) -> None:
+        self.tags, self.cluttered = tags, cluttered
+
+    async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
+        content = video.read_bytes() if video.exists() else b""
+        key = next((k for k in self.tags if content.startswith(k.encode())), None)
+        tag = self.tags[key] if key else hashlib.sha256(content).hexdigest()[:12]
+        marks = "clutter" if key in self.cluttered else "clean"
+        return [Frame(second=float(i), jpeg=f"{tag}:{i}:{marks}".encode()) for i in range(10)]
+
+
+class Matcher:
+    """OrbMatcher's contract over RecFrames frames: the same recording frame matches."""
+
+    async def prepare(self, frames: Sequence[Frame]) -> list[bytes]:
+        return [frame.jpeg.rsplit(b":", 1)[0] for frame in frames]
+
+    async def compare(self, a: list[bytes], b: list[bytes]) -> list[int]:
+        return [40 if x in set(b) else 0 for x in a]
+
+    async def matrix(self, a: list[bytes], b: list[bytes]) -> list[list[int]]:
+        return [[40 if x == y else 3 for y in b] for x in a]
+
+
+class Clutter(Text):
+    """A watermark band on every frame of a cluttered recording."""
+
+    async def read(self, frame: Frame) -> list[Any]:
+        from thoth_control_plane.attribution.matching import TextBox
+
+        if frame.jpeg.endswith(b"clutter"):
+            return [TextBox(text="JawaPos", top=0.0, bottom=0.3, left=0.0, right=1.0)]
+        return []
+
+
+def _url(n: int, owner: str = "kreator") -> str:
+    return str(_video(n, owner=owner).canonical_url)
+
+
+def _copies(cluttered: frozenset[str] = frozenset(), **extra: str) -> dict[str, Any]:
+    tags = {_url(1): "rec1", _url(2): "rec1", **extra}
+    return {"recording_frames": RecFrames(tags, cluttered), "matcher": Matcher(), "text": Clutter()}
+
+
+async def test_a_cleaner_copy_wins_whatever_the_order(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search, **_copies(frozenset({_url(1)}))).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2)]
+    assert (rows[_url(1)].status, rows[_url(1)].reason) == ("rejected", "duplicate")
+
+
+async def test_two_equal_copies_checked_together_leave_one(  # Review Focus 2
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search, **_copies()).build(_inputs(tmp_path))
+    assert len(store.admitted("wf_a")) == 1
+    assert [c.reason for c in store.candidates("wf_a") if c.status == "rejected"] == ["duplicate"]
+
+
+async def test_no_matcher_no_copy_check(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search).build(_inputs(tmp_path))
+    assert len(store.admitted("wf_a")) == 2
+
+
+async def test_a_copy_of_the_main_is_rejected_duplicate(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    main = support_report(
+        url="https://www.tiktok.com/@akun/video/7499999999999999999",
+        owner="akun",
+        text="Banjir besar di Kemang pagi ini",
+        media="video",
+    )
+    video = tmp_path / "reports" / "wf_a" / "media" / "video.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"MAINREC" * 50)
+    search = Search(_hits(_video(3)))
+    ports = _copies(MAINREC="rec3", **{_url(3): "rec3"})
+    await _builder(store, search=search, **ports).build(_inputs(tmp_path, main))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[_url(3)].status, rows[_url(3)].reason) == ("rejected", "duplicate")
+
+
+async def test_a_photo_main_skips_the_main_comparison(  # Review Focus 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(3)))
+    await _builder(store, search=search, **_copies()).build(_inputs(tmp_path))
+    assert [c.url for c in store.admitted("wf_a")] == [_url(3)]
+
+
+async def test_an_original_stays_over_a_cleaner_repost(store: FootageStore, tmp_path: Path) -> None:
+    own, repost = _video(1, caption=SHOWN, owner="dennysumargo"), _video(2, caption=SHOWN)
+    search = Search(_hits(own, repost, query="Mutant USS Denny Sumargo"))
+    ports = _copies(frozenset({_url(1, "dennysumargo")}), **{_url(1, "dennysumargo"): "rec1"})
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True, **ports).build(
+        _inputs(tmp_path)
+    )
+    assert [c.url for c in store.admitted("wf_a")] == [_url(1, "dennysumargo")]
+
+
+async def test_the_losing_copy_leaves_the_library(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a")
+    one, two = _video(1, caption=SHOWN), _video(2, caption=SHOWN)
+    search = Search(_hits(one, two, query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_card()),
+        context_enabled=True,
+        **_copies(frozenset({_url(1)})),
+    ).build(_inputs(tmp_path))
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    assert [c.url for c in store.library("ws1", ["mutant"], since, until)] == [_url(2)]
+
+
+class WindowDownloader(Downloader):
+    """Each section's own bytes, so two sections of one video are two files."""
+
+    async def download(self, url: str, window: Any, target: Path) -> Path:
+        await super().download(url, window, target)
+        target.write_bytes(url.encode() * 50 + repr(window).encode())
+        return target
+
+
+async def test_sections_of_one_video_are_not_compared(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        downloader=WindowDownloader(),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+        **_copies(**{PODCAST: "studio"}),
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert len(sections) >= 2  # the fixture's captions hold two discussions
+    assert all(c.status == "admitted" for c in sections)
+
+
+async def test_copies_kept_in_the_library_come_back_once(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    one, two = _video(1, caption=SHOWN), _video(2, caption=SHOWN)
+    await _builder(
+        store,
+        search=Search(_hits(one, two, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))  # no matcher: both copies were kept
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store,
+        search=Search(),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+        **_copies(),
+    ).build(_inputs_b(tmp_path))
+    assert len([c for c in store.admitted("wf_b") if c.source == "library"]) == 1
