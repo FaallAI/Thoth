@@ -66,10 +66,12 @@ Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 
 - **The long-video caption cap** went in URL order; own accounts now come first.
 - **Untrusted inputs:** a non-object model body or a malformed caption event raised instead of degrading.
 
+**Library reuse matches the event too** (operator, 2026-11-15: "klip dari library harus cocok dengan kejadiannya juga"). A stored clip is reused only when it shares a card name and at least two distinctive event words with the new card. People's own words do not count, so another Denny Sumargo story does not get the Mutant podcast cuts (`test_a_library_clip_from_another_story_of_the_same_person_is_not_reused`, RED then GREEN).
+
 Ruled out of the pass, with its cost: a hard deadline before the checks phase still reports `unavailable` even when library clips are admitted. Nine minors are deferred (see Next steps).
 
 **Verification:**
-- `make test`: 5033 passed, 245 skipped.
+- `make test`: 5034 passed, 245 skipped.
 - `make test-postgres`: 223 passed, with 0033 applied.
 - `make lint` is clean.
 - **Fixtures** from the spike (`python/tests/fixtures/footage/context/`):
