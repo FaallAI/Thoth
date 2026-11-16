@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-17 - No footage after the face check deploy, then no Denny Sumargo podcast
+
+**Run `wf_e8cfba2b`** ("kenapa ... tidak dapat footage"). Every clip that passed the text gate failed its download (24 TikTok, 5 YouTube), so nothing was admitted.
+- **TikTok.** TikWm answered in 27-28 s while the resolver gave up at 15 s, so every clip read `cdn_unavailable`. A direct yt-dlp download from the worker gets 403.
+- **YouTube.** That morning googlevideo answered 403 even with bun and the EJS solver: yt-dlp asked for a GVS PO token. It had lifted by the next run.
+- **Proxies.**
+  - The DataImpulse proxies on the accounts answered `407 TRAFFIC_EXHAUSTED`. That is also the likely cause of `ERR_PROXY_AUTH_UNSUPPORTED` in X search and the creator listing.
+  - The operator's first proxy import was refused as an invalid line (the format is `http://user:pass@host:port`). The second one was stored, unassigned. Through it, YouTube and TikTok still refused.
+
+**Run `wf_4ac021d9`** ("kenapa tidak ada podcast denny sumargo"). It admitted 2 clips. The curhatbang podcast was found, but never cut.
+- **The podcast was skipped.** The run found 6 long videos, all tied at score 0.5, and only the first 3 got captions. The podcast was 5th.
+- **The card's subject had no bare "Saiful" alias.**
+- **TikWm was still timing out,** which cost 31 TikTok clips, among them clips of the podcast.
+
+**Fixes** (each test first).
+- **1888d4c4: every long video is cut.** Up to 6 long videos get captions (`MAX_LONG_VIDEOS`), 3 s apart.
+- **1888d4c4: names without titles count.** "Master Saiful" also matches "saiful" (`TITLES`), and the card prompt asks for it.
+- **5234c4f2: TikWm gets 45 s** to answer, up from 15 s.
+
+**Podcast face spike** (worker, live card, the podcast's captions, the run's section rule). Of the moments that name the subject:
+- **0:39 (the intro's USS recap):** best 0.57 in one second only.
+- **4:44 (Tretan Muslim):** 0.16.
+- **6:16 (Saiful on screen):** 0.64. This one passes, so the podcast now yields a `related` section.
+
+**Verification.**
+- `make test`: 5153 passed, then acquisition and footage 1430 passed after the TikWm fix.
+- Lint is clean.
+
+**Deploy (2026-11-17, operator "ya lanjutkan").**
+- 5234c4f2 is in PR #133, CI green (43927700840, 43927719328).
+- Stage1 runs thoth `606e975f4cb1`, renderer `c0f39c80d22e`, web `7b4629770655`.
+- Health: web 200, 0 worker errors, 0 API 5xx.
+- There is no new migration. Rollback: `D:/thoth-tmp/bu/pins/rollback-to-e6dd785e.sh` (pins only).
+
+**Next steps.**
+1. A new Mutant run, judged by the operator (own gate).
+2. One paid narration (own gate).
+3. Merge PR #133 (own gate).
+
+Carried forward:
+- **Footage downloader:** it has no JS runtime (acquisition sets bun) and no yt-dlp-ejs.
+- **YouTube:** the PO-token enforcement may come back. A proxy fallback or a PO-token provider is its own decision.
+- **Proxies:** the old DataImpulse plan is exhausted, and the new proxy is not yet assigned to an account.
+- **Worker start:** loading ArcFace at start holds the loop for more than 1 s (a harmless faulthandler dump).
+
 ## 2026-11-16 - Footage related events and the story's subject by face
 
 On run `wf_c7efa4c2` the operator found footage "di kejadian yang sama dengan main video". They wanted other events that relate to the story ("kejadian yang berbeda tapi masih satu context"), and then set the rule "harus tokoh yang di ceritakan saja dan berhubungan dengan tokoh tersebut".
