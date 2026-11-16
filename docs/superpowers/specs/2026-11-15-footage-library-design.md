@@ -459,3 +459,95 @@ copy is the same moment, so its frames line up in time.
 - **Live run `wf_a91d3f0f`:** a section inherited its parent's query. That query's 2 slots (F6) went to search clips, so the discussion was never screened.
 - **The rule now:** long-video sections are screened and counted under a queue of their own (`SECTIONS`, up to 2). The stored query stays the parent's, and the total stays 6.
 - **Captions:** a caption track that answers 429 is fetched once more, after 8 s.
+
+## 10. Related events over the same incident (2026-11-16, items 66-69)
+
+### 10.1 Why
+
+On run `wf_c7efa4c2` the operator saw footage "di kejadian yang sama dengan main video". They want "kejadian yang berbeda tapi masih satu context atau berkorelasi dengan context cerita main video". This corrects how item 59 was read: "sama dengan main" meant the same incident, not the same recording. One other angle of the incident is still fine (item 60). The problem is that only 5 or 6 slots exist, and same-incident clips are mostly reposts or heavily edited posts (item 68).
+
+**What run `wf_c7efa4c2` shows.** 4 of the 5 admitted clips showed the USS incident:
+- 3 came back from the library;
+- 1 was a news video titled about Aldi Taher, but its frames show the USS incident.
+
+Every stage selects the incident:
+- **The card** looks for "the same story", and its queries pair a person with the event.
+- **The vision `visual`** is "<person> in person, at <event>".
+- **The library** gives the incident clips back.
+- **The story gate** rejects related clips, for two reasons:
+  - the 30-day window drops older episodes ("Mutant diajarin acting Jefri Nichol", 2024; "Medical Check-Up Mutant", 2026-06);
+  - the card never learned the real name or the hashtag forms, so "Saipul akhirnya bertemu gurunya" (@dennysumargoreal) and "#mutan #tretanmuslim" posts named nobody on the card.
+
+### 10.2 Goals and anti-goals
+
+- **Goal:** most footage shows the card's people in *other* events, earlier or later, that relate to the story. Examples: their show episodes, a clarification, an apology, a reply, the podcast meeting.
+- **Same incident:** at most 1 clip per run, and only a clean original (10.6).
+- **Anti-goal:** unrelated content that merely shares a name, such as a different person called Saiful.
+- **Anti-goal:** news recaps and reposts of the incident.
+
+### 10.3 Relation
+
+Every admitted video clip carries `relation`:
+- `same_event`: it shows the main's incident;
+- `related`: the card's people or their story, in another event;
+- `unknown`: stored before this section.
+
+### 10.4 Card
+
+- **CARD_PROMPT** asks for the story's context, not only the incident. It gains:
+  - `related`: up to 6 other events the people are known for or that followed, each `{"event": str, "query": str}`;
+  - aliases that include real names, common spellings, and the hashtag form of each name (no spaces, lowercase).
+- **`queries`** keeps at most 2 searches about the incident (for originals and tracing). The related queries are searched like the others.
+- **REFINE_PROMPT** may add related events the titles show. It keeps adding the real names the titles use.
+
+### 10.5 Gates
+
+- **Name matching.** A card name also matches its hashtag form (the name without spaces), so `#tretanmuslim` names Tretan Muslim.
+- **Time window.** A candidate that names a card person may be up to 2 years older than the main post. One that matches only by event words keeps the 30-day window.
+- **Vision judge.**
+  - **Visual.** For a person query, it is "<person> in person". For a related query, it is that event's text.
+  - **New field `same_event` (yes/no):** do the frames show the main's scene, "<card.event>, at <card.place>"? This answers the relation (10.3), in the same single call.
+- **Long-video sections.** A section is a person talking, so it is not rejected `commentary`. Its visual is "<people[0]> in person".
+
+### 10.6 Quota
+
+- **Totals.** `MAX_FOOTAGE` goes from 6 to 8 (item 69). `PER_QUERY` stays 2, and `SECTIONS` keeps its own queue.
+- **Same-event clips.** At most 1 per run. It must be an original (creator, trace or own account; the 9.4 rule) with a text share of at most 0.15. Any other same-event clip is rejected with the new reason `same_event`.
+- **Two clean originals.** The 9.4 order picks the cleaner one, and the other is rejected `same_event`.
+
+### 10.7 Library
+
+- **New column.** `footage_library` gains `relation TEXT NOT NULL DEFAULT 'unknown'`, through editor migration 0035. `footage_candidates` gains the same column.
+- **On reuse:**
+  - a `related` clip is reused as before;
+  - a `same_event` or `unknown` clip is reused only as the run's one same-event clip, under the 10.6 rule. Since a library clip has no original status (a deferred minor), in practice it is not reused.
+
+### 10.8 TikTok download failures
+
+- Each `media_failed` logs its cause class at warning (for example `ClipError(resolver TimeoutError)`), with no URL.
+- The "footage finished" line counts the failures by cause.
+- The cause of run `wf_c7efa4c2`'s 21 failures is judged on the next run's logs. Any fix is its own decision.
+
+### 10.9 Unchanged
+
+The following stay as they are:
+- the copy check (9.4/9.9);
+- `said`;
+- the footage talk in the narration;
+- the planner rules. Rule 11, "a second angle only for phrases about that moment", governs the one same-event clip.
+
+### 10.10 Evaluation
+
+- **Offline:** tests for each rule above, using the Mutant fixtures.
+- **Live** (operator gate): a new Mutant run. Expected:
+  - at least 5 of the up to 8 clips are `related`;
+  - at most 1 is `same_event`;
+  - no recap of the incident.
+- **The operator judges the clips.**
+
+### 10.11 Left to the builder
+
+- prompt wording;
+- where `relation` is set in code;
+- how the hashtag form is built from a name;
+- the migration's shape, which follows 0034.
