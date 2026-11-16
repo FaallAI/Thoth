@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-16 - Podcast sections lost to the per-query quota
+
+The operator ran a new Mutant run, `wf_a91d3f0fe308b128583f4f5c`, on the revision (2416f83a): "ketika aku coba buat new run sekarang malah tidak mendapatkan footage podcast sama sekali".
+
+**What the run shows** (read-only on stage1).
+- The podcast `Sy_S4TgvKbY` (`curhatbang`) was found and cut into 3 discussion sections (284.6, 598.0, 2587.2). All 3 stayed `pending` and were never screened.
+- **Cause:** a section inherited its parent's query, "mutant USS viral". Two search clips of that query were admitted first (`@vivanewsofficial`, `bukamata-id`), which filled its quota of 2 (`PER_QUERY`). The run ended with 3 of 6 admitted, because every other queue was empty.
+- **A second loss:** the caption track of the other long video, `PdloEngEZiM` (`Yusrilkim`, a 20-minute recap), answered 429. It gave 0 sections, and the run logged only a warning. The podcast's own captions were fetched 2 s later.
+
+**Fixes** (each test first, RED then GREEN).
+- **Sections have their own quota** (86386b0a). `quota_key()` counts them under `SECTIONS`, a queue of their own that holds up to 2 next to the search queries. The stored query stays the parent's. The total cap of 6 is unchanged.
+  - Test: `test_sections_get_their_own_turn_when_their_query_is_full`.
+- **One paced caption retry** (ab017452). On a 429, the caption track is fetched once more after 8 s (`RETRY_SECONDS`).
+  - Test: `test_the_fetcher_retries_a_rate_limited_track_once`.
+
+**Verification.**
+- `make test`: 5079 passed, 249 skipped.
+- `make test T=tests/footage`: 231 passed.
+- `make lint`: clean.
+
+**Next steps.**
+1. Push the branch, and let CI publish the branch image (own gate).
+2. Deploy it to stage1. There is no new migration (own gate).
+3. A new Mutant run, with the operator judging the clips (own gate).
+4. One narration write on that draft. It is a paid call, and its cost is shown first (own gate).
+5. Merge PR #133 (own gate).
+
+Carried forward:
+- the deferred minors of 2026-11-16 and 2026-11-15;
+- a run that loses sections to refused captions still ends "ok" with only a warning.
+
 ## 2026-11-16 - Footage revision after the first live look
 
 The operator looked at draft `edoc_6979cd46` (run `wf_c345c5a04ebd9290781b2fdf`, Mutant at USS). They found two problems: "masih menampilkan footage footage yang dari main", and "tidak ada pembahasan di podcast nya denny sumargo". They also asked for narration that draws on what the podcast says ("narasi nya jadi luas dan tidak terfokus ke main saja").

@@ -453,3 +453,9 @@ copy is the same moment, so its frames line up in time.
 
 - **Known limit:** a copy of a fixed-camera moment (a recap re-cutting a podcast moment) may not line
   up, and is then kept. A credited repost is still traced (4.5).
+
+### 9.10 Sections have their own quota (2026-11-16, item 66)
+
+- **Live run `wf_a91d3f0f`:** a section inherited its parent's query. That query's 2 slots (F6) went to search clips, so the discussion was never screened.
+- **The rule now:** long-video sections are screened and counted under a queue of their own (`SECTIONS`, up to 2). The stored query stays the parent's, and the total stays 6.
+- **Captions:** a caption track that answers 429 is fetched once more, after 8 s.
