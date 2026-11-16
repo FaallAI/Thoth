@@ -33,7 +33,15 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
    - Style A gets 1.5-4.0 s, from its measured median of 1.5-2.7 s and a middle half of 0.8-5.9 s (item 15). It can be tuned after the operator looks.
 3. **Each style keeps its own look.** Moves, dim, fit, captions and cards stay per style, so Style A still looks like Style A.
 4. **In a planned beat, the planner owns the b-roll.** The beat's import material clips on the b-roll are removed when the planner plans that beat. A phrase without a pick shows the main video (planner spec, goal 4). Re-planning a beat already removes the planner's own clips; this adds the import's.
-5. **Overlap means the same place on screen.** Two overlay text clips overlap only when they share a style slot (`title_top`, `card`, `credit`, …). Text clips in different slots may run at the same time. The rule changes in Studio (`timelineIssues`) and in the server review (`studio_review`) alike. Video and image clips on one lane overlap as before.
+5. **Clips may stack, as layers do in CapCut** (operator, item 84: "ya itu yang ku maksud").
+   - **Remotion already stacks.** The renderer draws every clip as its own `<Sequence>`, and the lower an element is in the tree, the higher it appears (remotion.dev/docs/layers, via Context7). So overlapping clips on one lane already render on top of each other. Only the editor calls them a problem.
+   - **A lane holds layers.** Within a lane, clips that overlap in time sit on stacked layers. The layer is computed, not stored:
+     - clips are taken by start frame, then document order;
+     - each clip goes on the lowest layer whose last clip has ended by its start.
+   - **Studio draws each layer as a sub-row** of its lane, the top layer highest, so stacked clips no longer hide each other and each one can be selected.
+   - **The render follows the layers.** Within a lane, the composition draws clips by layer, then start frame, so a higher layer is on top in the video just as it is in Studio.
+   - **`clip_overlap` is no longer a warning,** in Studio (`timelineIssues`) or in the server review (`studio_review`). `main_track_gap` and `clip_exceeds_canvas` stay.
+   - **Moving a clip to another layer by hand** is a later stage (§4).
 6. **Extension points are named for later stages.** Memes, SFX and effects are new kinds the planner may pick per phrase, from the workspace library, beside today's base and overlay. They are not built here (§4).
 
 ## 3. Cost and taste
@@ -46,7 +54,7 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
 
 - The explainer collage of Style A.
 - Memes, SFX and effects picked by the planner (goal 6 only names the seam).
-- Separate lanes per overlay slot.
+- Moving a clip between layers by hand, or a stored layer field. Layers are computed for now.
 - Re-planning drafts written before this change. A new narration write plans them.
 
 ## 5. Evaluation
@@ -55,10 +63,12 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
   - the phrase split follows the style's band;
   - a style without `planned` set is planned;
   - a planned beat leaves no import material clip under the planner's shots;
-  - the overlap rule ignores text clips in different slots, in both Studio and the server review;
+  - overlapping clips get computed layers;
+  - Studio draws them as sub-rows and no longer warns `clip_overlap`, and neither does the server review;
+  - the composition draws a lane's clips by layer;
   - the existing planner and Style B tests stay green.
 - **Live** (operator gate):
   - one new Style A narration (a paid call, cost shown first) on the Mutant draft;
   - the podcast section showing Saiful appears where the voice talks about the podcast;
-  - Studio shows 0 overlap warnings on a fresh Style B write.
+  - Studio shows the Mutant Style B draft's stacked titles, cards and credits as layers, with no overlap warning.
 EOF
