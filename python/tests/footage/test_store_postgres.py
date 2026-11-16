@@ -139,3 +139,37 @@ def test_drop_library_keeps_an_earlier_runs_row(store: FootageStore) -> None:  #
         "ws1", ["mutant"], datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 12, 1, tzinfo=UTC)
     )
     assert [c.url for c in found] == [old]
+
+
+def test_relation_round_trips_on_candidates_and_library(store: FootageStore) -> None:  # 10.7
+    from dataclasses import replace
+
+    from thoth_control_plane.footage.models import AdmittedClip
+
+    store.start_run("wf_a", [FootageObject(query="q", visual="v")])
+    url, other = f"{PODCAST}#t=292.0", "https://www.tiktok.com/@a/video/7700000000000000009"
+    store.add_candidates("wf_a", [_candidate(url, "section"), _candidate(other, "search")])
+    clip = AdmittedClip(
+        kind="footage",
+        shows_object="yes",
+        description="d",
+        media_location="reports/wf_a/footage/a.mp4",
+        media_checksum="sha256:" + "a" * 64,
+        media_bytes=1,
+        clip_duration=8.0,
+        clip_start=0.0,
+        ocr={},
+        position=0,
+        relation="discusses",
+    )
+    store.admit("wf_a", url, clip)
+    for reason in ("same_event", "subject_absent", "too_old"):
+        store.reject("wf_a", other, reason)
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[url].relation == "discusses" and rows[other].relation == "unknown"
+    assert rows[other].reason == "too_old"
+    store.add_library("ws1", "wf_a", replace(_clip(url), relation="related"))
+    found = store.library(
+        "ws1", ["mutant"], datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 12, 1, tzinfo=UTC)
+    )
+    assert found[0].relation == "related"

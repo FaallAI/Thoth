@@ -1351,6 +1351,7 @@ class FootageBuilder:
                 clip_start=window[0] if window else 0.0,
                 ocr=ocr.model_dump(mode="json"),
                 position=position,
+                relation=relation,
             )
             if candidate.source == "carousel":  # scored first: an admitted slide always has its 1.0
                 await asyncio.to_thread(self._store.score, workflow, candidate.url, 1.0)
@@ -1528,6 +1529,7 @@ class FootageBuilder:
             event=f"{state.card.event} {state.card.place}".strip(),
             ocr=clip.ocr,
             said=list(candidate.said),
+            relation=clip.relation,
         )
         try:
             await asyncio.to_thread(self._store.add_library, state.workspace, workflow, kept)
@@ -1555,7 +1557,11 @@ class FootageBuilder:
         chosen = [
             clip
             for clip in clips
-            if clip.url not in known and same_event(card, clip.event, clip.names)
+            # Spec 10.7: only clips kept as another event come back; the incident and rows
+            # stored before 0035 (`unknown`) stay out.
+            if clip.url not in known
+            and clip.relation == "related"
+            and same_event(card, clip.event, clip.names)
         ][:MAX_FOOTAGE]
         if not chosen:
             return
@@ -1640,6 +1646,7 @@ class FootageBuilder:
                 clip_start=clip.section_start,
                 ocr=clip.ocr,
                 position=next(state.positions),
+                relation=clip.relation,
             )
             await asyncio.to_thread(self._store.admit, workflow, clip.url, admitted)
             await self._settle(

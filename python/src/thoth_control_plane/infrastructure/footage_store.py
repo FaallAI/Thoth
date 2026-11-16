@@ -79,6 +79,7 @@ def _view(row: FootageCandidateRow) -> CandidateView:
         ocr=row.ocr,
         position=row.position,
         said=_said(row.said),
+        relation=row.relation or "unknown",
     )
 
 
@@ -120,6 +121,7 @@ def _library_clip(row: FootageLibraryRow) -> LibraryClip:
         event=row.event,
         ocr=dict(row.ocr or {}),
         said=_said(row.said),
+        relation=row.relation or "unknown",
     )
 
 
@@ -311,6 +313,7 @@ class FootageStore:
             row.clip_start = clip.clip_start
             row.ocr = clip.ocr
             row.position = clip.position
+            row.relation = clip.relation
             row.updated_at = self._clock()
 
     def reopen(self, workflow_id: str, url: str) -> None:
@@ -323,6 +326,7 @@ class FootageStore:
             row.clip_duration = row.clip_start = None
             row.ocr = None
             row.position = None
+            row.relation = "unknown"
             row.updated_at = self._clock()
 
     def admitted(self, workflow_id: str, media_kind: str = "video") -> list[CandidateView]:
@@ -425,6 +429,7 @@ class FootageStore:
             "event": clip.event,
             "ocr": dict(clip.ocr),
             "said": list(clip.said),
+            "relation": clip.relation,
         }
 
     def drop_library(self, workspace_id: str, workflow_id: str, url: str) -> None:

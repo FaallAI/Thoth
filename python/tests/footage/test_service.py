@@ -1630,9 +1630,10 @@ SHOWN = "Mutant datang ke podcast Densu"
 
 
 async def _run_a(store: FootageStore, tmp_path: Path) -> None:
+    """Run A keeps one `related` clip: its main has a video, so the scene is asked (10.5)."""
     search = Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo"))
     await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
-        _inputs(tmp_path)
+        _inputs(tmp_path, _video_main(tmp_path))
     )
 
 
@@ -1909,7 +1910,7 @@ async def test_a_library_clip_brings_its_said(store: FootageStore, tmp_path: Pat
         card=Cards(_card()),
         captions_text=Captions(CAPTIONS),
         context_enabled=True,
-    ).build(_inputs(tmp_path))
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))  # a `related` run A
     since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
     kept = store.library("ws1", ["mutant"], since, until)
     assert kept and all(clip.said for clip in kept)
@@ -2089,7 +2090,7 @@ async def test_copies_kept_in_the_library_come_back_once(
         search=Search(_hits(one, two, query="Mutant USS Denny Sumargo")),
         card=Cards(_card()),
         context_enabled=True,
-    ).build(_inputs(tmp_path))  # no matcher: both copies were kept
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))  # no matcher: both kept
     card_b = _card()
     card_b.queries = ["Mutant podcast Densu terbaru"]
     await _builder(
@@ -2376,3 +2377,38 @@ async def test_at_most_two_old_clips(store: FootageStore, tmp_path: Path) -> Non
     reasons = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
     assert len(store.admitted("wf_a")) == 2
     assert reasons == ["too_old"]
+
+
+async def test_an_admit_stores_its_relation(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path, _video_main(tmp_path))
+    )
+    assert [c.relation for c in store.admitted("wf_a")] == ["related"]
+
+
+async def test_no_card_stores_an_unknown_relation(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(store, search=Search(_hits(_video(1)))).build(_inputs(tmp_path))
+    assert [c.relation for c in store.admitted("wf_a")] == ["unknown"]
+
+
+async def test_library_reuses_only_related_clips(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 3: rows from before 0035 read `unknown` and stay out
+    from dataclasses import replace
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    (kept,) = store.library(
+        "ws1", ["mutant"], datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    assert kept.relation == "related"
+    for n, relation in ((7, "same_event"), (8, "unknown")):
+        store.add_library("ws1", "wf_a", replace(kept, url=_url(n), relation=relation))
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store, card=Cards(card_b), library_media=Media(tmp_path), context_enabled=True
+    ).build(_inputs_b(tmp_path))
+    reused = [c.url for c in store.admitted("wf_b") if c.source == "library"]
+    assert reused == [_url(1)]

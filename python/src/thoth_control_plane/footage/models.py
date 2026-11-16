@@ -29,6 +29,7 @@ RejectReason = Literal[
     "repost",  # an original replaced it (footage library spec 2026-11-15, 4.5)
     "same_event",  # spec 10.6: a second or unclean clip of the incident
     "too_old",  # spec 10.12: a third clip older than 30 days
+    "subject_absent",  # spec 10.12: the story's subject is not on screen
 ]
 REJECT_REASONS: frozenset[str] = frozenset(get_args(RejectReason))
 
@@ -87,6 +88,7 @@ class CandidateView:
     position: int | None
     media_kind: str = "video"
     said: list[dict[str, Any]] = field(default_factory=list)
+    relation: str = "unknown"  # spec 10.3
 
 
 @dataclass(frozen=True)
@@ -119,6 +121,7 @@ class LibraryClip:
     # The admission's OCR dump: the import reads it as `MainOcr`.
     ocr: dict[str, Any] = field(default_factory=dict)
     said: list[dict[str, Any]] = field(default_factory=list)
+    relation: str = "unknown"  # spec 10.7: only `related` is reused
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,7 @@ class AdmittedClip:
     clip_start: float
     ocr: dict[str, Any]
     position: int
+    relation: str = "unknown"
 
 
 @dataclass(frozen=True)
