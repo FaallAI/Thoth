@@ -31,7 +31,10 @@ from thoth_control_plane.application.narration_script import (
     unsupported_tokens,
 )
 from thoth_control_plane.application.prompt_lab import resolve_style_prompt
-from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
+from thoth_control_plane.application.prompt_proposal_ports import (
+    ProviderInvalidOutput,
+    ProviderUnavailable,
+)
 from thoth_control_plane.assembly.narration_timeline import (
     NARRATION_PREFIX,
     PlacedSfx,
@@ -70,6 +73,7 @@ logger = logging.getLogger(__name__)
 
 #: The same request can be answered differently, so a refused answer is asked for once more.
 SCRIPT_ATTEMPTS = 2
+PROVIDER_RETRY_SECONDS = 5.0  # a 5xx or a dropped connection is asked once more
 #: The planner's share of the draft write (5 min): past it, the draft cuts on phrases only.
 PLANNER_DEADLINE_SECONDS = 180.0
 
@@ -266,6 +270,12 @@ class NarrationActivities:
                     break
                 except (ProviderInvalidOutput, ScriptInvalid) as error:
                     logger.warning("narration script refused attempt=%d: %s", attempt, error)
+                except ProviderUnavailable as error:
+                    if not error.transient or attempt == SCRIPT_ATTEMPTS:
+                        logger.warning("narration script call failed: ProviderUnavailable")
+                        return await self._fail(step.document_id, _safe_failure_code(error))
+                    logger.warning("narration script provider outage attempt=%d; retrying", attempt)
+                    await asyncio.sleep(PROVIDER_RETRY_SECONDS)
                 except Exception as error:
                     logger.warning("narration script call failed: %s", type(error).__name__)
                     return await self._fail(step.document_id, _safe_failure_code(error))

@@ -133,10 +133,13 @@ class ProviderRateLimited(Exception):
 
 
 class ProviderUnavailable(Exception):
-    """The provider is unreachable or returned an unusable response."""
+    """The provider is unreachable or returned an unusable response. `transient` marks a
+    5xx or a dropped connection, which a second request may get past."""
 
-    def __init__(self) -> None:
+    def __init__(self, status: int | None = None, transient: bool = False) -> None:
         super().__init__("provider unavailable")
+        self.status = status
+        self.transient = transient
 
 
 class ProviderInvalidOutput(Exception):

@@ -220,6 +220,29 @@ async def test_adapter_maps_server_error_to_unavailable_without_retry() -> None:
     assert len(calls) == 1
 
 
+async def test_adapter_says_whether_a_refusal_is_worth_retrying(  # live edoc_fbd1139e
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from thoth_control_plane.application.prompt_proposal_ports import ProviderUnavailable
+
+    for status, transient in ((502, True), (400, False), (402, False)):
+
+        def handler(request: httpx.Request, status: int = status) -> httpx.Response:
+            return httpx.Response(status, json={}, request=request)
+
+        with caplog.at_level("WARNING"), pytest.raises(ProviderUnavailable) as raised:
+            await adapter(handler=handler).propose(provider_request())
+        assert (raised.value.status, raised.value.transient) == (status, transient)
+        assert f"status={status}" in caplog.text
+
+    def dropped(request: httpx.Request) -> httpx.Response:
+        raise httpx.RemoteProtocolError("closed", request=request)
+
+    with pytest.raises(ProviderUnavailable) as raised:
+        await adapter(handler=dropped).propose(provider_request())
+    assert (raised.value.status, raised.value.transient) == (None, True)
+
+
 async def test_adapter_unknown_credential_id_is_unavailable() -> None:
     from thoth_control_plane.application.prompt_proposal_ports import ProviderUnavailable
 

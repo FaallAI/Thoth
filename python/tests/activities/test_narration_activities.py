@@ -395,6 +395,18 @@ def test_a_provider_outage_is_not_asked_again() -> None:
     assert result.code == "provider_unavailable" and seen["provider_calls"] == 1
 
 
+def test_a_passing_provider_outage_is_asked_once_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Live edoc_fbd1139e (2026-11-16): one 5xx ended the narration; a second try is usual.
+    from thoth_control_plane.activities import narration
+
+    monkeypatch.setattr(narration, "PROVIDER_RETRY_SECONDS", 0.0)
+    built, seen = ports(answers=[ProviderUnavailable(status=503, transient=True), GOOD_ANSWER])
+
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert result.code is None and seen["provider_calls"] == 2
+
+
 def test_a_refused_answer_logs_why(caplog: pytest.LogCaptureFixture) -> None:
     built, _ = ports(answer={"beats": [{"beat": "outro", "text": "x"}]})
 
