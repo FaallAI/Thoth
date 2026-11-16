@@ -93,8 +93,16 @@ def b_roll_overlaps(document: EditDocumentV2) -> list[tuple[str, str]]:
         for later in shown[index + 1 :]:
             if later.from_frame >= end:
                 break
-            if later.track_id == clip.track_id:
-                pairs.append((clip.clip_id, later.clip_id))
+            if later.track_id != clip.track_id:
+                continue
+            # The planner's own card over its own shot is by design (final review, 2026-11-17);
+            # anything involving an import clip is the bug this guard is for.
+            both_planned = PLANNER_CLIP.fullmatch(clip.clip_id) and PLANNER_CLIP.fullmatch(
+                later.clip_id
+            )
+            if both_planned and (clip.position is not None or later.position is not None):
+                continue
+            pairs.append((clip.clip_id, later.clip_id))
     return pairs
 
 

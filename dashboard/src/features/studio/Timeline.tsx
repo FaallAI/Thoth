@@ -41,6 +41,8 @@ import {
   snapCandidates,
   snapFrame,
   visibleLanes,
+  withRows,
+  type FrozenRows,
 } from "./timeline_domain";
 
 type Props = {
@@ -78,6 +80,8 @@ type Props = {
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
 type Gesture = {
+  /** The rows each lane had when the gesture began: they hold until it ends. */
+  rows?: FrozenRows;
   clipId: string;
   clipKind: NonNullable<EditDocumentV2["clips"]>[number]["kind"];
   /** The clip's own track: the lane a drag falls back to over an incompatible one. */
@@ -596,7 +600,8 @@ export function Timeline({
   if (!timeline) return null;
 
   const duration = timeline.canvas.duration_in_frames;
-  const lanes = visibleLanes(timeline);
+  const rows = gesture.current?.rows;
+  const lanes = rows ? withRows(visibleLanes(timeline), rows) : visibleLanes(timeline);
   // Markers in time order, so "Marker 1" is the earliest (Tier 3a).
   const markers = [...(timeline.markers ?? [])].sort((left, right) => left.frame - right.frame);
   const renamedMarker = markers.find((marker) => marker.marker_id === renaming);
@@ -619,6 +624,7 @@ export function Timeline({
     const mode: GestureMode = rolled === "slip" && !("source_from_frame" in clip) ? "move" : rolled;
     const roll = neighbour ? (asked === "roll_end" ? { leftId: clip.clip_id, rightId: neighbour.clip_id } : { leftId: neighbour.clip_id, rightId: clip.clip_id }) : undefined;
     gesture.current = {
+      rows: new Map(lanes.map((lane) => [lane.track.track_id, { layers: lane.layers, layerOf: lane.layerOf }])),
       clipId,
       clipKind: clip.kind,
       homeTrackId: clip.track_id,

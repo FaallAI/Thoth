@@ -596,10 +596,17 @@ def test_no_style_leaves_two_pictures_at_once_on_the_b_roll() -> None:
     from thoth_control_plane.domain.style_apply import b_roll_overlaps
 
     before = narrated()
-    plan = dataclasses.replace(reactions_plan(before), cards=[])
+    start, _ = span_of(before, "reactions")
+    no_card = dataclasses.replace(reactions_plan(before), cards=[])
+    # Final review, Important 2: the planner's own card over its own shot is by design.
+    card_over_shot = dataclasses.replace(
+        reactions_plan(before),
+        cards=[PlannedCard(start, 30, "asset_card_a", "comment_card_001", False)],
+    )
     for template in (A, B):
         assert b_roll_overlaps(styled(before, template)) == []
-        assert b_roll_overlaps(styled(before, template, assignments={"reactions": plan})) == []
+        for plan in (no_card, card_over_shot):
+            assert b_roll_overlaps(styled(before, template, assignments={"reactions": plan})) == []
 
 
 def test_the_overlap_guard_names_stacked_pictures() -> None:
@@ -612,7 +619,4 @@ def test_the_overlap_guard_names_stacked_pictures() -> None:
     )
     twin = picture.model_copy(update={"clip_id": "clip_twin"})
     stacked = document.model_copy(update={"clips": [*document.clips, twin]})
-    assert (picture.clip_id, "clip_twin") in b_roll_overlaps(stacked) or (
-        "clip_twin",
-        picture.clip_id,
-    ) in b_roll_overlaps(stacked)
+    assert b_roll_overlaps(stacked) == [(picture.clip_id, "clip_twin")]

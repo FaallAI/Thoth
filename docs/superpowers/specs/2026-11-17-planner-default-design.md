@@ -40,6 +40,10 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
      - each clip goes on the lowest layer whose last clip has ended by its start.
    - **Studio draws each layer as a sub-row** of its lane, the top layer highest, so stacked clips no longer hide each other and each one can be selected.
    - **The render follows the layers.** Within a lane, the composition draws clips by layer, then start frame, so a higher layer is on top in the video just as it is in Studio.
+     - **A consequence (final review, 2026-11-17):** a clip already stacked over another stays above a clip that later joins the lower layer.
+       - **Example:** A 0-100 (layer 0), Y 50-200 (layer 1), X 100-150 (layer 0). Y is drawn over X, where time order used to draw X over Y.
+       - **What it can change:** an existing draft with this shape re-stacks. The three template-release goldens have the shape on their badge lane but still pass pixel parity, because the two presets do not touch on screen.
+     - **While a clip is dragged,** each lane keeps the rows it had when the drag began.
    - **`clip_overlap` is no longer a warning,** in Studio (`timelineIssues`) or in the server review (`studio_review`). `main_track_gap` and `clip_exceeds_canvas` stay.
    - **The bug the warning caught stays caught** (operator, item 85, after a side agent's note). The warning is what exposed the profile card left under the planner's shots. Two pictures at once on the b-roll is still a defect:
      - `b_roll_overlaps(document)` names such pairs;

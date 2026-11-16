@@ -45,3 +45,13 @@ test("a hidden clip takes no layer", () => {
   expect(lane.layerOf.get("card")).toBe(1);
   expect(lane.layers).toBe(2);
 });
+
+
+test("a clip stacked over another stays above a clip that later joins the lower layer", () => {
+  // Final review, Important 1: A (0-100) L0, Y (50-200) L1, X (100-150) L0 once A has ended.
+  // X and Y play together in 100-150 and Y, the higher layer, is drawn on top, as Studio shows
+  // it. Time order drew X on top: a draft with this shape re-stacks (spec 2026-11-17, goal 5).
+  const [lane] = visibleLanes(doc([clip("A", 0, 100), clip("Y", 50, 150), clip("X", 100, 50)]));
+  expect(Object.fromEntries(lane.layerOf)).toEqual({ A: 0, Y: 1, X: 0 });
+  expect(lane.layered.map((c) => c.clip_id)).toEqual(["A", "X", "Y"]);
+});

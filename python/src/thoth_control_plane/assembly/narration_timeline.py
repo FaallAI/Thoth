@@ -434,7 +434,12 @@ def narrate_document(
     styled = apply_edit_operations(narrated_document, operations, resolved_assets=resolved)
     if stacked := b_roll_overlaps(styled):
         # Studio shows them as layers without a warning; the log still catches the bug.
-        logger.warning("narration left pictures stacked on the b-roll pairs=%d", len(stacked))
+        logger.warning(
+            "narration left pictures stacked on the b-roll document=%s pairs=%d first=%s",
+            styled.document_id,
+            len(stacked),
+            stacked[0],
+        )
     if not curve:
         return _recorded(styled, roles_by_item, kept)
     # New shots of a movie duck under the voice like the clip they replaced.
