@@ -184,13 +184,20 @@ class Judge:
         self.answers = answers or {}
         self.calls: list[str] = []
         self.people: list[bool] = []
+        self.references: list[Frame | None] = []
 
     async def judge(
-        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        self,
+        frames: Sequence[Frame],
+        visual: str,
+        *,
+        person: bool = False,
+        reference: Frame | None = None,
     ) -> FootageAnswer:
         key = visual
         self.calls.append(key)
         self.people.append(person)
+        self.references.append(reference)
         answer = self.answers.get(
             key, FootageAnswer(kind="footage", shows_object="yes", description="A flooded street.")
         )
@@ -657,7 +664,7 @@ async def test_a_missing_tool_cancels_the_sibling_checks(
 
     class Blocking(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             if visual != "blocked":
                 return await super().judge(frames, visual, person=person)
@@ -686,7 +693,7 @@ async def test_a_candidate_past_its_time_is_media_failed_and_deleted(
 ) -> None:
     class Slow(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             await asyncio.sleep(10)
             return await super().judge(frames, visual, person=person)
@@ -711,7 +718,7 @@ async def test_the_deadline_stops_after_the_running_batch(
 
     class Slow(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             await asyncio.sleep(1.2)  # the first batch outlasts the deadline
             return await super().judge(frames, visual, person=person)
@@ -874,7 +881,7 @@ async def test_a_check_that_ignores_cancellation_is_abandoned(
 
     class Deaf(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             task = asyncio.current_task()
             assert task is not None
@@ -2225,3 +2232,56 @@ async def test_older_subject_clips_pass_the_story_gate(
     assert rows[old.caption].reason != "story"
     assert rows[unnamed.caption].reason == "story"
     assert rows[other.caption].reason == "story"  # names only another person (revision 1)
+
+
+async def test_no_card_asks_no_scene(store: FootageStore, tmp_path: Path) -> None:  # RF 1
+    judge = Judge()
+    await _builder(store, search=Search(_hits(_video(1))), judge=judge).build(_inputs(tmp_path))
+    assert judge.references == [None]
+
+
+async def test_no_names_reach_the_vision_prompt(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.12, revision 3
+    from thoth_control_plane.footage.context import card_names
+
+    card = _saiful()
+    query = "Mutant USS Denny Sumargo"
+    search = Search(
+        {
+            ("tiktok", query): [_video(1, caption=SHOWN)],
+            ("youtube", query): [_podcast()],
+        }
+    )
+    judge = Judge()
+    await _builder(
+        store,
+        search=search,
+        judge=judge,
+        downloader=WindowDownloader(),
+        card=Cards(card),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert judge.calls
+    for visual in judge.calls:
+        assert not any(name in visual.lower() for name in card_names(card)), visual
+
+
+async def test_a_section_talking_is_kept(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.context import PERSON_VISUAL
+
+    talking = FootageAnswer(kind="commentary", shows_object="yes", description="A man talks.")
+    judge = Judge({PERSON_VISUAL: talking})
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        judge=judge,
+        downloader=WindowDownloader(),
+        card=Cards(_saiful()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert sections and all(c.reason != "commentary" for c in sections)
+    assert all(c.visual == PERSON_VISUAL for c in sections)

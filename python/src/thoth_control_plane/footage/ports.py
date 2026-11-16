@@ -55,7 +55,12 @@ class PhotoFetcher(Protocol):
 
 class FootageJudge(Protocol):
     async def judge(
-        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        self,
+        frames: Sequence[Frame],
+        visual: str,
+        *,
+        person: bool = False,
+        reference: Frame | None = None,
     ) -> FootageAnswer: ...
 
 

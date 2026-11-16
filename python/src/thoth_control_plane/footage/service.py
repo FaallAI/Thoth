@@ -20,7 +20,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Iterable, Iterator, 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from thoth_control_plane import progress
 from thoth_control_plane.acquisition.cards import CardRejected, write_card
@@ -45,8 +45,10 @@ from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.embedder import cosine
 from thoth_control_plane.footage.adapters.photos import PhotoError
+from thoth_control_plane.footage.adapters.vision import FootageAnswer
 from thoth_control_plane.footage.context import (
     CARD_PROMPT,
+    PERSON_VISUAL,
     PERSON_WINDOW,
     REFINE_PROMPT,
     WINDOW_BEFORE,
@@ -184,6 +186,9 @@ class _Build:
     # kept clip's, the queries of clips a cleaner copy displaced, and the lock that makes the
     # copy decision and the admit one step.
     main_recording: list[Any] | None = None
+    # Spec 10.5/10.12: one frame of the main the vision call compares a clip with; None without
+    # a card, so the object path asks no same-event question.
+    reference: Frame | None = None
     recordings: dict[str, _Recording] = field(default_factory=dict)
     displaced: list[str] = field(default_factory=list)
     copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -289,6 +294,16 @@ def _carousel(main: SourceReport) -> dict[str, PurePosixPath]:
     if not shaped or len(videos) < 2:
         return {}
     return {f"{url}#slide{media.index}": media.location for media in videos[1 : MAX_FOOTAGE + 1]}
+
+
+Relation = Literal["related", "same_event", "discusses", "unknown"]
+
+
+def relation_of(answer: FootageAnswer, asked: bool) -> Relation:
+    """How a clip relates to the main's incident (spec 10.3): unknown when no scene was asked."""
+    if not asked:
+        return "unknown"
+    return "same_event" if answer.same_event == "yes" else "related"
 
 
 def quota_key(candidate: CandidateView) -> str:
@@ -833,7 +848,7 @@ class FootageBuilder:
                     platform=c.platform,
                     source="section",
                     query=c.query,
-                    visual=c.visual,
+                    visual=PERSON_VISUAL,  # a person talking, named nowhere (spec 10.12)
                     owner_handle=c.owner_handle,
                     caption=c.caption,
                     published_at=c.published_at,
@@ -1077,6 +1092,8 @@ class FootageBuilder:
         admitted_hashes = await self._verify_admitted(workflow, root, state)
         main_hashes = await self._main_hashes(main, root)
         await self._main_recording(main, root, state)
+        if state.card is not None:
+            state.reference = await self._reference(main, root)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         clips = [c for c in candidates if c.media_kind == "video"]  # photos are checked apart
         pending = [c for c in clips if c.status == "pending"]
@@ -1107,7 +1124,7 @@ class FootageBuilder:
                     main_hashes,
                     admitted_hashes,
                     state,
-                    c.query in people,
+                    c.query in people or c.source == "section",
                 )
                 for c in batch
             )
@@ -1243,7 +1260,10 @@ class FootageBuilder:
         steps[candidate.url] = "vision"
         try:
             answer = await self._ports.judge.judge(
-                frames, candidate.visual or DEFAULT_VISUAL, person=person
+                frames,
+                candidate.visual or DEFAULT_VISUAL,
+                person=person,
+                reference=state.reference,
             )
         except AttributionError:
             return await self._reject(
@@ -1254,7 +1274,8 @@ class FootageBuilder:
             "shows_object": answer.shows_object,
             "description": answer.description,
         }
-        if answer.kind == "commentary":
+        # A section is a person talking (spec 10.5): it is never rejected as commentary.
+        if answer.kind == "commentary" and candidate.source != "section":
             return await self._reject(
                 workflow, root, candidate, location, owned, "commentary", state, **seen
             )
@@ -1633,6 +1654,18 @@ class FootageBuilder:
             await self._copy_facts(candidate, frames, state),
             hashes,
         )
+
+    async def _reference(self, main: SourceReport, root: Path) -> Frame | None:
+        """The main's middle frame, or None when it cannot be read."""
+        videos = [media for media in main.media if media.kind == "video"]
+        path = root / videos[0].location if videos else None
+        if path is None or not path.is_file():
+            return None
+        try:
+            duration = videos[0].duration_seconds or await self._ports.probe.duration(path)
+            return await self._ports.frames.frame_at(path, duration / 2, width=VISION_WIDTH)
+        except (FrameError, DurationError):
+            return None
 
     async def _main_hashes(self, main: SourceReport, root: Path) -> list[int]:
         videos = [media for media in main.media if media.kind == "video"]

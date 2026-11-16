@@ -224,3 +224,25 @@ async def test_a_youtube_url_skips_the_tiktok_resolver(
         "https://youtu.be/x", None, tmp_path / "c.mp4"
     )
     assert seen["url"] == "https://youtu.be/x"
+
+
+async def test_the_scene_question_is_asked_only_with_a_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # spec 10.5 and 10.12
+    seen: list[tuple[str, list[Frame]]] = []
+
+    async def fake_run(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        seen.append((prompt, list(frames)))
+        return FootageAnswer(kind="footage", shows_object="yes", same_event="yes")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", fake_run)
+    frames = [Frame(second=float(n), jpeg=b"x") for n in range(5)]
+    main = Frame(second=0.0, jpeg=b"main")
+    judge = AgnoFootageJudge("k", "m")
+    await judge.judge(frames, "a street")
+    answer = await judge.judge(frames, "a street", reference=main)
+    assert "same_event" not in seen[0][0] and len(seen[0][1]) == 3
+    assert "same_event" in seen[1][0] and "first image" in seen[1][0]
+    assert seen[1][1][0] is main and len(seen[1][1]) == 4
+    assert answer.same_event == "yes"
+    assert FootageAnswer(kind="footage", shows_object="no").same_event == "no"
