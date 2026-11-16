@@ -22,12 +22,16 @@ The operator ran a new Mutant run, `wf_a91d3f0fe308b128583f4f5c`, on the revisio
 - `make test T=tests/footage`: 231 passed.
 - `make lint`: clean.
 
+**Deploy (2026-11-16, operator "ya boleh").**
+- c906c16d was pushed to PR #133, and CI was green (runs 43810692676 and 43810698308).
+- Stage1 runs the branch image, matching the CI publish log: thoth `a807bd633518`, renderer `6982548ca94b`, web `b81e8c918d32`.
+- Health: web 200, 0 worker errors, 0 API 5xx. There is no migration.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-2416f83a.sh` (pins only).
+
 **Next steps.**
-1. Push the branch, and let CI publish the branch image (own gate).
-2. Deploy it to stage1. There is no new migration (own gate).
-3. A new Mutant run, with the operator judging the clips (own gate).
-4. One narration write on that draft. It is a paid call, and its cost is shown first (own gate).
-5. Merge PR #133 (own gate).
+1. A new Mutant run, with the operator judging the clips (own gate).
+2. One narration write on that draft. It is a paid call, and its cost is shown first (own gate).
+3. Merge PR #133 (own gate).
 
 Carried forward:
 - the deferred minors of 2026-11-16 and 2026-11-15;
