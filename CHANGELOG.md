@@ -2,6 +2,87 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-16 - Footage related events and the story's subject by face
+
+On run `wf_c7efa4c2` the operator found footage "di kejadian yang sama dengan main video". They wanted other events that relate to the story ("kejadian yang berbeda tapi masih satu context"), and then set the rule "harus tokoh yang di ceritakan saja dan berhubungan dengan tokoh tersebut".
+
+**Design.**
+- Spec 10 was approved 2026-11-16 ("ya sesuai").
+- Spec 10.12 records revisions 1-6, the face spikes and two operator choices:
+  - the run stops only when the face is doubtful ("tertahan hanya kalau ragu");
+  - one clip per run may discuss the subject without showing them ("boleh 1 klip per run").
+- The operator confirmed that fewer clips are fine if they fit the story ("jika sedikit tapi berkorelasi tepat dengan cerita tidak masalah").
+- Plan: `docs/superpowers/plans/2026-11-16-footage-related-events.md` (Tasks 1-10), executed natively. The brainstorm record is items 66-77.
+
+**Face spikes** (no paid call, public clips, no change on stage1).
+- **SFace** overlapped: the same person and different people both scored 0.33-0.53.
+- **ArcFace r50** (InsightFace buffalo_l) separated them: the same person scored 0.54-0.57, different people at most 0.30.
+- **Ground truth.** The operator confirmed it. The podcast "MASTER SAIFUL" and the Gofar clarification show Tretan Muslim, not Saiful, so the earlier podcast section was the wrong person.
+
+**What changed.**
+- **Card (Task 1).**
+  - `related` holds up to 6 other events.
+  - It keeps at most 2 incident queries.
+  - Round two always runs once.
+  - Vision visuals name nobody (`PERSON_VISUAL`, `strip_names`).
+- **Text gate (Task 2).**
+  - Names match in their hashtag and "nya" forms (`mentions`).
+  - A clip naming the subject may be up to 730 days old.
+  - A clip naming only other card people is off story.
+  - Name words are no event words.
+  - Long-video sections are cut only where the captions name the subject.
+- **Vision (Task 3).** One frame of the main goes first. The same call answers `same_event`, and sections are never rejected as commentary.
+- **Quota (Task 4).**
+  - 8 clips in total, also in the content set and the activity's count.
+  - At most 1 same-event clip, a clean original (text share ≤ 0.15).
+  - At most 2 clips older than 30 days (`too_old`).
+- **Storage (Task 5).**
+  - Editor migration 0035 adds `relation` (`related`, `same_event`, `discusses`, `unknown`) and the reasons `same_event`, `subject_absent` and `too_old`.
+  - The library reuses only `related` clips.
+- **Media failures (Task 6).** They log their cause, and never a URL. yt-dlp bot checks, 403 and 429 are named.
+- **Faces (Tasks 7-9).**
+  - YuNet and ArcFace are pinned by SHA-256 and baked into `/opt/thoth/models/faces`.
+  - The worker refuses to start without them while footage is on.
+  - `find_subject` groups the main's faces by screen time:
+    - a clear subject (1.5x the next group) runs on;
+    - a doubtful one stops the run on a `choose_subject` approval;
+    - no faces turns the check off.
+  - Screening checks the subject's face (0.42 in 2 distinct seconds) before the paid vision call. One `discusses` clip per run is allowed. Library clips are checked too.
+- **Dashboard (Task 10).** The run page shows the faces with their screen time, plus "None of these".
+
+**Verification.**
+- `make test`: 5141 passed, 250 skipped.
+- `make test-postgres`: 228 passed.
+- `make lint`: clean.
+- Dashboard: `bun test` 2026 pass; `tsc -b` and the build are clean.
+- actionlint is clean on the two edited workflows.
+- The face model fetch ran once, and both pins verified.
+- FaceReader on the spike clips: Saiful 0.50-0.55; every other person 0.284 or less; the main's subject was clear (54 s against 32 s). A 60 s main takes 14 s, with an event-loop lag of 1 ms.
+
+**Final review** (fresh reviewer): "With fixes", with 0 Critical, 3 Important and 13 Minor findings. Two Minors were re-graded Important by their effect. All five were fixed test first, in 27692c37:
+- **A same-event clip beaten as a copy was displaced twice.** The quota count dropped twice, so a ninth clip could be screened.
+- **A retry forgot the caps.** On a retry, the old-clip, `discusses` and same-event caps are now rebuilt from the clips already kept.
+- **A long main could stall the worker.** The main's faces are read from its first 180 s, and the grouping runs off the event loop.
+- **Each worker held two ArcFace sessions.** It now holds one (`shared_reader`), which matters given the WSL memory reaper.
+- **A carousel main's own slides were face-checked.** They no longer are.
+
+The 11 remaining minors are deferred; they are listed in the checkpoint.
+
+**Next steps.**
+1. Push the branch and CI (own gate). CI now fetches about 167 MB more models.
+2. Deploy (own gate): editor migration 0035 and a new worker image carrying the face models.
+3. A new Mutant run, judged by the operator (own gate). Expected: no stop, since Saiful is clear; no clip showing only Tretan Muslim; at most 1 same-event clip.
+4. One narration write, a paid call shown with its cost first (own gate).
+5. Merge PR #133 (own gate).
+
+Carried forward:
+- A YouTube proxy fallback on a bot check is its own decision, and the logged causes show when it recurs.
+- Left out of 10.12, each waiting on the operator's request:
+  - a correction after the run;
+  - showing the chosen face when there was no stop;
+  - the face check on photos.
+- The deferred minors of earlier entries.
+
 ## 2026-11-16 - Podcast sections lost to the per-query quota
 
 The operator ran a new Mutant run, `wf_a91d3f0fe308b128583f4f5c`, on the revision (2416f83a): "ketika aku coba buat new run sekarang malah tidak mendapatkan footage podcast sama sekali".
