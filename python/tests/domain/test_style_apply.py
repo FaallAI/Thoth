@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from tests.assembly.test_narration_timeline import PRESET, ROLES, VOICES, draft, payload
@@ -353,7 +354,8 @@ def test_planned_beat_places_shots_cards_and_credits() -> None:
     mains = {(c.from_frame, c.source_from_frame) for c in after.clips if c.track_id in main_track}
     assert (start, 500) in mains and (start + 30, 530) in mains
     cards = positioned_cards(after)
-    assert len(cards) == len(positioned_cards(before))
+    # The planner's card is placed; the beat's other placements leave (spec 2026-11-17, goal 4).
+    assert len(cards) == 1
     moved = next(c for c in cards if c.from_frame == start + 30)
     assert moved.duration_in_frames == 30 and moved.fit == "contain"
     assert moved.position is not None
@@ -546,3 +548,71 @@ def test_style_b_shots_fill_the_frame() -> None:
     document = styled(narrated(data), B)
     shots = full_frame_shots(document)
     assert shots and {shot.fit for shot in shots} == {"cover"}
+
+
+def _b_roll_overlaps(document: EditDocumentV2, start: int, end: int) -> list[tuple[str, str]]:
+    track = next(t.track_id for t in document.tracks if t.kind == "b_roll")
+    shown = sorted(
+        (
+            c
+            for c in document.clips
+            if isinstance(c, TimelineVideoClip)
+            and c.track_id == track
+            and not c.hidden
+            and c.from_frame < end
+            and c.from_frame + c.duration_in_frames > start
+        ),
+        key=lambda c: c.from_frame,
+    )
+    return [
+        (a.clip_id, b.clip_id)
+        for i, a in enumerate(shown)
+        for b in shown[i + 1 :]
+        if b.from_frame < a.from_frame + a.duration_in_frames
+    ]
+
+
+def test_a_planned_beat_leaves_no_import_material_under_its_shots() -> None:
+    # Spec 2026-11-17, goal 4 (edoc_3ee4719b): a profile card stayed under the planner's shots.
+    before = narrated()
+    start, end = span_of(before, "reactions")
+    # The planner shows its own picture and does not pick the import's card.
+    plan = dataclasses.replace(reactions_plan(before), cards=[])
+    assert positioned_cards(before)
+    assert _b_roll_overlaps(styled(before, B, assignments={"reactions": plan}), start, end) == []
+
+
+def test_a_planned_beat_without_shots_keeps_its_material() -> None:  # Review Focus 3
+    before = narrated()
+    start, end = span_of(before, "reactions")
+    empty = BeatAssignment("reactions", [main_shot(start, end - start, 500)], [], [start])
+    after = styled(before, B, assignments={"reactions": empty})
+    assert len(positioned_cards(after)) == len(positioned_cards(before))
+
+
+def test_no_style_leaves_two_pictures_at_once_on_the_b_roll() -> None:
+    # Studio no longer warns about overlaps (spec 2026-11-17, goal 5), so the styled draft
+    # itself must never stack two b-roll pictures: the guard the warning used to be.
+    from thoth_control_plane.domain.style_apply import b_roll_overlaps
+
+    before = narrated()
+    plan = dataclasses.replace(reactions_plan(before), cards=[])
+    for template in (A, B):
+        assert b_roll_overlaps(styled(before, template)) == []
+        assert b_roll_overlaps(styled(before, template, assignments={"reactions": plan})) == []
+
+
+def test_the_overlap_guard_names_stacked_pictures() -> None:
+    from thoth_control_plane.domain.style_apply import b_roll_overlaps
+
+    document = narrated()
+    track = next(t.track_id for t in document.tracks if t.kind == "b_roll")
+    picture = next(
+        c for c in document.clips if isinstance(c, TimelineVideoClip) and c.track_id == track
+    )
+    twin = picture.model_copy(update={"clip_id": "clip_twin"})
+    stacked = document.model_copy(update={"clips": [*document.clips, twin]})
+    assert (picture.clip_id, "clip_twin") in b_roll_overlaps(stacked) or (
+        "clip_twin",
+        picture.clip_id,
+    ) in b_roll_overlaps(stacked)

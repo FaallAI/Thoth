@@ -12,6 +12,7 @@ which is how one beat is re-voiced. Clip IDs derive from beats, so the result is
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from bisect import bisect_right
@@ -46,12 +47,14 @@ from thoth_control_plane.domain.planner_assign import BeatAssignment, assign_bea
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.style_apply import (
     PLANNER_CLIP,
+    b_roll_overlaps,
     beat_fingerprints,
     style_operations,
 )
 from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
+logger = logging.getLogger(__name__)
 NARRATION_PREFIX = "clip_narration_"
 CAPTION_PREFIX = "clip_caption_narration_"
 SFX_PREFIX = "clip_sfx_"
@@ -429,6 +432,9 @@ def narrate_document(
     for ref in plan.assets if plan is not None else []:
         resolved.setdefault(ref.asset_id, ref)
     styled = apply_edit_operations(narrated_document, operations, resolved_assets=resolved)
+    if stacked := b_roll_overlaps(styled):
+        # Studio shows them as layers without a warning; the log still catches the bug.
+        logger.warning("narration left pictures stacked on the b-roll pairs=%d", len(stacked))
     if not curve:
         return _recorded(styled, roles_by_item, kept)
     # New shots of a movie duck under the voice like the clip they replaced.

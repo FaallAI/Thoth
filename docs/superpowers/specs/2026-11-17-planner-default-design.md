@@ -41,6 +41,10 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
    - **Studio draws each layer as a sub-row** of its lane, the top layer highest, so stacked clips no longer hide each other and each one can be selected.
    - **The render follows the layers.** Within a lane, the composition draws clips by layer, then start frame, so a higher layer is on top in the video just as it is in Studio.
    - **`clip_overlap` is no longer a warning,** in Studio (`timelineIssues`) or in the server review (`studio_review`). `main_track_gap` and `clip_exceeds_canvas` stay.
+   - **The bug the warning caught stays caught** (operator, item 85, after a side agent's note). The warning is what exposed the profile card left under the planner's shots. Two pictures at once on the b-roll is still a defect:
+     - `b_roll_overlaps(document)` names such pairs;
+     - a test asserts that no style, planned or not, leaves any;
+     - the narration write logs a warning when a styled draft has one.
    - **Moving a clip to another layer by hand** is a later stage (§4).
 6. **Extension points are named for later stages.** Memes, SFX and effects are new kinds the planner may pick per phrase, from the workspace library, beside today's base and overlay. They are not built here (§4).
 
