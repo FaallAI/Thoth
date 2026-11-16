@@ -260,3 +260,93 @@ async def test_the_creator_photos_and_page_card_reach_the_store(
     assert store.stat(page).size_bytes == len(b"page-card")
     assert store.stat(photo).size_bytes == len(b"photo")
     assert seen == [False, True]  # the retry finds the stored page card in its scratch
+
+
+# The story's subject by face (spec 2026-11-15, 10.12).
+class Finder:
+    """FaceReader's contract: the faces of a video, one frame a second."""
+
+    def __init__(self, faces: list[object]) -> None:
+        self.faces_found = faces
+        self.paths: list[Path] = []
+
+    def faces(self, path: Path, start: float = 0.0, duration: float | None = None) -> list[object]:
+        self.paths.append(path)
+        return self.faces_found
+
+
+def _person(seed: int, seconds: range) -> list[object]:
+    import numpy as np
+
+    from thoth_control_plane.footage.faces import Face
+
+    base = np.random.default_rng(seed).standard_normal(512).astype(np.float32)
+    base /= np.linalg.norm(base)
+    return [Face(second=s, embedding=base, crop=b"\xff\xd8jpeg") for s in seconds]
+
+
+def _with_main_video(tmp_path: Path, report_store) -> LocalMediaStore:
+    _with_report(report_store)
+    video = tmp_path / "reports" / "wf_a" / "media" / "video.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"MAIN" * 10)
+    return LocalMediaStore(tmp_path)
+
+
+async def test_a_clear_subject_comes_back_as_a_template(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.activities.footage import build_subject_activity
+    from thoth_control_plane.footage.faces import decode_template
+
+    media = _with_main_video(tmp_path, report_store)
+    finder = Finder([*_person(1, range(54)), *_person(2, range(31))])
+    activity = build_subject_activity(
+        _settings(tmp_path), faces=finder, reports=report_store, media=media
+    )
+    result = await activity(FootageActivityInput(workflow_id="wf_a"))
+    assert result.status == "clear" and result.choices == []
+    assert result.subject is not None and decode_template(result.subject).shape[1] == 512
+    assert finder.paths and finder.paths[0].name == "video.mp4"
+
+
+async def test_a_doubtful_subject_offers_the_faces(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.activities.footage import build_subject_activity
+
+    media = _with_main_video(tmp_path, report_store)
+    faces = [*_person(1, range(30)), *_person(2, range(25)), *_person(3, range(4))]
+    activity = build_subject_activity(
+        _settings(tmp_path), faces=Finder(faces), reports=report_store, media=media
+    )
+    result = await activity(FootageActivityInput(workflow_id="wf_a"))
+    assert result.status == "doubtful" and result.subject is None
+    assert [c.seconds for c in result.choices] == [30, 25, 4]
+    assert len({c.choice_id for c in result.choices}) == 3
+    assert all(c.image.startswith("data:image/jpeg;base64,") for c in result.choices)
+    assert all(c.template for c in result.choices)
+
+
+async def test_no_faces_or_no_reader_is_no_subject(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.activities.footage import build_subject_activity
+
+    media = _with_main_video(tmp_path, report_store)
+    blank = build_subject_activity(
+        _settings(tmp_path), faces=Finder([]), reports=report_store, media=media
+    )
+    assert (await blank(FootageActivityInput(workflow_id="wf_a"))).status == "none"
+    off = build_subject_activity(_settings(tmp_path), reports=report_store, media=media)
+    assert (await off(FootageActivityInput(workflow_id="wf_a"))).status == "none"
+
+
+async def test_the_chosen_subject_reaches_the_builder(tmp_path: Path, report_store) -> None:
+    import numpy as np
+
+    from thoth_control_plane.footage.faces import encode_template
+
+    _with_report(report_store)
+    builder = Builder()
+    activity = build_footage_activity(_settings(tmp_path), builder=builder, reports=report_store)  # type: ignore[arg-type]
+    kept = np.eye(2, 512, dtype=np.float32)
+    await activity(
+        FootageActivityInput(workflow_id="wf_a", subject=encode_template(kept), face_check=True)
+    )
+    (inputs,) = builder.inputs
+    assert inputs.face_check and inputs.subject.shape == (2, 512)  # type: ignore[attr-defined]

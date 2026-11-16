@@ -203,13 +203,20 @@ class TemporalWorkflowGateway:
             current.approval is None
             or current.approval.approval_id != approval.approval_id
             or approval.decision not in current.approval.allowed_decisions
+            or (
+                approval.decision == "approve"
+                and bool(current.approval.choices)
+                and approval.choice not in {c.choice_id for c in current.approval.choices}
+            )
         ):
             raise ApprovalNotAllowed
         await handle.signal(
             SourceInvestigationWorkflow.record_approval,
             ApprovalSignal(
                 approval_id=approval.approval_id,
-                decision=ApprovalDecision(decision=approval.decision, note=approval.note),
+                decision=ApprovalDecision(
+                    decision=approval.decision, note=approval.note, choice=approval.choice
+                ),
                 actor=ActorSnapshot.model_validate(actor.model_dump()),
                 decided_at=datetime.now(UTC),
             ),

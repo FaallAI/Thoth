@@ -42,6 +42,7 @@ from thoth_control_plane.domain.edit_documents import (
 from thoth_control_plane.domain.models import (
     Actor,
     ActorSnapshot,
+    ApprovalChoice,
     ApprovalDecision,
     ApprovalRequest,
     ApprovalSignal,
@@ -135,6 +136,7 @@ __all__ = [
     "AddClipFromAsset",
     "AddTrack",
     "ApplyPromptProposalRequest",
+    "ApprovalChoice",
     "ApprovalDecision",
     "ApprovalRequest",
     "ApprovalSignal",

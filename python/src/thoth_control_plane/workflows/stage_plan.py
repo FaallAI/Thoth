@@ -62,6 +62,12 @@ class StagePlan:
         if stage.started_at is None:
             stage.started_at = at
 
+    def resume(self, stage_id: str) -> None:
+        """A waiting stage runs again once its wait is answered (spec 2026-11-15, 10.12)."""
+        stage = self._stage(stage_id)
+        if stage.status == "waiting":
+            stage.status = "running"
+
     def complete(self, stage_id: str, at: datetime) -> None:
         stage = self._stage(stage_id)
         if stage.status in {"completed", "skipped", "failed", "cancelled"}:

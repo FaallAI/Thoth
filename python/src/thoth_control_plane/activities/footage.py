@@ -9,12 +9,13 @@ Temporal history.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Literal, Protocol
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
 from pydantic import Field
 from temporalio import activity
@@ -35,13 +36,16 @@ from thoth_control_plane.activities.media_scratch import (
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
-from thoth_control_plane.footage.service import FootageBuilder, FootageInputs
+from thoth_control_plane.footage.service import FootageBuilder, FootageInputs, _main
 from thoth_control_plane.infrastructure.media_store import (
     LocalMediaStore,
     MediaStore,
     build_media_store,
 )
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
+
+if TYPE_CHECKING:
+    from thoth_control_plane.footage.faces import Face
 
 logger = logging.getLogger(__name__)
 _CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -51,6 +55,28 @@ class FootageActivityInput(StrictModel):
     workflow_id: OpaqueId
     attribution: str | None = None
     original_report: str | None = None
+    # Spec 2026-11-15, 10.12: the chosen subject's face template (`encode_template`), and
+    # whether clips must show it.
+    subject: str | None = None
+    face_check: bool = False
+
+
+class SubjectChoice(StrictModel):
+    """One face group of the main the operator may pick when the subject is doubtful."""
+
+    choice_id: str
+    image: str  # a JPEG data URI of one of the group's faces
+    seconds: int
+    template: str
+
+
+class SubjectResult(StrictModel):
+    """The main's subject by face: `clear` carries the template, `doubtful` the choices, and
+    `none` turns the face check off (no faces, no main video, or no reader)."""
+
+    status: Literal["clear", "doubtful", "none"]
+    subject: str | None = None
+    choices: list[SubjectChoice] = Field(default_factory=list)
 
 
 class FootageActivityResult(StrictModel):
@@ -129,6 +155,9 @@ async def _run(
                 location for location in admitted if location.startswith(clips) or location == page
             )
 
+        # numpy stays out of the API's imports: the face helpers load in the worker only.
+        from thoth_control_plane.footage.faces import decode_template
+
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,
             report=report,
@@ -136,6 +165,12 @@ async def _run(
             original=original,
             artifact_root=scratch.root,
             publish=publish,
+            subject=(
+                decode_template(input_.subject)
+                if input_.face_check and input_.subject is not None
+                else None
+            ),
+            face_check=input_.face_check and input_.subject is not None,
         )
         try:
             result = await builder.build(inputs)
@@ -150,6 +185,109 @@ async def _run(
             logger.warning("footage failed: %s", code)
             raise ApplicationError(code, type="FootageFailed") from None
     return _done(result.status, result.admitted, started)
+
+
+class FaceFinder(Protocol):
+    def faces(
+        self, path: Path, start: float = 0.0, duration: float | None = None
+    ) -> list[Face]: ...
+
+
+def _choice(index: int, group: Any) -> SubjectChoice:
+    from thoth_control_plane.footage.faces import encode_template, template
+
+    middle = sorted(group.members, key=lambda face: face.second)[len(group.members) // 2]
+    image = "data:image/jpeg;base64," + base64.b64encode(middle.crop).decode("ascii")
+    return SubjectChoice(
+        choice_id=f"g{index}",
+        image=image,
+        seconds=group.seconds,
+        template=encode_template(template(group)),
+    )
+
+
+async def _find(
+    input_: FootageActivityInput,
+    faces: FaceFinder | None,
+    reports: Reports,
+    media: MediaStore,
+    scratch_dir: Path | None,
+) -> SubjectResult:
+    """The subject by face (spec 2026-11-15, 10.12): the main's face groups by screen time."""
+    from thoth_control_plane.footage.faces import (
+        MAX_CHOICES,
+        clear_subject,
+        encode_template,
+        group_faces,
+        template,
+    )
+
+    if faces is None:
+        return SubjectResult(status="none")
+    folder = PurePosixPath("reports") / input_.workflow_id
+    report = await read_report(reports, (folder / REPORT_FILE).as_posix(), SourceReport)
+    if report is None:
+        return SubjectResult(status="none")
+    attribution = await _attribution(reports, input_.attribution)
+    original = await _original(reports, input_.original_report)
+    main = _main(
+        FootageInputs(
+            workflow_id=input_.workflow_id,
+            report=report,
+            attribution=attribution,
+            original=original,
+            artifact_root=Path("."),
+        )
+    )
+    videos = [str(item.location) for item in main.media if item.kind == "video"]
+    if not videos:
+        return SubjectResult(status="none")
+    async with heartbeating(_heartbeat), MediaScratch(media, scratch_dir) as scratch:
+        await scratch.pull(videos[:1])
+        found = await asyncio.to_thread(faces.faces, scratch.root / videos[0])
+    groups = group_faces(found)
+    logger.info(
+        "footage subject faces=%d groups=%s", len(found), [group.seconds for group in groups[:4]]
+    )
+    if not groups:
+        return SubjectResult(status="none")
+    clear = clear_subject(groups)
+    if clear is not None:
+        return SubjectResult(status="clear", subject=encode_template(template(clear)))
+    return SubjectResult(
+        status="doubtful",
+        choices=[_choice(index, group) for index, group in enumerate(groups[:MAX_CHOICES])],
+    )
+
+
+@activity.defn(name="find_subject")
+async def find_subject(input_: FootageActivityInput) -> SubjectResult:
+    """Activity-name reference for workflow definitions."""
+    configured = build_subject_activity(Settings())  # type: ignore[call-arg]
+    return await configured(input_)
+
+
+def build_subject_activity(
+    settings: Settings,
+    *,
+    faces: FaceFinder | None = None,
+    reports: Reports | None = None,
+    media: MediaStore | None = None,
+) -> Callable[[FootageActivityInput], Awaitable[SubjectResult]]:
+    selected = faces
+    if selected is None and settings.THOTH_FOOTAGE_ENABLED:
+        from thoth_control_plane.footage.adapters.faces import FaceReader
+
+        selected = FaceReader(settings.THOTH_FACE_MODELS_DIR)  # missing models raise here
+    selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
+
+    @activity.defn(name="find_subject")
+    async def configured_subject_activity(input_: FootageActivityInput) -> SubjectResult:
+        return await _find(input_, selected, selected_reports, selected_media, scratch_dir)
+
+    return configured_subject_activity
 
 
 async def _tiktok_direct_url(url: str) -> str:

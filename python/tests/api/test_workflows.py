@@ -727,6 +727,7 @@ def test_openapi_approval_input_is_narrow_and_no_workflow_retry_is_offered(gatew
         "approval_id",
         "decision",
         "note",
+        "choice",  # the face an approve picks (spec 2026-11-15, 10.12); optional
     }
     assert schemas["ApprovalSubmission"]["additionalProperties"] is False
     assert set(schemas["ApprovalSubmission"]["required"]) == {"approval_id", "decision"}

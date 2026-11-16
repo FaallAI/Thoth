@@ -347,3 +347,21 @@ def test_labels_follow_the_design_table() -> None:
         "footage": "Collect footage",
         "assembly": "Build the content set",
     }
+
+
+def test_a_waiting_stage_resumes_running() -> None:  # spec 2026-11-15, 10.12
+    from datetime import UTC, datetime
+
+    from thoth_control_plane.workflows.stage_plan import build_plan
+
+    plan = build_plan(
+        intent="identify_original",
+        attribute_source=False,
+        assemble_content=True,
+        build_footage=True,
+    )
+    at = datetime(2026, 11, 16, tzinfo=UTC)
+    plan.start("footage", at)
+    plan.wait("footage", at)
+    plan.resume("footage")
+    assert {s.id: s.status for s in plan.snapshot()}["footage"] == "running"

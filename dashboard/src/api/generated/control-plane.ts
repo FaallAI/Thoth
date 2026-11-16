@@ -2054,12 +2054,26 @@ export interface components {
             /** Template Id */
             template_id: string;
         };
+        /**
+         * ApprovalChoice
+         * @description One answer an approval offers (spec 2026-11-15, 10.12): a face of the main video.
+         */
+        ApprovalChoice: {
+            /** Choice Id */
+            choice_id: string;
+            /** Image */
+            image: string;
+            /** Seconds */
+            seconds: number;
+        };
         /** ApprovalRequest */
         ApprovalRequest: {
             /** Allowed Decisions */
             allowed_decisions: ("approve" | "reject")[];
             /** Approval Id */
             approval_id: string;
+            /** Choices */
+            choices?: components["schemas"]["ApprovalChoice"][];
             /** Kind */
             kind: string;
             /** Prompt */
@@ -2072,6 +2086,8 @@ export interface components {
         ApprovalSubmission: {
             /** Approval Id */
             approval_id: string;
+            /** Choice */
+            choice?: string | null;
             /**
              * Decision
              * @enum {string}

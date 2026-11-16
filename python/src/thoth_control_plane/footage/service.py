@@ -269,6 +269,10 @@ class FootageInputs:
     # What the context card reads besides the post (spec 2026-11-15, 4.1); empty when unknown.
     figures: list[dict[str, Any]] = field(default_factory=list)
     transcript: str = ""
+    # Spec 10.12: the story's subject by face, the template of the main's chosen face group;
+    # None with `face_check` off (no faces, the operator chose none of them, or disabled).
+    subject: Any = None
+    face_check: bool = False
 
 
 def _main(inputs: FootageInputs) -> SourceReport:

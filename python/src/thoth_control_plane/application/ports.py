@@ -84,6 +84,8 @@ class ApprovalSubmission(BaseModel):
     approval_id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
     decision: Literal["approve", "reject"]
     note: str | None = Field(default=None, max_length=2_000)
+    # The offered answer an approve picks (spec 2026-11-15, 10.12); approvals with choices only.
+    choice: str | None = Field(default=None, pattern=r"^[a-z0-9_]{1,32}$")
 
 
 class WorkflowGateway(Protocol):
