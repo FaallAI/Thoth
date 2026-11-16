@@ -374,3 +374,250 @@ Adapt this to the existing `Downloader` fake's failure hook.
   3. a new Mutant run judged by the operator;
   4. one paid narration;
   5. merge PR #133.
+
+---
+
+## Amendments for spec 10.12 (the subject by text and by face)
+
+Spec 10.12 amends Tasks 2-5 and adds Tasks 7-10. Where this section differs from the tasks above, it wins. Order: Tasks 1, 2 (amended), 3 (amended), 4, 5 (amended), 6, 7, 8, 9, 10.
+
+### Global Constraints, added
+
+- **The text gate** (revisions 1 and 5):
+  - a candidate that names the subject (`people[0]`: its name, aliases, hashtag form or "nya" form) may be up to 730 days older than the main post;
+  - one that matches only by event words keeps 30 days;
+  - one that names only other card people is rejected `story`;
+  - at most `MAX_OLD = 2` admitted clips per run are older than 30 days. Further ones are rejected `too_old`.
+- **The vision prompt carries no person's name.** `same_event` is judged against one frame of the main, sent as the first image.
+- **Face models:**
+  - **YuNet** `face_detection_yunet_2023mar.onnx`, from `https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx`, sha256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`;
+  - **ArcFace r50**, from Hugging Face `immich-app/buffalo_l` at revision `381829d83a41c0d0e03d0c5b9a4f6ddcaf5d6855`, file `recognition/model.onnx`, sha256 `4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43`;
+  - both are baked into `/opt/thoth/models/faces/{yunet,arcface}.onnx`. A missing file raises; it is never skipped.
+- **Face numbers:**
+
+  | Constant | Value |
+  |---|---|
+  | `FACE_FPS` | 1.0 |
+  | `MIN_FACE` | 40 px |
+  | `DETECT_SCORE` | 0.8 |
+  | `GROUP_LINK` | 0.25 (average linkage) |
+  | `MIN_SECONDS` | 3 |
+  | `CLEAR_RATIO` | 1.5 |
+  | `MAX_CHOICES` | 4 |
+  | `TEMPLATE_SIZE` | 16 (members evenly spaced by time) |
+  | `TOP_K` | 5 |
+  | `MATCH` | 0.42 |
+  | `MATCH_SECONDS` | 2 |
+  | `MAX_DISCUSSES` | 1 |
+
+  - **Embedding:** YuNet-aligned 112 px crop, `blobFromImage(crop, 1/127.5, (112,112), (127.5,)*3, swapRB=True)`, L2-normalised.
+- **Relations:** `related`, `same_event`, `discusses` and `unknown`. New reject reasons: `same_event`, `subject_absent` and `too_old`.
+- **The subject template crosses activities inside the workflow,** with no new table:
+  - members are float16, base64-encoded;
+  - face crops are 96 px JPEG, base64-encoded.
+
+### Review Focus, added
+
+6. **No main faces at all** (a screen recording). Expected:
+   - no stop, and the face check is off;
+   - every clip keeps its 10.3 relation, and `discusses` is never set.
+
+   Covered in Task 9: `test_no_main_faces_turn_the_face_check_off`.
+7. **The operator answers "none of these".** Expected: footage runs with the face check off, and the workflow does not fail. Covered in Task 8: `test_rejecting_every_face_runs_footage_without_the_check`.
+8. **A cancel during the subject stop.** Expected: the run is cancelled, and footage never starts. Covered in Task 8: `test_cancel_while_choosing_the_subject`.
+9. **A same-event clip without the subject's face.** Expected: rejected `subject_absent`, and it does not take the `discusses` slot. Covered in Task 9: `test_a_same_event_clip_needs_the_subject`.
+10. **A workflow history from before the subject stage** (replay). Expected: no `find_subject` activity, and footage runs as before. Covered in Task 8 by `workflow.patched(SUBJECT_PATCH)` and the replay test pattern the module already uses.
+
+### Task 2, amended
+
+- **Produces in addition:**
+  - `subject_names(card) -> list[str]`: `people[0]`'s name plus its aliases, `norm`-ed;
+  - `names_subject(text, card) -> bool`;
+  - `names_person` stays and is used only to tell "names another person" apart.
+- **`_off_story`:**
+  - names the subject → `not in_window(..., before=PERSON_WINDOW)`;
+  - names only another person → off story;
+  - otherwise → the 30-day window and the event-term rule, as before.
+- **Tests in addition:**
+  - `test_a_clip_naming_only_another_person_is_off_story`: a "Denny Sumargo podcast" caption with no subject name → `story`;
+  - in `test_older_person_clips_pass_the_story_gate`, the old clip names "Mutant", the subject.
+- **Long-video sections:** `_sections` keeps only caption moments whose text `names_subject`. Test: `test_sections_are_cut_only_where_the_subject_is_named`, a podcast caption track with one cue naming "Saiful" and a denser one naming nobody. Only the named moment is cut.
+
+### Task 3, amended
+
+- `AgnoFootageJudge.judge(frames, visual, *, person=False, reference: Frame | None = None)` replaces the `scene` parameter.
+  - When `reference` is set, it is sent as the first image, and the prompt adds: `'same_event: the first image is from another video; do the other frames show that same scene and moment? Answer yes or no. '`.
+- **The prompts drop names:**
+  - **`PERSON_PROMPT`'s kind rule** reads "the video showing a real person themself speaking or acting on camera (at an event, a press conference, a visit, or an interview they give) is footage; a news anchor, a slideshow, still photos, or a reaction is commentary";
+  - **`shows_object` for a person query** asks `"is a real person on screen (not a photo, a graphic, or a slideshow)?"`.
+- **Visuals:**
+  - a person query's `visual` is `"a person on camera"`;
+  - a related event's `visual` is its event text with the card names removed (`strip_names(text, card)`, which replaces each card name and alias with "a person");
+  - a section's `visual` is `"a person on camera"`.
+- **The reference frame** is the main's middle frame at `VISION_WIDTH`, read once per run into `_Build.reference`. With no card, it is `None`, so no same-event question is asked.
+- **Tests:** `test_the_scene_question_is_asked_only_with_a_reference` and `test_no_names_reach_the_vision_prompt`. The second builds a Mutant run and asserts that no card name or alias appears in any recorded `visual`.
+
+### Task 4, amended
+
+- **`too_old`:**
+  - checked inside `copy_lock`, before the admit;
+  - when the candidate's `published_at` is more than 30 days before the main's and `state.old >= MAX_OLD`, it is rejected `too_old`;
+  - `state.old` counts admitted old clips, and a displaced old clip lowers it.
+- **Test:** `test_at_most_two_old_clips`, with 3 old subject-named clips: 2 admitted and 1 `too_old`.
+
+### Task 5, amended
+
+- **The relation CHECK lists:** `('related', 'same_event', 'discusses', 'unknown')`.
+- **The reason CHECK adds:** `'same_event'`, `'subject_absent'` and `'too_old'`.
+- **The comment line** names spec 10.12 too.
+
+### Task 7: Face models and the face reader
+
+**Files:**
+- Modify: `docker/fetch_speech_models.py`:
+  - a `FACES` pin dict;
+  - `fetch_faces(out)`, wired into the existing CLI the way the diarization models are.
+- Modify: `Dockerfile`, adding `test -r /opt/thoth/models/faces/yunet.onnx && test -r /opt/thoth/models/faces/arcface.onnx` beside the diarization checks.
+- Modify: `python/src/thoth_control_plane/config.py`, adding `THOTH_FACE_MODELS_DIR: Path = Path("/opt/thoth/models/faces")`.
+- Create: `python/src/thoth_control_plane/footage/faces.py`, the pure rules over embeddings with no cv2 and no onnx.
+- Create: `python/src/thoth_control_plane/footage/adapters/faces.py`, the reader.
+- Test:
+  - `python/tests/footage/test_faces.py` for the pure rules;
+  - `python/tests/footage/test_face_reader.py` for the models, skipped when the model files are absent.
+
+**Interfaces:**
+- Produces, in `footage/faces.py`:
+  - `@dataclass(frozen=True) class Face: second: int; embedding: np.ndarray; crop: bytes`;
+  - `@dataclass(frozen=True) class FaceGroup: members: list[Face]; seconds: int`;
+  - `group_faces(faces: Sequence[Face]) -> list[FaceGroup]`: average linkage at `GROUP_LINK`; only groups with at least `MIN_SECONDS` distinct seconds; ordered by seconds, descending;
+  - `clear_subject(groups) -> FaceGroup | None`: the first group when it alone counts, or when its seconds are at least `CLEAR_RATIO` times the second group's; otherwise `None`;
+  - `template(group) -> np.ndarray`: up to `TEMPLATE_SIZE` member embeddings, evenly spaced by second;
+  - `shows_subject(template, faces) -> bool`: true when faces in at least `MATCH_SECONDS` distinct seconds have a mean of their `TOP_K` best similarities of at least `MATCH`;
+  - `encode_template(array) -> str` and `decode_template(text) -> np.ndarray` (float16, base64).
+- Produces, in `adapters/faces.py`:
+  - `class FaceReader` with `__init__(models_dir: Path)`, which loads both models and raises `FileNotFoundError` when either is missing;
+  - `faces(path: Path, start: float = 0.0, duration: float | None = None) -> list[Face]`, which reads at `FACE_FPS` with cv2, detects, aligns with `FaceRecognizerSF.alignCrop`, and embeds with onnxruntime. Since cv2 needs a recognizer instance only to align, it is created with an empty model path, if OpenCV allows it. Otherwise the alignment uses `cv2.estimateAffinePartial2D` to the ArcFace five-point template.
+  - Callers run it through `asyncio.to_thread`. The builder measures the event-loop lag on a 60 s main; see memory "native GIL holders need a process". If the lag exceeds 1 s, it moves to a process pool and records the ruling.
+
+**Steps:**
+1. Write the failing tests:
+   - `test_group_faces_ranks_by_screen_time`;
+   - `test_clear_subject_needs_one_and_a_half_times_the_next` (Mutant numbers: 54 vs 31 → clear; 30 vs 25 → `None`; one group → clear; none → `None`);
+   - `test_shows_subject_needs_two_seconds_at_0_42`;
+   - `test_template_round_trips_through_text`.
+
+   Use synthetic unit vectors.
+2. Run them, and watch them fail.
+3. Implement.
+4. Run them, and watch them pass. Then run the reader test in WSL with `THOTH_FACE_MODELS_DIR=/mnt/d/thoth-tmp/face-spike/models`, after copying `arcface_r50.onnx` to `arcface.onnx` there. It asserts at least one face on a 3-frame fixture cut from the spike's `pos_akting.mp4`; commit that fixture only if it is under 300 KB, and otherwise skip it with a reason.
+5. Commit: `feat(footage): read and group faces with ArcFace`.
+
+### Task 8: The subject stage in the workflow
+
+**Files:**
+- Modify: `python/src/thoth_control_plane/activities/footage.py`:
+  - `find_subject(FootageActivityInput) -> SubjectResult`;
+  - `FootageActivityInput.subject: str | None = None` (an encoded template);
+  - `FootageActivityInput.face_check: bool = False`.
+- Modify: `python/src/thoth_control_plane/worker.py`, to register the activity.
+- Modify: `python/src/thoth_control_plane/domain/models.py`:
+  - `ApprovalChoice(StrictModel)`: `choice_id`, `image` (a data URI, at most 40 000 chars) and `seconds: int`;
+  - `ApprovalRequest.choices: list[ApprovalChoice] = []`;
+  - `ApprovalDecision.choice: str | None = None`.
+- Modify: `python/src/thoth_control_plane/application/ports.py`, adding `ApprovalSubmission.choice: str | None = None`.
+- Modify: `python/src/thoth_control_plane/infrastructure/temporal_gateway.py`, to pass `choice` into the signal.
+- Modify: `python/src/thoth_control_plane/workflows/source_investigation.py`:
+  - `SUBJECT_PATCH = "footage-subject"`;
+  - `_footage()` first runs `find_subject`;
+  - when the result is doubtful, it stops on `ApprovalRequest(kind="choose_subject", prompt="Who is this story about?", allowed_decisions=["approve","reject"], choices=...)`;
+  - `record_approval` accepts `choice` only when it names one of the choices.
+- Regenerate: `python/openapi.json` and the dashboard's generated types, with the repo's existing commands.
+- Test:
+  - `python/tests/activities/test_footage_activity.py` (or the existing footage activity test);
+  - `python/tests/workflows/test_source_investigation*.py`;
+  - `python/tests/api` for the submission.
+
+**Interfaces:**
+- `SubjectResult(StrictModel)`:
+  - `status: Literal["clear", "doubtful", "none"]`;
+  - `subject: str | None`, the encoded template when clear;
+  - `choices: list[SubjectChoice]`, where each `SubjectChoice` holds `choice_id`, `image`, `seconds` and `template`; present when doubtful, at most `MAX_CHOICES`.
+- **The workflow:**
+  - **clear:** `build_footage(subject=..., face_check=True)`;
+  - **none:** `face_check=False`;
+  - **doubtful:** stop. An approve with a choice gives that choice's template and `face_check=True`; a reject gives `face_check=False`. Either way, the stop's status is restored to `RUNNING` afterwards, and the stage plan is unchanged.
+- **The `find_subject` activity:**
+  - reads the main video the way `build_footage` does;
+  - runs `FaceReader.faces`, `group_faces` and `clear_subject`.
+- **A `find_subject` failure** after its retries fails the footage stage the same way a `build_footage` failure does.
+
+**Steps:**
+1. Write the failing tests:
+   - `test_a_clear_subject_runs_footage_with_the_check`;
+   - `test_a_doubtful_subject_waits_for_a_choice` (signal with `choice="g1"` → `build_footage` gets g1's template);
+   - `test_rejecting_every_face_runs_footage_without_the_check` (Review Focus 7);
+   - `test_cancel_while_choosing_the_subject` (Review Focus 8);
+   - `test_a_choice_outside_the_offered_faces_is_ignored`;
+   - an API test: `choice` passes through `POST .../approval`.
+
+   Use the existing workflow test harness and stub activities.
+2. Run them, and watch them fail.
+3. Implement.
+4. Run them, and watch them pass, with `make test T=tests/workflows`, `T=tests/activities` and `T=tests/api`.
+5. Commit: `feat(workflow): stop for the story's subject when the face is unclear`.
+
+### Task 9: The face check in footage screening
+
+**Files:**
+- Modify: `python/src/thoth_control_plane/footage/service.py`:
+  - `FootageInputs.subject` / `face_check`;
+  - `_Build.subject: np.ndarray | None` and `_Build.discusses: int`;
+  - the face step in `_check` after OCR and before vision;
+  - `relation` per spec 10.12.
+- Modify: `python/src/thoth_control_plane/footage/ports.py`, adding `faces: FaceReader | None = None` to the ports.
+- Modify: the activity wiring, to build `FaceReader(settings.THOTH_FACE_MODELS_DIR)` when `face_check` is true.
+- Test: `python/tests/footage/test_service.py`, with a `Faces` fake that returns fixed `Face` lists per URL.
+
+**Rules in `_check`:**
+- With the face check on:
+  - `on = shows_subject(state.subject, await asyncio.to_thread(faces.faces, path, ...))`.
+- After vision:
+  - vision `same_event` and `on` → `same_event` (then the Task 4 rule);
+  - vision `same_event` and not `on` → reject `subject_absent`;
+  - `on` → `related`;
+  - not `on`, the text names the subject, and `state.discusses < MAX_DISCUSSES` → `discusses`, and `state.discusses += 1` after the admit lands;
+  - otherwise → reject `subject_absent`.
+- A clip with no faces at all and the slot taken is `subject_absent` too.
+- To save the paid call, the face step runs before vision. Vision still runs for a face-less clip that may take the `discusses` slot.
+- With the face check off: Task 3's relations, unchanged.
+
+**Steps:**
+1. Write the failing tests:
+   - `test_a_clip_without_the_subject_is_rejected_subject_absent`;
+   - `test_one_clip_may_discuss_the_subject_without_showing_them`;
+   - `test_a_same_event_clip_needs_the_subject` (Review Focus 9);
+   - `test_no_main_faces_turn_the_face_check_off` (Review Focus 6);
+   - `test_a_clip_without_the_subject_spends_no_vision_call` (the judge is not called when the slot is taken).
+2. Run them, and watch them fail.
+3. Implement.
+4. Run them, and watch them pass, with `make test T=tests/footage`.
+5. Commit: `feat(footage): keep only clips that show the story's subject`.
+
+### Task 10: The dashboard asks who the story is about
+
+**Files:**
+- Modify: `dashboard/src/features/workflows/RunDetailPage.tsx`. When `summary.approval.kind === "choose_subject"`, it shows the choice images as buttons, each with its screen time. A click approves with that `choice`, and a "None of these" button rejects.
+- Modify: the client's `approveWorkflow` payload type (generated), and `dashboard/src/lib/i18n.ts` (EN + ID):
+  - `approval.subjectTitle`: "Who is this story about?" / "Siapa tokoh cerita ini?";
+  - `approval.subjectNone`: "None of these" / "Bukan salah satunya";
+  - `approval.subjectSeconds`: "{n} s on screen" / "{n} detik di layar".
+- Test: `RunDetailPage.test.tsx`. It renders the 2 choices, a click sends `{approval_id, decision: "approve", choice: "g1"}`, and "None of these" sends `reject`.
+
+**Steps:** write the failing test, watch it fail, implement, then run `bun --cwd=dashboard test`, `tsc -b` and the build until they pass. Commit: `feat(dashboard): choose the story's subject when the face is unclear`.
+
+### After the tasks, amended
+
+- **Gates:**
+  - deploy needs migration 0035 and a new worker image carrying about 167 MB of face models;
+  - the live Mutant run is expected to go without a stop.
+- **The final review** covers Tasks 1-10.

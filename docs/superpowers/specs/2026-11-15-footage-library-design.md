@@ -555,3 +555,78 @@ The following stay as they are:
 - where `relation` is set in code;
 - how the hashtag form is built from a name;
 - the migration's shape, which follows 0034.
+
+### 10.12 Revision after the face spikes (2026-11-16, items 70-76)
+
+The operator approved revisions 1-6 ("ya sesuai") and set the rule "harus tokoh yang di ceritakan saja dan berhubungan dengan tokoh tersebut". Spike 3 and the operator's ground truth (item 76) showed that ArcFace holds the subject across events:
+- the same person scores 0.54-0.57;
+- different people score at most 0.30;
+- SFace overlapped, with 0.33-0.53 for both.
+
+The earlier podcast section had shown Tretan Muslim, not Saiful. This section amends 10.3-10.7. Where it differs from them, this section wins.
+
+**The subject (`people[0]`).** It is held two ways:
+- **By text:** the card's name for the subject, its aliases, its hashtag form, and the "nya" form (10.4, 10.5).
+- **By face:** the face that stays longest on screen in the main video.
+
+**Text gate** (revisions 1, 2 and 5):
+- **Revision 1.** Every candidate that is not about the incident must name the subject in its title or caption. A clip that names only other card people (Densu, Tretan Muslim) is rejected `story`.
+- **Revision 2.** Long-video sections are cut only at caption moments that name the subject.
+- **Revision 5.** At most 2 admitted clips per run may be older than 30 days. Further old clips are rejected with the new reason `too_old`.
+
+**The vision judge gets no names** (revision 3):
+- Its prompt describes the frames. It answers `shows_object` as "a real person is on screen", not a slideshow, a still, a graphic or a news anchor.
+- `same_event` (10.5) is judged against one frame of the main, sent as the first image, instead of the card's event text.
+- The `visual` text no longer carries a person's name.
+
+**The face check** replaces revision 4. Same-event detection stays with the vision `same_event` field.
+- **Models:** YuNet (`face_detection_yunet_2023mar.onnx`, OpenCV zoo) and ArcFace r50 (InsightFace buffalo_l `recognition/model.onnx`, through Hugging Face `immich-app/buffalo_l`). Both are baked into the worker image and verified by SHA-256 (the operator waived licence concerns, item 74). A missing model file is an explicit error, never a silent skip.
+- **The main's faces:**
+  - frames are read at 1 fps;
+  - faces with a short side of at least 40 px and a detector score of at least 0.8 are aligned to 112 px and embedded;
+  - the faces are grouped by average linkage at 0.25;
+  - a group counts when it covers at least 3 distinct seconds, and its screen time is that number of seconds.
+- **Clear subject:** the top group's screen time is at least 1.5 times the next group's, or no other group counts. The run goes on without a stop. On the Mutant main this is Saiful at 54 s against Densu at 31 s.
+- **Doubtful subject** (the operator's choice, "tertahan hanya kalau ragu"). Two or more groups count and the top one is not clear. The run stops before footage is searched and waits on an approval of kind `choose_subject`:
+  - the approval shows up to 4 groups, each as one face crop with its screen time;
+  - the operator picks one face, and that group becomes the subject;
+  - or the operator answers "none of these", and footage runs with the face check off;
+  - the run waits like the acquisition approval does, with no timeout, and can still be cancelled;
+  - the run appears in the Inbox's approvals, as any awaiting run does.
+- **No group counts** (no faces, or faces too small). The face check is off for the run, with a warning logged. There is no stop.
+- **A candidate:**
+  - its downloaded window is read at 1 fps;
+  - each face is scored by the mean of its 5 best similarities to the subject group's faces;
+  - the subject is on screen when faces in at least 2 distinct seconds score 0.42 or more.
+  - The check runs after OCR and before the vision judge, so a clip without the subject spends no paid call.
+
+**Relation** (amends 10.3):
+- `same_event`: vision says the frames show the main's scene, and the subject is on screen.
+- `related`: another event, with the subject on screen.
+- `discusses` (new; the operator's choice "boleh 1 klip per run"): the text names the subject, but the subject's face is not on screen. An example is Tretan Muslim talking about Saiful on a podcast.
+  - At most 1 per run. Any further one is rejected with the new reason `subject_absent`.
+  - A same-event clip without the subject is also rejected `subject_absent`.
+- `unknown`: stored before this section.
+- **When the face check is off,** every clip that passes the text gate is `related` or `same_event` as in 10.3, and the `discusses` cap does not apply.
+
+**Library** (amends 10.7): a reused library clip is checked like any candidate, so the face check applies to it. Only `related` clips are reused, as in 10.7.
+
+**YouTube block** (item 74). The block lifted on its own within the hour, so no proxy is built now. The media-failure causes (10.8) show a recurrence, and a proxy fallback on a bot check is its own decision.
+
+**Evaluation** (adds to 10.10):
+- **Offline:** tests use stub face embeddings for:
+  - the clear and doubtful rules;
+  - the 0.42 / 2-second match;
+  - the `discusses` cap;
+  - the 2-old-clips cap;
+  - the approval round trip;
+  - the face check being off.
+- **One model test:** it runs the real models on a small fixture, when the model files are present.
+- **Live,** at the operator gate: a new Mutant run. It goes on without a stop (Saiful is clear), and no admitted clip shows Tretan Muslim as its only person.
+
+**Left out:**
+- a correction after the run (re-screening footage with another face);
+- showing the chosen face when there was no stop;
+- the face check on photos.
+
+Each waits on the operator's request.
