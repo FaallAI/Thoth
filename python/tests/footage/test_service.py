@@ -2567,3 +2567,93 @@ async def test_no_main_faces_turn_the_face_check_off(
     ).build(_inputs(tmp_path, _video_main(tmp_path)))
     assert sorted(_relations(store).values()) == ["related", "related"]
     assert faces.calls == 0
+
+
+async def test_a_same_event_holder_beaten_as_a_copy_is_displaced_once(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Important 1: two clean originals that copy each other
+    late = _video(1, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-12T08:00:00Z"}
+    )
+    early = _video(2, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-09T08:00:00Z"}
+    )
+    ports = _copies(**{_url(1, "dennysumargo"): "rec9", _url(2, "dennysumargo"): "rec9"})
+    builder = _builder(
+        store,
+        search=Search(_hits(late, early, query="Mutant USS Denny Sumargo")),
+        judge=_same_event_judge(),
+        card=Cards(_card()),
+        context_enabled=True,
+        **ports,
+    )
+    builder._concurrency = 1  # the later original is kept before the earlier one is checked
+    result = await builder.build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2, "dennysumargo")]
+    assert rows[_url(1, "dennysumargo")].reason == "duplicate"  # displaced once, as the copy
+    assert result.admitted == 1
+
+
+async def test_a_retry_rebuilds_the_caps_from_the_kept_clips(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Important 2
+    from thoth_control_plane.footage.models import AdmittedClip, NewCandidate
+    from thoth_control_plane.footage.service import _Build, _sha256
+
+    store.start_run("wf_a", [])
+    kept = {
+        "https://www.tiktok.com/@a/video/7700000000000000001": ("discusses", None),
+        "https://www.tiktok.com/@dennysumargo/video/7700000000000000002": ("same_event", None),
+        "https://www.tiktok.com/@a/video/7700000000000000003": ("related", "2025-01-01T00:00:00Z"),
+    }
+    for position, (url, (relation, published)) in enumerate(kept.items()):
+        clip = tmp_path / "reports" / "wf_a" / "footage" / f"{position}.mp4"
+        clip.parent.mkdir(parents=True, exist_ok=True)
+        clip.write_bytes(url.encode() * 50)
+        store.add_candidates(
+            "wf_a",
+            [
+                NewCandidate(
+                    url=url,
+                    platform="tiktok",
+                    source="search",
+                    query="q",
+                    visual="v",
+                    owner_handle="dennysumargo" if "denny" in url else "a",
+                    published_at=published,
+                )
+            ],
+        )
+        store.admit(
+            "wf_a",
+            url,
+            AdmittedClip(
+                kind="footage",
+                shows_object="yes",
+                description="d",
+                media_location=f"reports/wf_a/footage/{position}.mp4",
+                media_checksum=_sha256(clip),
+                media_bytes=clip.stat().st_size,
+                clip_duration=20.0,
+                clip_start=0.0,
+                ocr={},
+                position=position,
+                relation=relation,
+            ),
+        )
+    state = _Build(card=_card(), main_published="2026-10-10T08:00:00Z")
+    await _builder(store)._verify_admitted("wf_a", tmp_path, state)
+    urls = list(kept)
+    assert state.discussing == {urls[0]}
+    assert state.same_event is not None and state.same_event.url == urls[1]
+    assert state.old == {urls[2]}
+
+
+async def test_a_carousel_slide_skips_the_face_check(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Minor 6 re-graded: the main's own slides are its own footage
+    _slides(tmp_path, 2)
+    faces = Faces(set())
+    result = await _builder(store, faces=faces).build(_face_inputs(tmp_path, _report(slides=2)))
+    assert result.admitted == 1 and faces.calls == 0

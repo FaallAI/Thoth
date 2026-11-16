@@ -4,6 +4,7 @@ baked into the worker image; a missing file is an explicit error."""
 
 from __future__ import annotations
 
+import functools
 import threading
 from pathlib import Path
 
@@ -40,6 +41,13 @@ def similarity(source: np.ndarray, target: np.ndarray) -> np.ndarray:
     scale = float((singular * np.diag(sign)).sum() / centred_s.var(axis=0).sum())
     shift = mean_t - scale * rotation @ mean_s
     return np.hstack([scale * rotation, shift[:, None]]).astype(np.float32)
+
+
+@functools.cache
+def shared_reader(models_dir: Path) -> FaceReader:
+    """One reader per worker: the subject stage and the screening share its ArcFace session
+    (final review, 5: two sessions held two copies of the model)."""
+    return FaceReader(models_dir)
 
 
 class FaceReader:

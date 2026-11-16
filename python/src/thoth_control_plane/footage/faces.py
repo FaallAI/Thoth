@@ -26,6 +26,9 @@ TOP_K = 5
 MATCH = 0.42
 MATCH_SECONDS = 2
 EMBEDDING_DIM = 512
+# The main's faces are read from its first 3 minutes: a long main would hold the worker for
+# minutes and grow the O(n^2) grouping past memory (final review, 3).
+MAIN_SECONDS = 180.0
 
 
 @dataclass(frozen=True)
@@ -47,7 +50,7 @@ def group_faces(faces: Sequence[Face]) -> list[FaceGroup]:
     if not faces:
         return []
     vectors = np.vstack([face.embedding for face in faces]).astype(np.float32)
-    # ponytail: O(n^2) memory and O(n^3) merges; a 3-minute main holds a few hundred faces.
+    # ponytail: O(n^2) memory and O(n^3) merges; MAIN_SECONDS keeps n to a few hundred.
     sums = vectors @ vectors.T  # pairwise similarity sums between groups
     sizes = np.ones(len(faces))
     alive = np.ones(len(faces), dtype=bool)

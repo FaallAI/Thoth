@@ -269,9 +269,11 @@ class Finder:
     def __init__(self, faces: list[object]) -> None:
         self.faces_found = faces
         self.paths: list[Path] = []
+        self.durations: list[float | None] = []
 
     def faces(self, path: Path, start: float = 0.0, duration: float | None = None) -> list[object]:
         self.paths.append(path)
+        self.durations.append(duration)
         return self.faces_found
 
 
@@ -350,3 +352,17 @@ async def test_the_chosen_subject_reaches_the_builder(tmp_path: Path, report_sto
     )
     (inputs,) = builder.inputs
     assert inputs.face_check and inputs.subject.shape == (2, 512)  # type: ignore[attr-defined]
+
+
+async def test_the_subject_reads_a_bounded_part_of_the_main(tmp_path: Path, report_store) -> None:
+    # Final review, Important 3: a long main never stalls the worker on its faces.
+    from thoth_control_plane.activities.footage import build_subject_activity
+    from thoth_control_plane.footage.faces import MAIN_SECONDS
+
+    media = _with_main_video(tmp_path, report_store)
+    finder = Finder(_person(1, range(20)))
+    activity = build_subject_activity(
+        _settings(tmp_path), faces=finder, reports=report_store, media=media
+    )
+    await activity(FootageActivityInput(workflow_id="wf_a"))
+    assert finder.durations == [MAIN_SECONDS] and MAIN_SECONDS <= 180

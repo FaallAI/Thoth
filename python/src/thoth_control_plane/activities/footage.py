@@ -215,6 +215,7 @@ async def _find(
 ) -> SubjectResult:
     """The subject by face (spec 2026-11-15, 10.12): the main's face groups by screen time."""
     from thoth_control_plane.footage.faces import (
+        MAIN_SECONDS,
         MAX_CHOICES,
         clear_subject,
         encode_template,
@@ -244,8 +245,9 @@ async def _find(
         return SubjectResult(status="none")
     async with heartbeating(_heartbeat), MediaScratch(media, scratch_dir) as scratch:
         await scratch.pull(videos[:1])
-        found = await asyncio.to_thread(faces.faces, scratch.root / videos[0])
-    groups = group_faces(found)
+        found = await asyncio.to_thread(faces.faces, scratch.root / videos[0], 0.0, MAIN_SECONDS)
+        # Off the event loop: the grouping is O(n^2) (final review, 3).
+        groups = await asyncio.to_thread(group_faces, found)
     logger.info(
         "footage subject faces=%d groups=%s", len(found), [group.seconds for group in groups[:4]]
     )
@@ -276,9 +278,9 @@ def build_subject_activity(
 ) -> Callable[[FootageActivityInput], Awaitable[SubjectResult]]:
     selected = faces
     if selected is None and settings.THOTH_FOOTAGE_ENABLED:
-        from thoth_control_plane.footage.adapters.faces import FaceReader
+        from thoth_control_plane.footage.adapters.faces import shared_reader
 
-        selected = FaceReader(settings.THOTH_FACE_MODELS_DIR)  # missing models raise here
+        selected = shared_reader(settings.THOTH_FACE_MODELS_DIR)  # missing models raise here
     selected_reports = reports or connect_reports(settings)
     selected_media = media or build_media_store(settings)
     scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
@@ -337,7 +339,7 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
-    from thoth_control_plane.footage.adapters.faces import FaceReader
+    from thoth_control_plane.footage.adapters.faces import shared_reader
     from thoth_control_plane.footage.adapters.photos import HttpPhotoFetcher
     from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
     from thoth_control_plane.footage.adapters.search import build_platform_search
@@ -375,7 +377,7 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             recording_frames=FfmpegFrameSource(settings.THOTH_FFMPEG, width=RECORDING_WIDTH),
             matcher=OrbMatcher(step=1),
             # The story's subject by face (spec 2026-11-15, 10.12).
-            faces=FaceReader(settings.THOTH_FACE_MODELS_DIR),
+            faces=shared_reader(settings.THOTH_FACE_MODELS_DIR),
             **context_ports(settings, key, build_media_store(settings)),  # type: ignore[arg-type]
         ),
         # The curated JSON list is not a filter (operator, 2026-10-31).

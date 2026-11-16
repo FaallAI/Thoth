@@ -1113,10 +1113,10 @@ class FootageBuilder:
     ) -> FootageResult:
         state.phase = "checks"
         workflow, root = inputs.workflow_id, inputs.artifact_root
+        state.main_published = main.post.published_at
         admitted_hashes = await self._verify_admitted(workflow, root, state)
         main_hashes = await self._main_hashes(main, root)
         await self._main_recording(main, root, state)
-        state.main_published = main.post.published_at
         if state.card is not None:
             state.reference = await self._reference(main, root)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
@@ -1287,7 +1287,7 @@ class FootageBuilder:
                 workflow, root, candidate, location, owned, "media_failed", state
             )
         shown = True
-        if state.subject is not None:
+        if state.subject is not None and candidate.source != "carousel":
             # Spec 10.12: before the paid call, so a clip without the subject costs nothing.
             steps[candidate.url] = "faces"
             shown = await self._shows_subject(path, state)
@@ -1408,7 +1408,8 @@ class FootageBuilder:
             if relation == "discusses":
                 state.discussing.add(candidate.url)
             if relation == "same_event":
-                if held is not None:
+                # A holder beaten as a copy in `_settle` is gone already (final review, 1).
+                if held is not None and state.same_event is held:
                     await self._displace(workflow, held, admitted_hashes, state, "same_event")
                 state.same_event = _Recording(
                     candidate.url,
@@ -1769,7 +1770,30 @@ class FootageBuilder:
             hashes.append(await self._hashes(path, trim, candidate.clip_duration or 0.0))
             if state is not None and self._copy_check and candidate.url not in state.recordings:
                 await self._record(candidate, path, hashes[-1], state)
+            if state is not None:
+                self._recount(candidate, hashes[-1], state)
         return hashes
+
+    def _recount(self, candidate: CandidateView, hashes: list[int], state: _Build) -> None:
+        """A clip an earlier attempt kept holds its cap again on a retry (final review, 2)."""
+        if candidate.relation == "discusses":
+            state.discussing.add(candidate.url)
+        if candidate.relation == "same_event":
+            state.same_event = state.recordings.get(candidate.url) or _Recording(
+                candidate.url,
+                candidate.url.partition(SECTION_MARK)[0],
+                quota_key(candidate),
+                [],
+                CopyFacts(
+                    candidate.url,
+                    self._original(candidate, state),
+                    0.0,
+                    candidate.published_at,
+                ),
+                hashes,
+            )
+        if not in_window(candidate.published_at, state.main_published, self._clock()):
+            state.old.add(candidate.url)
 
     async def _record(
         self, candidate: CandidateView, path: Path, hashes: list[int], state: _Build

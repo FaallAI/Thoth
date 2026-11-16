@@ -57,3 +57,9 @@ def test_the_subject_is_found_in_another_event_and_another_person_is_not() -> No
     kept = template(subject)
     assert shows_subject(kept, reader.faces(FACES / "same_person.mp4"))
     assert not shows_subject(kept, reader.faces(FACES / "other_person.mp4"))
+
+
+def test_the_worker_shares_one_reader() -> None:  # final review, Minor 5 re-graded: memory
+    from thoth_control_plane.footage.adapters.faces import shared_reader
+
+    assert shared_reader(_models()) is shared_reader(_models())
