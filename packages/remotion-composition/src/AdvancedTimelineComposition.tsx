@@ -305,8 +305,9 @@ export function AdvancedTimelineComposition({
   return (
     <AbsoluteFill style={CANVAS}>
       {/* Lanes are editor rows, so a hidden track still has one; the composition drops it. */}
-      {lanes.flatMap(({ track, clips }) =>
-          clips
+      {/* Within a lane, by layer: a clip stacked over another is drawn after it (spec 2026-11-17). */}
+      {lanes.flatMap(({ track, layered }) =>
+          layered
             .filter((clip) => !clip.hidden)
             .map((clip) => (
               <Sequence
