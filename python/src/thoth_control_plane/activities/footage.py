@@ -337,6 +337,7 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
+    from thoth_control_plane.footage.adapters.faces import FaceReader
     from thoth_control_plane.footage.adapters.photos import HttpPhotoFetcher
     from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
     from thoth_control_plane.footage.adapters.search import build_platform_search
@@ -373,6 +374,8 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             # One copy of a recording (spec 2026-11-15, 9.9): 1 fps at 480 px, ORB in time.
             recording_frames=FfmpegFrameSource(settings.THOTH_FFMPEG, width=RECORDING_WIDTH),
             matcher=OrbMatcher(step=1),
+            # The story's subject by face (spec 2026-11-15, 10.12).
+            faces=FaceReader(settings.THOTH_FACE_MODELS_DIR),
             **context_ports(settings, key, build_media_store(settings)),  # type: ignore[arg-type]
         ),
         # The curated JSON list is not a filter (operator, 2026-10-31).

@@ -126,6 +126,7 @@ logger = logging.getLogger(__name__)
 
 MAX_FOOTAGE = 8  # spec 10.6
 MAX_OLD = 2  # clips older than 30 days per run (spec 10.12, revision 5)
+MAX_DISCUSSES = 1  # clips that talk about the subject without showing them (10.12)
 PER_QUERY = 2
 RESULTS_PER_QUERY = 8
 SEARCH_PLATFORMS = ("tiktok", "youtube", "x")
@@ -196,6 +197,10 @@ class _Build:
     # Spec 10.6 and 10.12: the one same-event clip kept, and the old clips kept.
     same_event: _Recording | None = None
     old: set[str] = field(default_factory=set)
+    # Spec 10.12: the subject's face template (None: no face check), and the clips kept that
+    # only discuss the subject.
+    subject: Any = None
+    discussing: set[str] = field(default_factory=set)
     media_causes: Counter[str] = field(default_factory=Counter)  # spec 10.8
     recordings: dict[str, _Recording] = field(default_factory=dict)
     displaced: list[str] = field(default_factory=list)
@@ -254,6 +259,9 @@ class FootagePorts:
     # without both, the copy check is skipped.
     recording_frames: Any | None = None
     matcher: Any | None = None
+    # The story's subject by face (spec 10.12): `FaceReader`; the check runs only when the
+    # workflow sends a subject.
+    faces: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -397,6 +405,10 @@ class FootageBuilder:
         """The body under a hard deadline: a step that ignores cancellation cannot hold the
         activity past it; the run finishes with what was admitted."""
         state = _Build()
+        if inputs.face_check and inputs.subject is not None:
+            if self._ports.faces is None:
+                raise AssemblyError("face_model_missing")  # a required tool fails loud
+            state.subject = inputs.subject
         body = asyncio.create_task(self._build(inputs, state))
         if await self._bounded(body, self._deadline + self._overrun) and not body.cancelled():
             return body.result()
@@ -1274,6 +1286,15 @@ class FootageBuilder:
             return await self._reject(
                 workflow, root, candidate, location, owned, "media_failed", state
             )
+        shown = True
+        if state.subject is not None:
+            # Spec 10.12: before the paid call, so a clip without the subject costs nothing.
+            steps[candidate.url] = "faces"
+            shown = await self._shows_subject(path, state)
+            if not shown and not self._may_discuss(candidate, state):
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "subject_absent", state
+                )
         steps[candidate.url] = "vision"
         try:
             answer = await self._ports.judge.judge(
@@ -1292,6 +1313,13 @@ class FootageBuilder:
             "description": answer.description,
         }
         relation = relation_of(answer, state.reference is not None)
+        if not shown:
+            # One clip may talk about the subject without showing them; never the incident.
+            if relation == "same_event":
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "subject_absent", state
+                )
+            relation = "discusses"
         # A section is a person talking (spec 10.5): it is never rejected as commentary.
         if answer.kind == "commentary" and candidate.source != "section":
             return await self._reject(
@@ -1339,6 +1367,10 @@ class FootageBuilder:
                 return await self._reject(
                     workflow, root, candidate, location, owned, "same_event", state, **seen
                 )
+            if relation == "discusses" and len(state.discussing) >= MAX_DISCUSSES:
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "subject_absent", state, **seen
+                )
             old = not in_window(candidate.published_at, state.main_published, self._clock())
             if old and len(state.old) >= MAX_OLD:
                 return await self._reject(
@@ -1373,6 +1405,8 @@ class FootageBuilder:
             )
             if old:
                 state.old.add(candidate.url)
+            if relation == "discusses":
+                state.discussing.add(candidate.url)
             if relation == "same_event":
                 if held is not None:
                     await self._displace(workflow, held, admitted_hashes, state, "same_event")
@@ -1426,6 +1460,20 @@ class FootageBuilder:
         picked = [frames[int(len(frames) * share)] for share in COPY_SHARES] if frames else []
         share = text_share([await self._ports.text.read(frame) for frame in picked])
         return CopyFacts(candidate.url, original, share, candidate.published_at)
+
+    async def _shows_subject(self, path: Path, state: _Build) -> bool:
+        from thoth_control_plane.footage.faces import shows_subject
+
+        faces = await asyncio.to_thread(self._ports.faces.faces, path)
+        return shows_subject(state.subject, faces)
+
+    @staticmethod
+    def _may_discuss(candidate: CandidateView, state: _Build) -> bool:
+        """A clip without the subject's face may still talk about them: its text names the
+        subject and the run keeps no such clip yet (spec 10.12)."""
+        if state.card is None or len(state.discussing) >= MAX_DISCUSSES:
+            return False
+        return names_subject(norm(f"{candidate.caption} {candidate.owner_handle}"), state.card)
 
     @staticmethod
     def _original(candidate: CandidateView, state: _Build) -> bool:
@@ -1508,6 +1556,7 @@ class FootageBuilder:
                 logger.warning("footage library drop failed error=%s", type(error).__name__)
         state.recordings.pop(other.url, None)
         state.old.discard(other.url)
+        state.discussing.discard(other.url)
         if state.same_event is not None and state.same_event.url == other.url:
             state.same_event = None
         admitted_hashes[:] = [h for h in admitted_hashes if h is not other.hashes]
@@ -1628,6 +1677,11 @@ class FootageBuilder:
             if main_hashes and is_duplicate(clip.hashes, [main_hashes]):
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
+                continue
+            # Spec 10.12: a library clip is checked like any candidate for the subject's face.
+            if state.subject is not None and not await self._shows_subject(path, state):
+                path.unlink(missing_ok=True)
+                await asyncio.to_thread(self._store.reject, workflow, clip.url, "subject_absent")
                 continue
             # Copies kept in the library come back once (spec 9.4, item 65).
             evidence = await self._evidence(rows[clip.url], path, state)

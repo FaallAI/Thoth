@@ -2436,3 +2436,134 @@ async def test_the_finished_line_counts_media_causes(
         ).build(_inputs(tmp_path))
     (finished,) = [r.getMessage() for r in caplog.records if "footage finished" in r.getMessage()]
     assert "media_causes={'ClipError(network)': 2}" in finished
+
+
+# The story's subject by face (spec 2026-11-15, 10.12).
+def _saiful_vector() -> Any:
+    import numpy as np
+
+    vector = np.random.default_rng(7).standard_normal(512).astype(np.float32)
+    return vector / np.linalg.norm(vector)
+
+
+class Faces:
+    """FaceReader's contract: a downloaded clip holds its URL's bytes (`Downloader`), so the
+    faces are looked up by the URL inside the file."""
+
+    def __init__(self, shown: set[str]) -> None:
+        self.shown = shown
+        self.calls = 0
+
+    def faces(self, path: Path, start: float = 0.0, duration: float | None = None) -> list[Any]:
+        from thoth_control_plane.footage.faces import Face
+
+        self.calls += 1
+        data = path.read_bytes()
+        if any(url.encode() in data for url in self.shown):
+            return [Face(second=s, embedding=_saiful_vector()) for s in (1, 2, 3)]
+        return []
+
+
+def _face_inputs(tmp_path: Path, main: SourceReport | None = None) -> FootageInputs:
+    from dataclasses import replace
+
+    import numpy as np
+
+    subject = np.vstack([_saiful_vector()] * 4)
+    return replace(_inputs(tmp_path, main), subject=subject, face_check=True)
+
+
+def _relations(store: FootageStore) -> dict[str, str]:
+    return {c.url: c.relation for c in store.admitted("wf_a")}
+
+
+async def test_a_clip_without_the_subject_is_rejected_subject_absent(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    shown = _video(1, caption=SHOWN)
+    incident = _video(2, caption="Keributan di Urban Sneaker Society USS")  # no subject name
+    search = Search(_hits(shown, incident, query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store, search=search, card=Cards(_card()), faces=Faces({_url(1)}), context_enabled=True
+    ).build(_face_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert _relations(store) == {_url(1): "unknown"}  # no main video: no scene asked
+    assert rows[_url(2)].reason == "subject_absent"
+
+
+async def test_a_clip_without_the_subject_spends_no_vision_call(
+    store: FootageStore, tmp_path: Path
+) -> None:  # the face check runs before the paid call
+    incident = _video(2, caption="Keributan di Urban Sneaker Society USS")
+    judge = Judge()
+    await _builder(
+        store,
+        search=Search(_hits(incident, query="Mutant USS Denny Sumargo")),
+        judge=judge,
+        card=Cards(_card()),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path))
+    assert judge.calls == []
+    assert store.candidates("wf_a")[0].reason == "subject_absent"
+
+
+async def test_one_clip_may_discuss_the_subject_without_showing_them(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-16: "boleh 1 klip per run"
+    talks = [_video(1, caption=SHOWN), _video(2, caption="Tretan Muslim bahas Mutant")]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): talks[:1],
+            ("tiktok", "Mutant minta diundang podcast Densu"): talks[1:],
+        }
+    )
+    await _builder(
+        store, search=search, card=Cards(_card()), faces=Faces(set()), context_enabled=True
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    reasons = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert list(_relations(store).values()) == ["discusses"]
+    assert reasons == ["subject_absent"]
+
+
+async def test_a_same_event_clip_needs_the_subject(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 9
+    own = _video(1, caption=SHOWN, owner="dennysumargo")
+    await _builder(
+        store,
+        search=Search(_hits(own, query="Mutant USS Denny Sumargo")),
+        judge=_same_event_judge(),
+        card=Cards(_card()),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    (row,) = store.candidates("wf_a")
+    assert (row.status, row.reason) == ("rejected", "subject_absent")
+
+
+async def test_the_subject_on_screen_is_related(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(
+        store,
+        search=Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        faces=Faces({_url(1)}),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    assert _relations(store) == {_url(1): "related"}
+
+
+async def test_no_main_faces_turn_the_face_check_off(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 6: the workflow sends face_check false
+    talks = [_video(1, caption=SHOWN), _video(2, caption="Tretan Muslim bahas Mutant")]
+    faces = Faces(set())
+    await _builder(
+        store,
+        search=Search(_hits(*talks, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        faces=faces,
+        context_enabled=True,
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    assert sorted(_relations(store).values()) == ["related", "related"]
+    assert faces.calls == 0
