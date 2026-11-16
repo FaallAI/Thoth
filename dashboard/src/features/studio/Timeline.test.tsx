@@ -1399,3 +1399,21 @@ test("a clip with moves shows Has effects", () => {
   render(<Timeline state={createEditorState(document)} dispatch={() => {}} onPlay={() => {}} onPause={() => {}} />);
   expect(screen.getAllByLabelText("Has effects")).toHaveLength(1);
 });
+
+
+test("clips that play at once stack on their own rows and stay selectable", () => {
+  // Spec 2026-11-17, goal 5: a lane holds layers, as an editor timeline does.
+  const doc = timelineDocument();
+  const main = doc.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  const stacked = { ...main, clip_id: "clip_main_twin", from_frame: 30, duration_in_frames: 60 };
+  doc.clips!.push(stacked);
+  doc.tracks.find((track) => track.track_id === main.track_id)!.clip_ids!.push("clip_main_twin");
+  const actions: EditorAction[] = [];
+  render(<Timeline state={createEditorState(doc)} dispatch={(action) => actions.push(action)} />);
+  const lower = document.getElementById("timeline-clip-clip_main")!.parentElement!;
+  const upper = document.getElementById("timeline-clip-clip_main_twin")!.parentElement!;
+  expect(lower.style.top).not.toBe(upper.style.top);
+  expect(parseFloat(upper.style.top)).toBeLessThan(parseFloat(lower.style.top)); // top layer on top
+  fireEvent.pointerDown(document.getElementById("timeline-clip-clip_main_twin")!, { button: 0, clientX: 10 });
+  expect(actions.some((action) => action.type === "select_clip" && action.clipId === "clip_main_twin")).toBe(true);
+});

@@ -19,7 +19,7 @@ import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
-import { ASSET_DRAG_TYPE, framesToPixels, type TimelineLane } from "./timeline_domain";
+import { ASSET_DRAG_TYPE, framesToPixels, ROW_HEIGHT, type TimelineLane } from "./timeline_domain";
 
 type Props = {
   lane: TimelineLane;
@@ -165,8 +165,9 @@ export function TimelineTrack({
       <div
         data-lane-well
         data-drop={refusesDrop ? "refused" : undefined}
-        className={`relative h-11 grow bg-well ${refusesDrop ? "cursor-not-allowed ring-1 ring-inset ring-destructive/60" : ""}`}
-        style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
+        className={`relative grow bg-well ${refusesDrop ? "cursor-not-allowed ring-1 ring-inset ring-destructive/60" : ""}`}
+        // One row per layer: clips that play at once stack, as in an editor timeline (spec 2026-11-17).
+        style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px`, height: `${(lane.layers ?? 1) * ROW_HEIGHT}px` }}
         onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
         onPointerUp={laneMenu?.onPointerUp}
         onPointerCancel={laneMenu?.onPointerCancel}
@@ -196,6 +197,7 @@ export function TimelineTrack({
             trackKind={track.kind}
             label={track.label}
             zoom={zoom}
+            row={(lane.layers ?? 1) - 1 - (lane.layerOf?.get(clip.clip_id) ?? 0)}
             selected={selectedClipIds.includes(clip.clip_id)}
             locked={clip.locked === true || track.locked === true}
             onSelect={(add) => onSelectClip(clip.clip_id, add)}

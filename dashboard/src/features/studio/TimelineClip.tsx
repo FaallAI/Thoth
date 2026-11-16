@@ -4,7 +4,7 @@ import { Lock, Sparkles } from "lucide-react";
 import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
-import { clipLabelSource, framesToPixels } from "./timeline_domain";
+import { clipLabelSource, framesToPixels, ROW_HEIGHT } from "./timeline_domain";
 import { glanceWindow, peakSlice, stripTiles } from "./clip_glance";
 
 /** Alt turns a body drag into a slip and a handle drag into a roll (Tier 3a). */
@@ -21,6 +21,8 @@ type Props = {
   /** The track label, so every control reads as "<track> clip". */
   label: string;
   zoom: number;
+  /** The row from the top: the highest layer is row 0 (spec 2026-11-17). */
+  row?: number;
   selected: boolean;
   locked: boolean;
   /** `add` when Shift, Ctrl or Cmd was held: the clip joins or leaves the selection. */
@@ -211,6 +213,7 @@ export function TimelineClip({
   trackKind,
   label,
   zoom,
+  row = 0,
   selected,
   locked,
   onSelect,
@@ -236,8 +239,9 @@ export function TimelineClip({
 
   return (
     <div
-      className="absolute top-1 h-9"
+      className="absolute h-9"
       style={{
+        top: `${4 + row * ROW_HEIGHT}px`,
         left: `${framesToPixels(clip.from_frame, zoom)}px`,
         width: `${Math.max(8, framesToPixels(clip.duration_in_frames, zoom))}px`,
       }}

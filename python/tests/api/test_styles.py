@@ -40,7 +40,7 @@ async def test_apply_makes_one_revision_and_starts_a_narration() -> None:
     assert answer.status_code == 200
     body = answer.json()
     assert (body["document"]["revision"], body["previous_revision"]) == (2, 1)
-    assert body["document"]["style"] == {"template_id": "style_a", "revision": 1}
+    assert body["document"]["style"] == {"template_id": "style_a", "revision": 2}  # 2026-11-17
     assert body["narration_refused"] is None
     assert len(gateway.started) == 1
 

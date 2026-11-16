@@ -274,6 +274,9 @@ export function placementChanges(
   };
 }
 
+/** A lane row's height in pixels: a lane has one row per layer (spec 2026-11-17). */
+export const ROW_HEIGHT = 44;
+
 export function timelineIssues(document: EditDocumentV2): TimelineIssue[] {
   const issues: TimelineIssue[] = [];
   const add = (code: TimelineIssueCode, kind: "clip" | "track", id: string, trackId: string) =>
@@ -285,9 +288,8 @@ export function timelineIssues(document: EditDocumentV2): TimelineIssue[] {
       if (track.kind === "main_video" && clip.from_frame > expectedStart) {
         add("main_track_gap", "clip", clip.clip_id, track.track_id);
       }
-      if (clip.from_frame < expectedStart) {
-        add("clip_overlap", "clip", clip.clip_id, track.track_id);
-      }
+      // Clips that play at once stack as layers (spec 2026-11-17, goal 5): no warning. The b-roll
+      // guard against two pictures at once lives in the narration write (b_roll_overlaps).
       if (clip.from_frame + clip.duration_in_frames > document.canvas.duration_in_frames) {
         add("clip_exceeds_canvas", "clip", clip.clip_id, track.track_id);
       }

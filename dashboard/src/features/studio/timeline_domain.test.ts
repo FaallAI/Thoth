@@ -207,14 +207,14 @@ test("a main-track gap and an over-long clip are reported as issues", () => {
   ]);
 });
 
-test("an overlap on one track is reported once for the later clip", () => {
+test("an overlap on one track stacks as a layer and is no issue", () => {
+  // Spec 2026-11-17, goal 5: clips stack as in an editor timeline; the b-roll guard lives in
+  // the narration write (b_roll_overlaps), not in a warning.
   const document = documentV2();
   document.clips!.push({ ...document.clips![1], clip_id: "clip_music_b", from_frame: 60 });
   document.tracks[1]!.clip_ids!.push("clip_music_b");
 
-  expect(timelineIssues(document).map((issue) => issue.issue_id)).toEqual([
-    "clip_overlap:clip_music_b",
-  ]);
+  expect(timelineIssues(document)).toEqual([]);
 });
 
 test("an issue maps to the selection that reveals it", () => {
