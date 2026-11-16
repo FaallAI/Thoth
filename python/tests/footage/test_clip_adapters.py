@@ -246,3 +246,28 @@ async def test_the_scene_question_is_asked_only_with_a_reference(
     assert seen[1][1][0] is main and len(seen[1][1]) == 4
     assert answer.same_event == "yes"
     assert FootageAnswer(kind="footage", shows_object="no").same_event == "no"
+
+
+@pytest.mark.parametrize(
+    ("message", "cause"),
+    [
+        ("ERROR: [youtube] x: Sign in to confirm you're not a bot. Use --cookies", "bot_check"),
+        ("ERROR: unable to download video data: HTTP Error 403: Forbidden", "http_403"),
+        ("ERROR: HTTP Error 429: Too Many Requests", "http_429"),
+        ("ERROR: something else https://www.youtube.com/watch?v=x", "DownloadError"),
+    ],
+)
+async def test_a_download_error_names_its_cause_without_the_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str, cause: str
+) -> None:  # spec 10.8 and 10.12: a YouTube bot check shows in the causes
+    from yt_dlp.utils import DownloadError
+
+    def boom(url: str, options: dict[str, Any]) -> None:
+        raise DownloadError(message)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", boom)
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg").download(
+            "https://www.youtube.com/watch?v=x", (4.0, 24.0), tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == cause

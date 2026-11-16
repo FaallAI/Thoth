@@ -2412,3 +2412,27 @@ async def test_library_reuses_only_related_clips(
     ).build(_inputs_b(tmp_path))
     reused = [c.url for c in store.admitted("wf_b") if c.source == "library"]
     assert reused == [_url(1)]
+
+
+async def test_a_media_failure_logs_its_cause(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:  # spec 10.8
+    downloader = Downloader(fail={_url(1)})
+    with caplog.at_level("WARNING"):
+        await _builder(store, search=Search(_hits(_video(1))), downloader=downloader).build(
+            _inputs(tmp_path)
+        )
+    assert "footage media failed platform=tiktok cause=ClipError(network)" in caplog.text
+    assert "tiktok.com" not in caplog.text
+
+
+async def test_the_finished_line_counts_media_causes(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    downloader = Downloader(fail={_url(1), _url(2)})
+    with caplog.at_level("INFO"):
+        await _builder(
+            store, search=Search(_hits(_video(1), _video(2))), downloader=downloader
+        ).build(_inputs(tmp_path))
+    (finished,) = [r.getMessage() for r in caplog.records if "footage finished" in r.getMessage()]
+    assert "media_causes={'ClipError(network)': 2}" in finished

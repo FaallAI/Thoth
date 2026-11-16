@@ -20,7 +20,21 @@ TIMEOUT_SECONDS = 75.0
 
 
 class ClipError(Exception):
-    """The clip could not be downloaded: a media failure of this candidate only."""
+    """The clip could not be downloaded: a media failure of this candidate only. Its message is
+    a cause with no URL (spec 10.8)."""
+
+
+# yt-dlp's messages carry the URL; the cause keeps only what they say (spec 10.8 and 10.12).
+CAUSES = (
+    ("confirm you", "bot_check"),
+    ("http error 403", "http_403"),
+    ("http error 429", "http_429"),
+)
+
+
+def cause_of(error: BaseException) -> str:
+    text = str(error).lower()
+    return next((cause for marker, cause in CAUSES if marker in text), type(error).__name__)
 
 
 class _Stopped(Exception):
@@ -98,7 +112,7 @@ class YtDlpClipDownloader:
                 stop.set()
                 await asyncio.wait({work}, timeout=STOP_GRACE_SECONDS)
                 if isinstance(error, Exception):
-                    raise ClipError(type(error).__name__) from None
+                    raise ClipError(cause_of(error)) from None
                 raise
             produced = Path(scratch) / "clip.mp4"
             if not produced.is_file() or produced.stat().st_size == 0:

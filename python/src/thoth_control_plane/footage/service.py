@@ -196,6 +196,7 @@ class _Build:
     # Spec 10.6 and 10.12: the one same-event clip kept, and the old clips kept.
     same_event: _Recording | None = None
     old: set[str] = field(default_factory=set)
+    media_causes: Counter[str] = field(default_factory=Counter)  # spec 10.8
     recordings: dict[str, _Recording] = field(default_factory=dict)
     displaced: list[str] = field(default_factory=list)
     copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -1151,7 +1152,7 @@ class FootageBuilder:
         if inputs.publish is not None:
             await self._publish(workflow, inputs.publish)
         await asyncio.to_thread(self._store.finish_run, workflow, status)
-        return await self._result(workflow, status)
+        return await self._result(workflow, status, state.media_causes)
 
     async def _timed(
         self,
@@ -1201,6 +1202,7 @@ class FootageBuilder:
         )
         if owned:
             (root / location).unlink(missing_ok=True)
+        self._media_failed(candidate, "timeout", state)
         await asyncio.to_thread(self._store.reject, workflow, candidate.url, "media_failed")
         return False
 
@@ -1225,7 +1227,8 @@ class FootageBuilder:
         if owned:
             try:
                 await self._ports.downloader.download(source, window, path)
-            except ClipError:
+            except ClipError as error:
+                self._media_failed(candidate, f"ClipError({error})", state)
                 return await self._reject(
                     workflow, root, candidate, location, owned, "media_failed", state
                 )
@@ -1257,11 +1260,13 @@ class FootageBuilder:
             ]
         except AssemblyError as error:
             if error.code in MEDIA_FAILURES:
+                self._media_failed(candidate, error.code, state)
                 return await self._reject(
                     workflow, root, candidate, location, owned, "media_failed", state
                 )
             raise  # a missing tool is an explicit error
-        except (FrameError, DurationError):
+        except (FrameError, DurationError) as error:
+            self._media_failed(candidate, type(error).__name__, state)
             return await self._reject(
                 workflow, root, candidate, location, owned, "media_failed", state
             )
@@ -1657,6 +1662,12 @@ class FootageBuilder:
         state.displaced.clear()  # the checks count admitted clips from the store
         logger.info("footage library reused=%d of=%d", reused, len(chosen))
 
+    @staticmethod
+    def _media_failed(candidate: CandidateView, cause: str, state: _Build) -> None:
+        """A media failure's cause, never its URL (spec 10.8)."""
+        logger.warning("footage media failed platform=%s cause=%s", candidate.platform, cause)
+        state.media_causes[cause] += 1
+
     async def _reject(
         self,
         workflow: str,
@@ -1751,18 +1762,21 @@ class FootageBuilder:
             return []
         return [dhash(frame.jpeg) for frame in frames]
 
-    async def _result(self, workflow: str, status: str) -> FootageResult:
+    async def _result(
+        self, workflow: str, status: str, media_causes: Counter[str] | None = None
+    ) -> FootageResult:
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         reasons = Counter(c.reason for c in candidates if c.reason)
         admitted = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "video")
         photos = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "image")
         await progress.step("footage.keep_clips", params={"count": admitted})
         logger.info(
-            "footage finished status=%s admitted=%d photos=%d rejected=%s",
+            "footage finished status=%s admitted=%d photos=%d rejected=%s media_causes=%s",
             status,
             admitted,
             photos,
             dict(reasons),
+            dict(media_causes or {}),
         )
         return FootageResult(
             status=status,  # type: ignore[arg-type]
