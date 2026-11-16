@@ -1515,6 +1515,14 @@ class TraceCreator:
 REPOST = "Master Saiful Ngamuk di depan Denny Sumargo | Sumber: YouTube curhatbang"
 
 
+def _saiful() -> Any:
+    """The Mutant card once round two learned the subject's real name: a clip must name the
+    subject (spec 10.12, revision 1), and the repost says "Saiful"."""
+    card = _card()
+    card.people[0].aliases.append("Saiful")
+    return card
+
+
 async def test_a_credited_repost_is_replaced_by_its_original(
     store: FootageStore, tmp_path: Path
 ) -> None:
@@ -1525,7 +1533,7 @@ async def test_a_credited_repost_is_replaced_by_its_original(
     await _builder(
         store,
         search=search,
-        card=Cards(_card()),
+        card=Cards(_saiful()),
         captions_text=Captions(CAPTIONS),
         creator=creator,
         photos=Photos(),
@@ -1554,7 +1562,7 @@ async def test_a_traced_original_that_is_the_main_post_is_rejected_main(  # Revi
     await _builder(
         store,
         search=search,
-        card=Cards(_card()),
+        card=Cards(_saiful()),
         creator=TraceCreator([own]),
         photos=Photos(),
         context_enabled=True,
@@ -2199,3 +2207,21 @@ async def test_refine_runs_even_when_round_one_filled_the_quota(
         _inputs(tmp_path)
     )
     assert cards.calls == ["card", "refine"]
+
+
+async def test_older_subject_clips_pass_the_story_gate(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.5: a clip naming the subject may be two years old
+    old = _video(1, caption="Mutant diajarin acting Jefri nichol")
+    old = old.model_copy(update={"published_at": "2024-12-11T08:24:00Z"})
+    unnamed = _video(2, caption="Urban Sneaker Society USS 2024 recap")
+    unnamed = unnamed.model_copy(update={"published_at": "2024-12-11T08:24:00Z"})
+    other = _video(3, caption="Denny Sumargo podcast bareng artis")
+    search = Search(_hits(old, unnamed, other, query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    rows = {c.caption: c for c in store.candidates("wf_a")}
+    assert rows[old.caption].reason != "story"
+    assert rows[unnamed.caption].reason == "story"
+    assert rows[other.caption].reason == "story"  # names only another person (revision 1)

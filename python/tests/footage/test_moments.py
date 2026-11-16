@@ -5,7 +5,7 @@ from __future__ import annotations
 from itertools import pairwise
 from pathlib import Path
 
-from thoth_control_plane.footage.moments import parse_json3, pick_discussions, section
+from thoth_control_plane.footage.moments import CaptionLine, parse_json3, pick_discussions, section
 
 CAPTIONS = (
     Path(__file__).resolve().parents[1]
@@ -30,7 +30,8 @@ WORDS = ["pedang", "marah", "kursi", "diundang", "ngamuk", "uss"]
 
 def test_the_incident_discussion_is_found() -> None:
     found = pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, WORDS)
-    assert any(240 <= d.moment <= 300 for d in found)  # mutan + pedang + USS, 4:05-5:00
+    # "mutannya tretan" at 3:52 names the subject in its "nya" form (spec 10.5)
+    assert any(230 <= d.moment <= 300 for d in found)  # mutan + pedang + USS, 3:52-5:00
     assert all(d.moment >= 30 for d in found)
     assert all(b.moment - a.moment >= 60 for a, b in pairwise(found))
     assert len(found) <= 3
@@ -51,9 +52,9 @@ def test_words_alone_work_without_people() -> None:  # Review Focus 1
 
 def test_said_holds_the_window_lines() -> None:
     found = pick_discussions(parse_json3(CAPTIONS), SUBJECT, OTHERS, WORDS)
-    d = next(d for d in found if 240 <= d.moment <= 300)
+    d = next(d for d in found if 230 <= d.moment <= 300)
     text = " ".join(str(line["text"]) for line in d.said)
-    assert "pedang" in text.lower()
+    assert "mutannya" in text.lower()
     assert len(text) <= 1500
     assert all(float(line["end_seconds"]) >= float(line["start_seconds"]) for line in d.said)
 
@@ -130,7 +131,6 @@ def test_malformed_events_are_skipped() -> None:  # final review, Minor 5 raised
 
 
 def test_chosen_moments_are_a_minute_apart() -> None:  # final review, Important 8
-    from thoth_control_plane.footage.moments import CaptionLine
 
     lines = [
         CaptionLine(121.0, "mutan"),
@@ -144,3 +144,14 @@ def test_chosen_moments_are_a_minute_apart() -> None:  # final review, Important
     found = pick_discussions(lines, ["mutan"], [], ["pedang", "marah", "kursi"])
     assert found
     assert all(b.moment - a.moment >= 60 for a, b in pairwise(found))
+
+
+def test_sections_are_cut_only_where_the_subject_is_named() -> None:  # spec 10.12, revision 2
+    lines = [
+        CaptionLine(100.0, "densu marah kursi pedang"),
+        CaptionLine(110.0, "densu ngamuk pedang kursi diundang"),
+        CaptionLine(200.0, "saiful datang bawa pedang"),
+        CaptionLine(210.0, "marah kursi"),
+    ]
+    found = pick_discussions(lines, SUBJECT, OTHERS, WORDS)
+    assert [d.moment for d in found] == [200.0]

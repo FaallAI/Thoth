@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from thoth_control_plane.footage.gates import norm
+from thoth_control_plane.footage.gates import mentions, norm
 
 INTRO_SECONDS = 30.0  # a channel's intro and recap
 APART_SECONDS = 60.0
@@ -59,6 +59,10 @@ def _says(text: str, phrase: str) -> bool:
     return f" {phrase} " in f" {text} "
 
 
+def _names(text: str, names: Sequence[str]) -> int:
+    return sum(mentions(text, name) for name in names)
+
+
 @dataclass(frozen=True)
 class Discussion:
     """A moment where the story is discussed, and the caption lines around it (`said`, as
@@ -92,15 +96,18 @@ def pick_discussions(
             last += 1
         inside = said[first : last + 1]
         distinct = {word for word in words if any(_says(text, word) for text in inside)}
-        named = sum(2 * bool(_count(t, subject)) + bool(_count(t, others)) for t in inside)
+        named = sum(2 * bool(_names(t, subject)) + bool(_names(t, others)) for t in inside)
         score = named + len(distinct)
+        # Spec 10.12, revision 2: with a subject, a window must name them.
+        if subject and not any(_names(t, subject) for t in inside):
+            continue
         if score >= MIN_SCORE and len(distinct) >= MIN_WORDS:
             windows.append((score, line.start, first, last))
 
     def moment(first: int, last: int) -> float:
         weights = {
-            i: 2 * bool(_count(said[i], subject))
-            + bool(_count(said[i], others))
+            i: 2 * bool(_names(said[i], subject))
+            + bool(_names(said[i], others))
             + _count(said[i], words)
             for i in range(first, last + 1)
         }

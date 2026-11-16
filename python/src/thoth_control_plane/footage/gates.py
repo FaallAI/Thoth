@@ -36,6 +36,16 @@ def norm(text: str) -> str:
     return " ".join(NON_WORD.sub(" ", (text or "").lower()).split())
 
 
+def mentions(text: str, name: str) -> bool:
+    """Whether normalised `text` says normalised `name` as whole words, also in its hashtag form
+    (no spaces) and with the suffix "nya" (spec 10.5): "#tretanmuslim", "mutannya"."""
+    if not name:
+        return False
+    joined = name.replace(" ", "")
+    padded = f" {text} "
+    return any(f" {form} " in padded for form in {name, joined, f"{name}nya", f"{joined}nya"})
+
+
 def video_id(url: str) -> str:
     for pattern in VIDEO_IDS:
         match = pattern.search(url or "")

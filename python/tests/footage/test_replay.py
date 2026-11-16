@@ -23,9 +23,10 @@ def test_the_mutant_run_replays_under_the_context_gate() -> None:
     for start in (
         "SAIFUL BUKAN MUTAN",
         "Momen Saeful temui Denny Sumargo",
-        "Detik-detik Pria Mengamuk di Depan Denny Sumargo",
     ):
         assert any(text.startswith(start) for text in passed), start
+    # A news recap naming only Denny Sumargo is off the story (spec 10.12, revision 1).
+    assert not any(text.startswith("Detik-detik Pria Mengamuk") for text in passed)
     sneakers = [r for r in rows if r["query"] == "sneakers"]
     assert len(sneakers) == 13
     assert not any(r["caption"] in passed for r in sneakers)

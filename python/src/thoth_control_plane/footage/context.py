@@ -15,7 +15,7 @@ from pydantic import ConfigDict, Field, field_validator
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.planner import content_words
-from thoth_control_plane.footage.gates import norm
+from thoth_control_plane.footage.gates import mentions, norm
 from thoth_control_plane.footage.models import FootageObject
 
 MAX_COMMENTS = 25
@@ -24,6 +24,7 @@ MIN_NAME = 3  # "TG" or "RG" would match unrelated posts
 MIN_TERM = 4
 MAX_SPOKEN = 12
 WINDOW_BEFORE = timedelta(days=30)
+PERSON_WINDOW = timedelta(days=730)  # a clip naming the subject (spec 10.5)
 DEFAULT_VISUAL = "the scene the post is about"
 # Spec 10.4: a card searches its incident twice at most and up to 6 related events.
 INCIDENT_QUERIES = 2
@@ -256,7 +257,12 @@ def strip_names(text: str, card: ContextCard) -> str:
 
 def _person(card: ContextCard, query: str) -> CardPerson | None:
     text = norm(query)
-    return next((p for p in card.people if any(_says(text, name) for name in _names(p))), None)
+    return next((p for p in card.people if any(mentions(text, name) for name in _names(p))), None)
+
+
+def names_subject(text: str, card: ContextCard) -> bool:
+    """Whether normalised `text` names people[0] in any of its forms (spec 10.12, revision 1)."""
+    return any(mentions(text, name) for name in subject_names(card))
 
 
 def context_objects(
@@ -300,21 +306,29 @@ def _when(value: str | None) -> datetime | None:
         return None
 
 
-def in_window(published_at: str | None, main_published: str | None, now: datetime) -> bool:
-    """From 30 days before the main post to the run; an unknown time stays in."""
+def in_window(
+    published_at: str | None,
+    main_published: str | None,
+    now: datetime,
+    before: timedelta = WINDOW_BEFORE,
+) -> bool:
+    """From `before` the main post (30 days by default) to the run; an unknown time stays in."""
     when = _when(published_at)
     if when is None:
         return True
     main = _when(main_published)
-    return (main is None or when >= main - WINDOW_BEFORE) and when <= now
+    return (main is None or when >= main - before) and when <= now
 
 
 def context_reason(text: str, card: ContextCard) -> Literal["story"] | None:
-    """None when the text names a card person, or two event terms, as whole words."""
+    """None when the text names the subject, or two event terms, as whole words. A clip naming
+    only another card person is off the story (spec 10.12, revision 1)."""
     said = norm(text)
-    if any(_says(said, name) for name in card_names(card)):
+    if names_subject(said, card):
         return None
-    if sum(_says(said, term) for term in event_terms(card)) >= 2:
+    # A person's name is no event word: "Denny Sumargo" alone is another person, not the event.
+    named = {word for name in card_names(card) for word in name.split()}
+    if sum(_says(said, term) for term in event_terms(card) if term not in named) >= 2:
         return None
     return "story"
 

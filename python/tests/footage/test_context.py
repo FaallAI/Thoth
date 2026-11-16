@@ -10,6 +10,7 @@ from tests.assembly.support import report as support_report
 from thoth_control_plane.acquisition.models import ReportComment
 from thoth_control_plane.footage.context import (
     CARD_PROMPT,
+    PERSON_WINDOW,
     REFINE_PROMPT,
     CardPerson,
     ContextCard,
@@ -19,6 +20,7 @@ from thoth_control_plane.footage.context import (
     context_objects,
     context_reason,
     in_window,
+    names_subject,
     subject_names,
 )
 
@@ -85,11 +87,13 @@ def test_the_mutant_candidates_pass_on_the_card() -> None:
     for start in (
         "SAIFUL BUKAN MUTAN",
         "Momen Saeful temui Denny Sumargo di acara Urban Sneaker Society",
-        "Detik-detik Pria Mengamuk di Depan Denny Sumargo hingga Tendang Kursi",
     ):
         matches = [text for text in by_caption if text.startswith(start)]
         assert matches, start
         assert context_reason(matches[0], mutant) is None, start
+    # A news recap naming only Denny Sumargo is off the story (spec 10.12, revision 1).
+    (recap,) = [t for t in by_caption if t.startswith("Detik-detik Pria Mengamuk di Depan")]
+    assert context_reason(recap, mutant) == "story"
     sneakers = [str(c["caption"]) for c in _candidates() if c["query"] == "sneakers"]
     assert len(sneakers) == 13
     assert all(context_reason(text, mutant) == "story" for text in sneakers)
@@ -204,3 +208,28 @@ def test_card_objects_take_two_incident_queries_and_the_related_ones() -> None:
 def test_a_person_query_visual_names_nobody() -> None:  # spec 10.12, revision 3
     (person,) = context_objects(_mutant(), ["Mutant bawa pedang"])
     assert person.visual == "a person on camera" and person.person
+
+
+def test_names_match_hashtag_and_nya_forms_only() -> None:  # spec 10.5
+    from thoth_control_plane.footage.gates import mentions, norm
+
+    assert mentions(norm("#sekolahnormal #mutan #tretanmuslim"), "tretan muslim")
+    assert mentions(norm("Klarifikasi soal mutannya Saiful"), "mutan")
+    assert mentions(norm("Tretan Muslimnya datang"), "tretan muslim")
+    assert not mentions(norm("#mutantsquad"), "mutant")
+    assert not mentions(norm("komutan"), "mutan")
+
+
+def test_a_subject_clip_may_be_two_years_old() -> None:  # spec 10.5 and 10.12
+    now = datetime(2026, 11, 16, tzinfo=UTC)
+    old, main = "2024-12-11T08:24:00Z", "2026-11-08T00:00:00Z"
+    assert names_subject(norm_text("Mutant diajarin acting Jefri nichol"), _mutant())
+    assert not names_subject(norm_text("Podcast Denny Sumargo bareng artis"), _mutant())
+    assert in_window(old, main, now, before=PERSON_WINDOW)
+    assert not in_window(old, main, now)
+
+
+def norm_text(text: str) -> str:
+    from thoth_control_plane.footage.gates import norm
+
+    return norm(text)

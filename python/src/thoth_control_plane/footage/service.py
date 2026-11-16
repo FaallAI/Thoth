@@ -47,6 +47,7 @@ from thoth_control_plane.footage.adapters.embedder import cosine
 from thoth_control_plane.footage.adapters.photos import PhotoError
 from thoth_control_plane.footage.context import (
     CARD_PROMPT,
+    PERSON_WINDOW,
     REFINE_PROMPT,
     WINDOW_BEFORE,
     CardModel,
@@ -58,6 +59,7 @@ from thoth_control_plane.footage.context import (
     context_reason,
     event_terms,
     in_window,
+    names_subject,
     same_event,
     subject_names,
 )
@@ -651,6 +653,11 @@ class FootageBuilder:
     def _off_story(
         self, text: str, published_at: str | None, main: SourceReport, card: ContextCard
     ) -> bool:
+        # Spec 10.5/10.12: naming the subject opens two years; event words alone keep 30 days.
+        if names_subject(norm(text), card):
+            return not in_window(
+                published_at, main.post.published_at, self._clock(), before=PERSON_WINDOW
+            )
         return not in_window(published_at, main.post.published_at, self._clock()) or (
             context_reason(text, card) is not None
         )
