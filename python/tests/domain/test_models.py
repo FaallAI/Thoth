@@ -186,6 +186,7 @@ def test_redacted_dict_scrubs_sensitive_diagnostic_values() -> None:
             "signed-url": "[REDACTED]",
             "public": "keep",
         },
+        "choice": None,  # the face an approve picks (spec 2026-11-15, 10.12); nothing secret
     }
 
 
