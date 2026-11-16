@@ -102,6 +102,7 @@ jobs:
           THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny
           THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization
           THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding
+          THOTH_TEST_FACE_MODELS_DIR: ${{ runner.temp }}/models/faces
           THOTH_TEST_EDITOR_DATABASE_URL: postgresql://postgres:thoth@127.0.0.1:5432/postgres
           THOTH_REQUIRE_POSTGRES_TESTS: "1"
           THOTH_TEST_MEDIA_S3_ENDPOINT: 127.0.0.1:9000

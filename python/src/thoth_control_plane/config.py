@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     THOTH_WHISPER_MODEL_DIR: Path = Path("/opt/thoth/models/whisper-large-v3-turbo")
     THOTH_DIARIZATION_MODEL_DIR: Path = Path("/opt/thoth/models/diarization")
     THOTH_EMBEDDING_MODEL_DIR: Path = Path("/opt/thoth/models/embedding")
+    # The footage face check (spec 2026-11-15, 10.12): YuNet and ArcFace.
+    THOTH_FACE_MODELS_DIR: Path = Path("/opt/thoth/models/faces")
     # Stage 5a content assembly. Off by default; the worker refuses to start with it on and
     # no ffmpeg or ffprobe (operator, 2026-10-11).
     THOTH_CONTENT_ASSEMBLY_ENABLED: bool = False

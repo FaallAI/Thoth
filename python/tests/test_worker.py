@@ -255,6 +255,10 @@ def _footage_settings(tmp_path: Path, **overrides: Any) -> Settings:
     embedding.mkdir(exist_ok=True)
     for name in ("model.onnx", "tokenizer.json"):
         (embedding / name).write_bytes(b"x")
+    faces = tmp_path / "faces"
+    faces.mkdir(exist_ok=True)
+    for name in ("yunet.onnx", "arcface.onnx"):
+        (faces / name).write_bytes(b"x")
     values: dict[str, Any] = {
         "THOTH_CONTROL_PLANE_API_KEY": "test-only",
         "THOTH_SOURCE_ATTRIBUTION_ENABLED": False,
@@ -262,6 +266,7 @@ def _footage_settings(tmp_path: Path, **overrides: Any) -> Settings:
         "THOTH_OPENROUTER_API_KEY": "synthetic-key",
         "THOTH_EDITOR_DATABASE_URL": "postgresql://u:p@127.0.0.1:5432/db",
         "THOTH_EMBEDDING_MODEL_DIR": embedding,
+        "THOTH_FACE_MODELS_DIR": faces,
     }
     return Settings(**{**values, **overrides})
 
@@ -276,6 +281,7 @@ def test_footage_starts_with_every_tool_present(tmp_path: Path) -> None:
         ({"THOTH_OPENROUTER_API_KEY": None}, "openrouter_key_missing"),
         ({"THOTH_FFMPEG": "/nonexistent/ffmpeg"}, "ffmpeg_missing"),
         ({"THOTH_EMBEDDING_MODEL_DIR": Path("/nonexistent")}, "embedding_model_missing"),
+        ({"THOTH_FACE_MODELS_DIR": Path("/nonexistent")}, "face_model_missing"),  # 10.12
         ({"_no_module": "onnxruntime"}, "embedding_runtime_missing"),
         ({"_no_module": "tokenizers"}, "embedding_runtime_missing"),
     ],

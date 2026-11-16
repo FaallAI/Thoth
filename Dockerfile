@@ -95,6 +95,8 @@ RUN test -w /var/lib/thoth/artifacts \
     && test -r /opt/thoth/models/whisper-large-v3-turbo/model.bin \
     && test -r /opt/thoth/models/diarization/segmentation.onnx \
     && test -r /opt/thoth/models/diarization/embedding.onnx \
+    && test -r /opt/thoth/models/faces/yunet.onnx \
+    && test -r /opt/thoth/models/faces/arcface.onnx \
     && test -d /home/thoth/.cache/camoufox \
     && test -x "$YTDLP" \
     && test "$("$YTDLP" --version | sed -E 's/(^|\.)0+([0-9])/\1\2/g')" = "$(/opt/thoth/python/.venv/bin/python -c 'import importlib.metadata as m; print(m.version("yt-dlp"))')" \

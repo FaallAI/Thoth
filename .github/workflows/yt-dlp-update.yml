@@ -94,6 +94,7 @@ jobs:
           THOTH_TEST_WHISPER_MODEL_DIR="$RUNNER_TEMP/models/whisper-tiny" \
           THOTH_TEST_DIARIZATION_MODEL_DIR="$RUNNER_TEMP/models/diarization" \
           THOTH_TEST_EMBEDDING_MODEL_DIR="$RUNNER_TEMP/models/embedding" \
+          THOTH_TEST_FACE_MODELS_DIR="$RUNNER_TEMP/models/faces" \
             uv run pytest -m "not live" -q
 
       - name: Open and merge the pull request
