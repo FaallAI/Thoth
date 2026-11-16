@@ -103,6 +103,23 @@ async def test_the_fetcher_takes_the_json3_track_in_the_language() -> None:
     assert await YtDlpCaptionFetcher(_Client({}), http).captions("u", "id") is None  # type: ignore[arg-type]
 
 
+async def test_the_fetcher_retries_a_rate_limited_track_once() -> None:  # live wf_a91d3f0f
+    import httpx
+
+    from thoth_control_plane.footage.adapters.captions import YtDlpCaptionFetcher
+
+    info = {"automatic_captions": {"id": [{"ext": "json3", "url": "https://captions/id"}]}}
+    answers = iter([429, 200, 429, 429])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(next(answers), content=CAPTIONS)
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    fetcher = YtDlpCaptionFetcher(_Client(info), http, retry_seconds=0.0)  # type: ignore[arg-type]
+    assert await fetcher.captions("https://youtu.be/x", "id") == CAPTIONS
+    assert await fetcher.captions("https://youtu.be/x", "id") is None  # one retry only
+
+
 def test_malformed_events_are_skipped() -> None:  # final review, Minor 5 raised to Important
     bad_time = b'{"events": [{"tStartMs": "x", "segs": [{"utf8": "Mutan"}]}]}'
     bad_segs = (

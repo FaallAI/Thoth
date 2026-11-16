@@ -3,6 +3,7 @@ info dict names the caption URLs; the json3 one is fetched (footage library spec
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -13,6 +14,9 @@ from thoth_control_plane.acquisition.youtube_service import YtDlpClient, YtDlpEr
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SECONDS = 20.0
+# YouTube rate-limits caption tracks in bursts; one paced retry (live wf_a91d3f0f).
+RETRY_SECONDS = 8.0
+RATE_LIMITED = 429
 
 
 def _json3_url(info: dict[str, Any], language: str) -> str | None:
@@ -25,9 +29,15 @@ def _json3_url(info: dict[str, Any], language: str) -> str | None:
 
 
 class YtDlpCaptionFetcher:
-    def __init__(self, client: YtDlpClient, http: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        client: YtDlpClient,
+        http: httpx.AsyncClient | None = None,
+        retry_seconds: float = RETRY_SECONDS,
+    ) -> None:
         self._client = client
         self._http = http
+        self._retry_seconds = retry_seconds
 
     async def captions(self, url: str, language: str) -> bytes | None:
         try:
@@ -42,6 +52,10 @@ class YtDlpCaptionFetcher:
         http = self._http or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
         try:
             response = await http.get(track, timeout=TIMEOUT_SECONDS)
+            if response.status_code == RATE_LIMITED:
+                logger.warning("footage captions refused status=429; retrying once")
+                await asyncio.sleep(self._retry_seconds)
+                response = await http.get(track, timeout=TIMEOUT_SECONDS)
             if response.status_code != 200:
                 logger.warning("footage captions refused status=%d", response.status_code)
                 return None
