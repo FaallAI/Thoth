@@ -36,7 +36,7 @@ from thoth_control_plane.activities.media_scratch import (
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
-from thoth_control_plane.footage.service import FootageBuilder, FootageInputs, _main
+from thoth_control_plane.footage.service import FootageBuilder, FootageInputs, main_report
 from thoth_control_plane.infrastructure.media_store import (
     LocalMediaStore,
     MediaStore,
@@ -231,7 +231,7 @@ async def _find(
         return SubjectResult(status="none")
     attribution = await _attribution(reports, input_.attribution)
     original = await _original(reports, input_.original_report)
-    main = _main(
+    main = main_report(
         FootageInputs(
             workflow_id=input_.workflow_id,
             report=report,

@@ -63,3 +63,15 @@ def test_the_worker_shares_one_reader() -> None:  # final review, Minor 5 re-gra
     from thoth_control_plane.footage.adapters.faces import shared_reader
 
     assert shared_reader(_models()) is shared_reader(_models())
+
+
+def test_two_reads_at_once_match_one_at_a_time() -> None:  # final review, minor 4
+    from concurrent.futures import ThreadPoolExecutor
+
+    reader = FaceReader(_models())
+    paths = [FACES / "main_subject.mp4", FACES / "same_person.mp4"]
+    alone = [len(reader.faces(path)) for path in paths]
+    with ThreadPoolExecutor(2) as pool:
+        together = [len(found) for found in pool.map(reader.faces, paths)]
+    assert together == alone
+    assert not hasattr(reader, "_lock")  # each read has its own detector

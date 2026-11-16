@@ -283,7 +283,7 @@ class FootageInputs:
     face_check: bool = False
 
 
-def _main(inputs: FootageInputs) -> SourceReport:
+def main_report(inputs: FootageInputs) -> SourceReport:
     """The main assembly uses (5a A2): the original when attribution replaced the post."""
     verdict = inputs.attribution.verdict if inputs.attribution is not None else "none"
     if verdict == "replaced" and inputs.original is not None:
@@ -462,7 +462,7 @@ class FootageBuilder:
     async def _build(self, inputs: FootageInputs, state: _Build) -> FootageResult:
         started = time.monotonic()
         workflow = inputs.workflow_id
-        main = _main(inputs)
+        main = main_report(inputs)
         run = await asyncio.to_thread(self._store.run, workflow)
         if run is not None and run.status == "done":
             return await self._result(workflow, run.footage_status or "unavailable")
@@ -1371,7 +1371,7 @@ class FootageBuilder:
                 return await self._reject(
                     workflow, root, candidate, location, owned, "subject_absent", state, **seen
                 )
-            old = not in_window(candidate.published_at, state.main_published, self._clock())
+            old = self._old(candidate, state)
             if old and len(state.old) >= MAX_OLD:
                 return await self._reject(
                     workflow, root, candidate, location, owned, "too_old", state, **seen
@@ -1672,6 +1672,7 @@ class FootageBuilder:
                 duration = await self._ports.probe.duration(path)
             except Exception as error:
                 logger.warning("footage library copy failed error=%s", type(error).__name__)
+                state.media_causes["library_copy"] += 1  # spec 10.8
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "media_failed")
                 continue
@@ -1792,8 +1793,15 @@ class FootageBuilder:
                 ),
                 hashes,
             )
-        if not in_window(candidate.published_at, state.main_published, self._clock()):
+        if self._old(candidate, state):
             state.old.add(candidate.url)
+
+    def _old(self, candidate: CandidateView, state: _Build) -> bool:
+        """Older than 30 days on a card's run: the object path keeps its own window and no cap
+        (spec 10.12, revision 5)."""
+        return state.card is not None and not in_window(
+            candidate.published_at, state.main_published, self._clock()
+        )
 
     async def _record(
         self, candidate: CandidateView, path: Path, hashes: list[int], state: _Build

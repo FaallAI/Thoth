@@ -2657,3 +2657,48 @@ async def test_a_carousel_slide_skips_the_face_check(
     faces = Faces(set())
     result = await _builder(store, faces=faces).build(_face_inputs(tmp_path, _report(slides=2)))
     assert result.admitted == 1 and faces.calls == 0
+
+
+async def test_a_failed_library_copy_counts_as_a_media_cause(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:  # final review, minor 13
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    with caplog.at_level("INFO"):
+        await _builder(
+            store,
+            card=Cards(_card()),
+            library_media=Media(tmp_path, fail=True),
+            context_enabled=True,
+        ).build(_inputs_b(tmp_path))
+    finished = [r.getMessage() for r in caplog.records if "footage finished" in r.getMessage()]
+    assert "media_causes={'library_copy': 1}" in finished[-1]
+
+
+async def test_a_failed_refine_keeps_round_ones_card(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 5
+    cards = Cards(_card(), refined=None)
+    await _builder(
+        store,
+        search=Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo")),
+        card=cards,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    run = store.run("wf_a")
+    assert cards.calls == ["card", "refine"]
+    assert run is not None and run.context is not None and run.context["refined"] is True
+    assert [p["name"] for p in run.context["people"]] == ["Mutant", "Denny Sumargo"]
+    assert len(store.admitted("wf_a")) == 1
+
+
+async def test_the_object_path_has_no_old_clip_cap(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 1: no card, nothing capped
+    old = [_video(n).model_copy(update={"published_at": "2025-03-01T08:00:00Z"}) for n in (1, 2, 3)]
+    search = Search(
+        {("tiktok", "banjir kemang"): old[:2], ("tiktok", "mobil terendam kemang"): old[2:]}
+    )
+    await _builder(store, search=search).build(_inputs(tmp_path))
+    rejected = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert "too_old" not in rejected

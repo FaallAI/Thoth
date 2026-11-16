@@ -407,11 +407,15 @@ class FootageStore:
                 )
                 return
             same.names = sorted({*(same.names or []), *clip.names})
+            # Spec 10.7: a later run that keeps the clip as another event makes it reusable.
+            related = "related" in (same.relation, clip.relation)
             new, old = _parsed(clip.published_at), _parsed(same.published_at)
             if new is not None and (old is None or new < old):
                 for name, value in self._library_fields(clip).items():
                     if name != "names":
                         setattr(same, name, value)
+            if related:
+                same.relation = "related"
 
     @staticmethod
     def _library_fields(clip: LibraryClip) -> dict[str, object]:

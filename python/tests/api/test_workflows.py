@@ -777,3 +777,23 @@ async def test_unbound_production_wiring_is_not_ready_and_cannot_start_work() ->
 
     assert readiness.status_code == 503
     assert started.status_code == 503
+
+
+def test_the_api_imports_no_numpy() -> None:  # final review, minor 10
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    probe = (
+        "import sys;"
+        "import thoth_control_plane.api.app;"
+        "import thoth_control_plane.workflows.source_investigation;"
+        "assert 'numpy' not in sys.modules, 'numpy imported'"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-500:]

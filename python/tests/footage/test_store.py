@@ -314,3 +314,19 @@ def test_a_copy_merges_into_the_earlier_original(store: FootageStore) -> None:
     earlier = "https://www.tiktok.com/@curhatbang/video/7700000000000000001"
     store.add_library("ws1", "wf_c", _library_clip(earlier, published_at="2026-11-11T00:00:00Z"))
     assert [c.url for c in store.library("ws1", ["mutant"], SINCE, UNTIL)] == [earlier]
+
+
+def test_a_library_row_learns_it_is_related(store: FootageStore) -> None:  # final review, 9
+    from dataclasses import replace
+
+    store.add_library("ws1", "wf_a", replace(_library_clip(), relation="unknown"))
+    store.add_library("ws1", "wf_b", replace(_library_clip(), relation="related"))
+    (row,) = store.library(
+        "ws1", ["mutant"], datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    assert row.relation == "related"
+    store.add_library("ws1", "wf_c", replace(_library_clip(), relation="unknown"))
+    (row,) = store.library(
+        "ws1", ["mutant"], datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    assert row.relation == "related"  # a later unknown never downgrades it

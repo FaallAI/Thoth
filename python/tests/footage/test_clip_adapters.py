@@ -245,7 +245,7 @@ async def test_the_scene_question_is_asked_only_with_a_reference(
     assert "same_event" in seen[1][0] and "first image" in seen[1][0]
     assert seen[1][1][0] is main and len(seen[1][1]) == 4
     assert answer.same_event == "yes"
-    assert FootageAnswer(kind="footage", shows_object="no").same_event == "no"
+    assert FootageAnswer(kind="footage", shows_object="no").same_event is None  # not asked
 
 
 @pytest.mark.parametrize(
@@ -271,3 +271,19 @@ async def test_a_download_error_names_its_cause_without_the_url(
             "https://www.youtube.com/watch?v=x", (4.0, 24.0), tmp_path / "c.mp4"
         )
     assert str(raised.value) == cause
+
+
+async def test_an_answer_without_the_asked_scene_is_unusable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # final review, minor 12: a missing answer never passes as "no"
+    from thoth_control_plane.attribution.ports import AttributionError
+
+    async def fake_run(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        return FootageAnswer(kind="footage", shows_object="yes")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", fake_run)
+    frames = [Frame(second=1.0, jpeg=b"x")]
+    judge = AgnoFootageJudge("k", "m")
+    assert (await judge.judge(frames, "a street")).same_event is None
+    with pytest.raises(AttributionError, match="vision_unavailable"):
+        await judge.judge(frames, "a street", reference=Frame(second=0.0, jpeg=b"m"))

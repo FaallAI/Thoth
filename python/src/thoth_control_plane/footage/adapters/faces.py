@@ -5,7 +5,6 @@ baked into the worker image; a missing file is an explicit error."""
 from __future__ import annotations
 
 import functools
-import threading
 from pathlib import Path
 
 import numpy as np
@@ -52,55 +51,55 @@ def shared_reader(models_dir: Path) -> FaceReader:
 
 class FaceReader:
     def __init__(self, models_dir: Path) -> None:
-        import cv2
         import onnxruntime
 
         missing = [name for name in FACE_FILES if not (models_dir / name).is_file()]
         if missing:
             raise FileNotFoundError(f"face models missing: {', '.join(missing)}")
-        self._detector = cv2.FaceDetectorYN.create(
-            str(models_dir / "yunet.onnx"), "", (320, 320), DETECT_SCORE
-        )
+        self._yunet = str(models_dir / "yunet.onnx")
         self._session = onnxruntime.InferenceSession(
             str(models_dir / "arcface.onnx"), providers=["CPUExecutionProvider"]
         )
         self._input = self._session.get_inputs()[0].name
-        # The detector keeps its input size between calls: one video at a time.
-        self._lock = threading.Lock()
 
     def faces(self, path: Path, start: float = 0.0, duration: float | None = None) -> list[Face]:
         """Every face of at least MIN_FACE px, one frame a second from `start`; blocking."""
         import cv2
 
-        with self._lock:
-            capture = cv2.VideoCapture(str(path))
-            try:
-                rate = capture.get(cv2.CAP_PROP_FPS) or 25.0
-                step = max(1, round(rate / FACE_FPS))
-                if start:
-                    capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000.0)
-                found: list[Face] = []
-                index = 0
-                while True:
+        # The detector keeps each frame's size, so every read has its own; the ArcFace
+        # session is shared, and onnxruntime runs it from several threads.
+        detector = cv2.FaceDetectorYN.create(self._yunet, "", (320, 320), DETECT_SCORE)
+        capture = cv2.VideoCapture(str(path))
+        try:
+            rate = capture.get(cv2.CAP_PROP_FPS) or 25.0
+            step = max(1, round(rate / FACE_FPS))
+            if start:
+                capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000.0)
+            found: list[Face] = []
+            index = 0
+            while True:
+                at = index / rate
+                if duration is not None and at > duration:
+                    break
+                if index % step:
+                    if not capture.grab():  # skipped frames are not decoded
+                        break
+                else:
                     ok, frame = capture.read()
                     if not ok:
                         break
-                    at = index / rate
-                    if duration is not None and at > duration:
-                        break
-                    if index % step == 0:
-                        found += self._frame_faces(frame, int(start + at))
-                    index += 1
-                return found
-            finally:
-                capture.release()
+                    found += self._frame_faces(detector, frame, int(start + at))
+                index += 1
+            return found
+        finally:
+            capture.release()
 
-    def _frame_faces(self, frame: np.ndarray, second: int) -> list[Face]:
+    def _frame_faces(self, detector: object, frame: np.ndarray, second: int) -> list[Face]:
         import cv2
 
         height, width = frame.shape[:2]
-        self._detector.setInputSize((width, height))
-        _, detected = self._detector.detect(frame)
+        detector.setInputSize((width, height))  # type: ignore[attr-defined]
+        _, detected = detector.detect(frame)  # type: ignore[attr-defined]
         crops = []
         for row in detected if detected is not None else []:
             if min(row[2], row[3]) < MIN_FACE:

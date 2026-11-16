@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from thoth_control_plane.attribution.adapters.vision import MAX_FRAMES, AgnoVisionReader
-from thoth_control_plane.attribution.ports import Frame
+from thoth_control_plane.attribution.ports import AttributionError, Frame
 
 _PROMPT = (
     "These are frames of a short video. Answer three things. kind: {kind} "
@@ -45,7 +45,7 @@ class FootageAnswer(BaseModel):
     kind: Literal["footage", "commentary"] = Field(description="footage or commentary")
     shows_object: Literal["yes", "partly", "no"]
     description: str = ""
-    same_event: Literal["yes", "no"] = "no"
+    same_event: Literal["yes", "no"] | None = None  # answered only when asked
 
     @field_validator("description", mode="before")
     @classmethod
@@ -71,4 +71,7 @@ class AgnoFootageJudge(AgnoVisionReader):
         prompt = _SCENE + prompt.replace("Answer three things.", "Answer four things.").replace(
             "description:", _SCENE_QUESTION + "description:"
         )
-        return await self._run(FootageAnswer, prompt, [reference, *frames[:MAX_FRAMES]])
+        answer = await self._run(FootageAnswer, prompt, [reference, *frames[:MAX_FRAMES]])
+        if answer.same_event is None:  # skipped, it would pass as another event
+            raise AttributionError("vision_unavailable")
+        return answer
