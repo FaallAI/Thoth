@@ -150,7 +150,10 @@ REFINE_TITLES = 15
 OWN_SCORE = 1.0  # own accounts are screened first
 PASS_SCORE = 0.5
 REFINED = "refined"  # set in the stored card once round two ran
-MAX_LONG_VIDEOS = 3
+# Every long video a run finds gets its captions (live wf_4ac021d9: the podcast was 5th of
+# 6 and never cut), a few seconds apart so YouTube does not answer 429.
+MAX_LONG_VIDEOS = 6
+CAPTION_SPACING = 3.0
 CAPTION_LANGUAGE = "id"
 SECTION_MARK = "#t="
 LIBRARY = "library"  # the query library clips are counted under
@@ -386,6 +389,7 @@ class FootageBuilder:
         concurrency: int = 3,
         grace_seconds: float = 10.0,
         overrun_seconds: float = 120.0,
+        caption_spacing: float = CAPTION_SPACING,
         context_enabled: bool = False,
     ) -> None:
         self._ports = ports
@@ -400,6 +404,7 @@ class FootageBuilder:
         self._concurrency = concurrency
         self._grace = grace_seconds
         self._overrun = overrun_seconds
+        self._caption_spacing = caption_spacing
 
     async def build(self, inputs: FootageInputs) -> FootageResult:
         """The body under a hard deadline: a step that ignores cancellation cannot hold the
@@ -857,6 +862,8 @@ class FootageBuilder:
                 continue
             found: list[Discussion] = []
             if self._ports.captions_text is not None and handled < MAX_LONG_VIDEOS:
+                if handled:
+                    await asyncio.sleep(self._caption_spacing)
                 handled += 1
                 data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
                 if data:

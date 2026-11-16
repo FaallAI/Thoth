@@ -233,3 +233,16 @@ def norm_text(text: str) -> str:
     from thoth_control_plane.footage.gates import norm
 
     return norm(text)
+
+
+def test_a_name_without_its_title_names_the_subject() -> None:  # live wf_4ac021d9
+    titled = ContextCard.model_validate(
+        {"people": [{"name": "Saeful", "aliases": ["Master Saiful", "Bang Densu"]}]}
+    )
+    assert "saiful" in subject_names(titled)
+    assert names_subject(norm_text("saiful datang ke podcast"), titled)
+    assert "master" not in subject_names(titled)  # a title alone is never a name
+
+
+def test_the_card_prompt_asks_for_names_without_titles() -> None:
+    assert "without titles" in CARD_PROMPT

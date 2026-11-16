@@ -41,7 +41,8 @@ Rules: people are the real persons the story is about. people[0] is the person t
 doing the thing, even when only a nickname or a description is known ("pria bawa pedang"). A
 person named only in comments is not one of the people, unless the comments say that person is
 in the video. aliases are every other name they go by (nicknames, real names, other spellings,
-labels used in comments, and the hashtag form of each name: no spaces, lowercase). spoken: up to
+labels used in comments, each name without titles ("Saiful" for "Master Saiful"), and the
+hashtag form of each name: no spaces, lowercase). spoken: up to
 12 single lowercase Indonesian words people would say aloud when discussing this event (objects,
 actions, feelings), never names. queries: at most 2 short searches
 about this incident as Indonesian viewers would type them, each pairing a person's name or alias
@@ -176,9 +177,20 @@ def card_material(main: SourceReport, figures: Sequence[dict[str, Any]], transcr
     )
 
 
+# Titles a name is said with; "Master Saiful" is also said "Saiful" (live wf_4ac021d9).
+TITLES = frozenset(
+    {"master", "bang", "abang", "pak", "bu", "mas", "mbak", "kak", "om", "tante", "ustadz", "habib"}
+)
+
+
 def _names(person: CardPerson) -> list[str]:
-    found = (norm(text.replace("?", "")) for text in [person.name, *person.aliases])
-    return [name for name in found if len(name) >= MIN_NAME]
+    found = [norm(text.replace("?", "")) for text in [person.name, *person.aliases]]
+    bare = [
+        " ".join(words[1:])
+        for words in (n.split() for n in found)
+        if words[:1] and words[0] in TITLES
+    ]
+    return [name for name in dict.fromkeys([*found, *bare]) if len(name) >= MIN_NAME]
 
 
 def subject_names(card: ContextCard) -> list[str]:

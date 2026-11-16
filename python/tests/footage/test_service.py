@@ -248,6 +248,7 @@ def _builder(
         grace_seconds=grace_seconds,
         overrun_seconds=overrun_seconds,
         context_enabled=context_enabled,
+        caption_spacing=0.0,  # the pause between caption fetches is real time
     )
 
 
@@ -2702,3 +2703,26 @@ async def test_the_object_path_has_no_old_clip_cap(
     await _builder(store, search=search).build(_inputs(tmp_path))
     rejected = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
     assert "too_old" not in rejected
+
+
+async def test_every_long_video_gets_its_captions(
+    store: FootageStore, tmp_path: Path
+) -> None:  # live wf_4ac021d9: the podcast was 5th of 6 long videos and never cut
+    def long(n: int) -> DiscoveredVideo:
+        return DiscoveredVideo(
+            post_id=f"AAAAAAAAAA{n}",
+            owner_handle=f"channel{n}",
+            canonical_url=f"https://www.youtube.com/watch?v=AAAAAAAAAA{n}",
+            caption="Mutant ngamuk di depan Denny Sumargo",
+            duration_seconds=3000.0,
+        )
+
+    captions = Captions(CAPTIONS)
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", *[long(n) for n in range(6)]),
+        card=Cards(_card()),
+        captions_text=captions,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert len(captions.calls) == 6
