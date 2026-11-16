@@ -25,20 +25,29 @@ MIN_TERM = 4
 MAX_SPOKEN = 12
 WINDOW_BEFORE = timedelta(days=30)
 DEFAULT_VISUAL = "the scene the post is about"
+# Spec 10.4: a card searches its incident twice at most and up to 6 related events.
+INCIDENT_QUERIES = 2
+MAX_RELATED = 6
+# Spec 10.12, revision 3: the vision prompt never carries a person's name.
+PERSON_VISUAL = "a person on camera"
 
 CARD_PROMPT = """You read one social media post from Indonesia and write a context card used to find
-footage of the same story on YouTube, TikTok and X. Return only JSON:
+footage of this story's people and context on YouTube, TikTok and X. Return only JSON:
 {"people": [{"name": str, "aliases": [str], "role": str, "accounts": [str]}],
  "event": str, "place": str, "when": str, "meme_or_joke": str,
- "queries": [str], "spoken": [str], "notes": str}
+ "queries": [str], "related": [{"event": str, "query": str}], "spoken": [str], "notes": str}
 Rules: people are the real persons the story is about. people[0] is the person the post shows
 doing the thing, even when only a nickname or a description is known ("pria bawa pedang"). A
 person named only in comments is not one of the people, unless the comments say that person is
-in the video. aliases are every other name they go by (nicknames, real names, spellings, labels
-used in comments). spoken: up to 12 single lowercase Indonesian words people would say aloud when
-discussing this event (objects, actions, feelings), never names. queries: up to 6 short searches as
-Indonesian viewers would type them, each pairing a person's name or alias with the event or the
-other person; no hashtags, no generic objects. Use the material and your general knowledge of
+in the video. aliases are every other name they go by (nicknames, real names, other spellings,
+labels used in comments, and the hashtag form of each name: no spaces, lowercase). spoken: up to
+12 single lowercase Indonesian words people would say aloud when discussing this event (objects,
+actions, feelings), never names. queries: at most 2 short searches
+about this incident as Indonesian viewers would type them, each pairing a person's name or alias
+with the event or the other person; no hashtags, no generic objects. related: up to 6 OTHER events
+these people are known for or that followed (their shows, a clarification, an apology, a reply, a
+meeting), each with one short search as Indonesian viewers would type it that names people[0];
+never this incident itself. Use the material and your general knowledge of
 Indonesian public figures; put "?" after anything you are unsure of.
 Queries are in the language of the post."""
 
@@ -48,6 +57,7 @@ keep people[0] first and add the real names the titles use for people[0], add ev
 the titles use for the card's people (real names, spellings), keep "spoken", correct the
 people, event or place where the titles show the card is wrong, and set "queries" to at most 3
 NEW short searches (not already in the card) that pair a person's name or alias with the event.
+You may add related events the titles show (same shape as the card's "related").
 Ignore titles about other stories. Put "?" after anything you are unsure of."""
 
 
@@ -81,6 +91,20 @@ class CardPerson(StrictModel):
         return _text(value)
 
 
+class RelatedEvent(StrictModel):
+    """Another event the card's people are known for or that followed (spec 10.4)."""
+
+    model_config = ConfigDict(extra="ignore", strict=False)
+
+    event: str = ""
+    query: str = ""
+
+    @field_validator("event", "query", mode="before")
+    @classmethod
+    def _strings(cls, value: object) -> str:
+        return _text(value)
+
+
 class ContextCard(StrictModel):
     model_config = ConfigDict(extra="ignore", strict=False)
 
@@ -90,6 +114,7 @@ class ContextCard(StrictModel):
     when: str = ""
     meme_or_joke: str = ""
     queries: list[str] = Field(default_factory=list)
+    related: list[RelatedEvent] = Field(default_factory=list)
     # Words people say aloud when discussing the event (spec 2026-11-15, 9.2).
     spoken: list[str] = Field(default_factory=list)
     notes: str = ""
@@ -105,6 +130,14 @@ class ContextCard(StrictModel):
     @classmethod
     def _queries(cls, value: object) -> list[str]:
         return _texts(value)
+
+    @field_validator("related", mode="before")
+    @classmethod
+    def _related(cls, value: object) -> list[Any]:
+        if not isinstance(value, list):
+            return []
+        events = [RelatedEvent.model_validate(item) for item in value if isinstance(item, dict)]
+        return [e for e in events if e.query.strip()][:MAX_RELATED]
 
     @field_validator("spoken", mode="before")
     @classmethod
@@ -213,28 +246,49 @@ def _says(text: str, phrase: str) -> bool:
     return f" {phrase} " in f" {text} "
 
 
-def context_objects(card: ContextCard, queries: Sequence[str]) -> list[FootageObject]:
-    """One search per query; a query naming a person checks that person on screen."""
+def strip_names(text: str, card: ContextCard) -> str:
+    """The text with every card name and alias replaced by "a person" (spec 10.12, revision 3)."""
+    for name in card_names(card):
+        words = r"\W+".join(re.escape(word) for word in name.split())
+        text = re.sub(rf"(?i)(?<!\w){words}(?!\w)", "a person", text)
+    return text
+
+
+def _person(card: ContextCard, query: str) -> CardPerson | None:
+    text = norm(query)
+    return next((p for p in card.people if any(_says(text, name) for name in _names(p))), None)
+
+
+def context_objects(
+    card: ContextCard, queries: Sequence[str], related: Sequence[RelatedEvent] = ()
+) -> list[FootageObject]:
+    """One search per query; a query naming a person checks that a person is on screen. The
+    visual never names anyone (spec 10.12)."""
     objects: list[FootageObject] = []
-    for query in queries:
-        text = norm(query)
-        if not text:
+    asked = [(query, None) for query in queries] + [(r.query, r) for r in related]
+    for query, event in asked:
+        if not norm(query):
             continue
-        person = next(
-            (p for p in card.people if any(_says(text, name) for name in _names(p))), None
-        )
-        if person is not None:
-            visual = f"{person.name.replace('?', '').strip()} in person, at {card.event}"
+        person = _person(card, query) is not None
+        if event is not None:
+            visual = strip_names(event.event, card) or DEFAULT_VISUAL
+        elif person:
+            visual = PERSON_VISUAL
         else:
-            visual = card.event or DEFAULT_VISUAL
+            visual = strip_names(card.event, card) or DEFAULT_VISUAL
         objects.append(
             FootageObject(
                 query=query.strip()[:100],
                 visual=" ".join(visual.split())[:300] or DEFAULT_VISUAL,
-                person=person is not None,
+                person=person,
             )
         )
     return objects
+
+
+def card_objects(card: ContextCard) -> list[FootageObject]:
+    """Round one's searches: up to 2 about the incident, then the related events (spec 10.4)."""
+    return context_objects(card, card.queries[:INCIDENT_QUERIES], card.related)
 
 
 def _when(value: str | None) -> datetime | None:

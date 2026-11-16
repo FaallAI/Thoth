@@ -1285,7 +1285,7 @@ async def test_the_context_path_searches_people_queries(
     await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
         _inputs(tmp_path)
     )
-    assert _searched(search) == set(_card().queries[:4])
+    assert _searched(search) == set(_card().queries[:2])  # spec 10.4: two incident queries
     run = store.run("wf_a")
     assert run is not None and run.context is not None
     assert [p["name"] for p in run.context["people"]] == ["Mutant", "Denny Sumargo"]
@@ -1330,7 +1330,7 @@ async def test_round_two_adds_queries_from_titles(store: FootageStore, tmp_path:
     run = store.run("wf_a")
     assert run is not None
     assert [o.query for o in run.objects][-1] == "saiful denny sumargo"
-    assert len(run.objects) == 5  # the repeated query is not added twice
+    assert len(run.objects) == 3  # 2 incident queries + 1; the repeat is not added twice
 
 
 async def test_own_account_candidates_are_screened_first(
@@ -2188,3 +2188,14 @@ async def test_sections_get_their_own_turn_when_their_query_is_full(  # live wf_
     kept = [c for c in sections if c.status == "admitted"]
     assert sections and len(kept) == min(len(sections), 2)
     assert all(c.query == query for c in sections)  # the stored query stays the parent's
+
+
+async def test_refine_runs_even_when_round_one_filled_the_quota(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.4: round two always runs once
+    hits = _hits(*[_video(n, caption=SHOWN) for n in range(9)], query="Mutant USS Denny Sumargo")
+    cards = Cards(_card(), refined=_card())
+    await _builder(store, search=Search(hits), card=cards, context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    assert cards.calls == ["card", "refine"]

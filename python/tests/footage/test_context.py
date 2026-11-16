@@ -15,6 +15,7 @@ from thoth_control_plane.footage.context import (
     ContextCard,
     card_material,
     card_names,
+    card_objects,
     context_objects,
     context_reason,
     in_window,
@@ -108,7 +109,7 @@ def test_context_objects_mark_person_queries() -> None:
     person, place = context_objects(
         mutant, ["Mutant USS Denny Sumargo", "Urban Sneaker Society 2026 viral"]
     )
-    assert person.person and person.visual.startswith("Mutant in person")
+    assert person.person and person.visual == "a person on camera"  # spec 10.12
     assert person.query == "Mutant USS Denny Sumargo"
     assert not place.person and place.visual
 
@@ -157,3 +158,49 @@ def test_the_prompts_ask_for_the_subject_first_and_spoken_words() -> None:
     assert "people[0]" in CARD_PROMPT
     assert "only in comments" in CARD_PROMPT
     assert "people[0]" in REFINE_PROMPT
+
+
+def _mutant(**overrides: object) -> ContextCard:
+    return card("mutant_card").model_copy(update=overrides)
+
+
+def test_the_card_reads_related_events() -> None:  # spec 10.4
+    read = ContextCard.model_validate(
+        {
+            "people": [{"name": "Mutant"}],
+            "related": [
+                {"event": "Mutant at a medical check-up", "query": "Mutant Sekolah Normal"},
+                {"event": "no query"},
+                "junk",
+            ],
+        }
+    )
+    assert [r.query for r in read.related] == ["Mutant Sekolah Normal"]
+
+
+def test_an_old_card_decodes_without_related() -> None:
+    assert card("mutant_card").related == []
+
+
+def test_card_objects_take_two_incident_queries_and_the_related_ones() -> None:
+    mutant = card("mutant_card")
+    mutant.people[0].aliases.append("Saiful")
+    mutant = mutant.model_copy(
+        update={
+            "queries": ["a USS", "b USS", "c USS"],
+            "related": [
+                {"event": "Saiful's clarification with Gofar Hilman", "query": "Saiful Gofar"}
+            ],
+        }
+    )
+    mutant = ContextCard.model_validate(mutant.model_dump())
+    objects = card_objects(mutant)
+    assert [o.query for o in objects] == ["a USS", "b USS", "Saiful Gofar"]
+    related = objects[-1]
+    assert related.person  # the query names the subject
+    assert related.visual == "a person's clarification with Gofar Hilman"  # no card names
+
+
+def test_a_person_query_visual_names_nobody() -> None:  # spec 10.12, revision 3
+    (person,) = context_objects(_mutant(), ["Mutant bawa pedang"])
+    assert person.visual == "a person on camera" and person.person

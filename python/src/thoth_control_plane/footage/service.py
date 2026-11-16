@@ -53,6 +53,7 @@ from thoth_control_plane.footage.context import (
     ContextCard,
     card_material,
     card_names,
+    card_objects,
     context_objects,
     context_reason,
     event_terms,
@@ -136,7 +137,6 @@ CREATOR_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
 PHOTO_PLATFORMS = frozenset({"tiktok", "instagram", "x"})
 PAGE_CARD = "profile-page.png"
 # The context path (footage library spec 2026-11-15): queries per round, titles round two reads.
-FIRST_QUERIES = 4
 REFINE_QUERIES = 3
 REFINE_TITLES = 15
 OWN_SCORE = 1.0  # own accounts are screened first
@@ -638,7 +638,7 @@ class FootageBuilder:
         if card is None or not card_names(card):
             logger.warning("footage context card unavailable; object queries")
             return None
-        objects = [o for o in context_objects(card, card.queries[:FIRST_QUERIES]) if _storable(o)]
+        objects = [o for o in card_objects(card) if _storable(o)]
         if not objects:
             logger.warning("footage context card has no queries; object queries")
             return None
@@ -683,8 +683,10 @@ class FootageBuilder:
     ) -> None:
         """Round one's gate, then round two: the titles teach the card aliases and corrections,
         its new queries are searched, and round one's story rejects are judged again."""
-        passing = await self._context_gate(workflow, main, card)
-        if passing >= MAX_FOOTAGE or stored.get(REFINED) or self._ports.card is None:
+        await self._context_gate(workflow, main, card)
+        # Round two always runs once (spec 10.4): skipped on a full round one, the card never
+        # learned the subject's real name (live Mutant runs, `refined` false).
+        if stored.get(REFINED) or self._ports.card is None:
             return
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         titles = [
@@ -702,7 +704,8 @@ class FootageBuilder:
         run = await asyncio.to_thread(self._store.run, workflow)
         known = {norm(o.query) for o in (run.objects if run is not None else [])}
         fresh = [q for q in refined.queries if norm(q) and norm(q) not in known][:REFINE_QUERIES]
-        objects = [o for o in context_objects(refined, fresh) if _storable(o)]
+        related = [r for r in refined.related if norm(r.query) not in known][:REFINE_QUERIES]
+        objects = [o for o in context_objects(refined, fresh, related) if _storable(o)]
         await asyncio.to_thread(
             self._store.set_context, workflow, {**refined.model_dump(), REFINED: True}
         )
