@@ -294,7 +294,50 @@ export function RunDetailPage({
         </div>
       )}
 
-      {status === "awaiting_approval" && summary.approval && (
+      {status === "awaiting_approval" && summary.approval?.kind === "choose_subject" && (
+        // Spec 2026-11-15, 10.12: the main's faces leave the subject unclear; the operator picks.
+        <section aria-labelledby="subject-title" className="rounded-[10px] bg-surface p-6">
+          <h2 id="subject-title" className="mb-5 text-base font-semibold text-ink">
+            {t("approval.subjectTitle")}
+          </h2>
+          <ul className="flex flex-wrap gap-4">
+            {(summary.approval.choices ?? []).map((choice) => (
+              <li key={choice.choice_id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-label={t("approval.subjectSeconds", { n: choice.seconds })}
+                  onClick={() =>
+                    void act(() =>
+                      client.approveWorkflow(workflowId, {
+                        approval_id: summary.approval!.approval_id,
+                        decision: "approve",
+                        choice: choice.choice_id,
+                      }),
+                    )
+                  }
+                  className="flex flex-col items-center gap-2 rounded-md p-2 hover:bg-well focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+                >
+                  <img src={choice.image} alt="" className="size-24 rounded-md bg-well object-cover" />
+                  <span className="text-sm text-muted-ink">{t("approval.subjectSeconds", { n: choice.seconds })}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-hairline pt-5">
+            <Button
+              variant="ghost"
+              size="lg"
+              disabled={busy}
+              onClick={() => void act(() => client.approveWorkflow(workflowId, { approval_id: summary.approval!.approval_id, decision: "reject" }))}
+            >
+              {t("approval.subjectNone")}
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {status === "awaiting_approval" && summary.approval && summary.approval.kind !== "choose_subject" && (
         <section aria-labelledby="approval-title" className="rounded-[10px] bg-surface p-6">
           <h2 id="approval-title" className="mb-5 text-base font-semibold text-ink">
             {t("approval.title")}
