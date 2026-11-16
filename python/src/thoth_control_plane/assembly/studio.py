@@ -2,7 +2,7 @@
 
 Pure: no I/O. Each media item keeps the `MediaRef` it came from, keyed by the inventory item id
 the import gate gives it (`<role>_<order:03d>`), so the importer copies exactly that object.
-Schema 1 bounds a Content Set at one main, six footage and twelve comments, far inside the
+Schema 1 bounds a Content Set at one main, eight footage and twelve comments, far inside the
 gate's item and scene limits, so nothing here truncates.
 """
 

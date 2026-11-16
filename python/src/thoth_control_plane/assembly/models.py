@@ -25,7 +25,7 @@ from thoth_control_plane.domain.narration import TranscriptSegment
 
 MAX_COMMENTS = 12
 MAX_FIGURES = 5
-MAX_FOOTAGE = 6
+MAX_FOOTAGE = 8  # spec 2026-11-15, 10.6
 MAX_PHOTOS = 3
 FootageStatus = Literal["ok", "none", "disabled", "unavailable"]
 OCR_ANALYZER_VERSION = "subtitle-classifier-v1"

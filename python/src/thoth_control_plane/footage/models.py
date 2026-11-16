@@ -27,6 +27,8 @@ RejectReason = Literal[
     "media_failed",
     "vision_unavailable",
     "repost",  # an original replaced it (footage library spec 2026-11-15, 4.5)
+    "same_event",  # spec 10.6: a second or unclean clip of the incident
+    "too_old",  # spec 10.12: a third clip older than 30 days
 ]
 REJECT_REASONS: frozenset[str] = frozenset(get_args(RejectReason))
 

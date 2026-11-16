@@ -91,16 +91,16 @@ async def test_a_builder_failure_reaches_history_as_a_code_only(
     assert "secret" not in str(raised.value) and "x.com" not in str(raised.value)
 
 
-async def test_the_reported_count_is_clamped_to_six(tmp_path: Path, report_store) -> None:
+async def test_the_reported_count_is_clamped_to_eight(tmp_path: Path, report_store) -> None:
     _with_report(report_store)
 
     class Many:
         async def build(self, inputs: object) -> FootageResult:
-            return FootageResult(status="ok", admitted=9)
+            return FootageResult(status="ok", admitted=11)
 
     activity = build_footage_activity(_settings(tmp_path), builder=Many(), reports=report_store)  # type: ignore[arg-type]
     result = await activity(FootageActivityInput(workflow_id="wf_a"))
-    assert result.footage_count == 6
+    assert result.footage_count == 8  # spec 10.6
 
 
 async def test_footage_raises_when_the_database_is_down(tmp_path: Path) -> None:

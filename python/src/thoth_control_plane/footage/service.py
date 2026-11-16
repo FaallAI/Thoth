@@ -89,6 +89,7 @@ from thoth_control_plane.footage.models import (
     FootageStatus,
     LibraryClip,
     NewCandidate,
+    RejectReason,
     RunView,
     SearchBatch,
 )
@@ -113,6 +114,7 @@ from thoth_control_plane.footage.ports import (
 from thoth_control_plane.footage.queries import footage_objects, query_prompt, top_comments
 from thoth_control_plane.footage.recording import (
     CopyFacts,
+    clean_original,
     is_copy,
     keep_first,
     text_share,
@@ -122,7 +124,8 @@ from thoth_control_plane.footage.reposts import credited_account, is_own_account
 
 logger = logging.getLogger(__name__)
 
-MAX_FOOTAGE = 6
+MAX_FOOTAGE = 8  # spec 10.6
+MAX_OLD = 2  # clips older than 30 days per run (spec 10.12, revision 5)
 PER_QUERY = 2
 RESULTS_PER_QUERY = 8
 SEARCH_PLATFORMS = ("tiktok", "youtube", "x")
@@ -189,6 +192,10 @@ class _Build:
     # Spec 10.5/10.12: one frame of the main the vision call compares a clip with; None without
     # a card, so the object path asks no same-event question.
     reference: Frame | None = None
+    main_published: str | None = None
+    # Spec 10.6 and 10.12: the one same-event clip kept, and the old clips kept.
+    same_event: _Recording | None = None
+    old: set[str] = field(default_factory=set)
     recordings: dict[str, _Recording] = field(default_factory=dict)
     displaced: list[str] = field(default_factory=list)
     copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -1092,6 +1099,7 @@ class FootageBuilder:
         admitted_hashes = await self._verify_admitted(workflow, root, state)
         main_hashes = await self._main_hashes(main, root)
         await self._main_recording(main, root, state)
+        state.main_published = main.post.published_at
         if state.card is not None:
             state.reference = await self._reference(main, root)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
@@ -1274,6 +1282,7 @@ class FootageBuilder:
             "shows_object": answer.shows_object,
             "description": answer.description,
         }
+        relation = relation_of(answer, state.reference is not None)
         # A section is a person talking (spec 10.5): it is never rejected as commentary.
         if answer.kind == "commentary" and candidate.source != "section":
             return await self._reject(
@@ -1307,6 +1316,25 @@ class FootageBuilder:
                         workflow, root, candidate, location, owned, "duplicate", state, **seen
                     )
                 losers = found
+            facts = (
+                evidence.facts
+                if evidence is not None
+                else CopyFacts(
+                    candidate.url, self._original(candidate, state), 0.0, candidate.published_at
+                )
+            )
+            held = state.same_event
+            if relation == "same_event" and (
+                not clean_original(facts) or (held is not None and keep_first(held.facts, facts))
+            ):
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "same_event", state, **seen
+                )
+            old = not in_window(candidate.published_at, state.main_published, self._clock())
+            if old and len(state.old) >= MAX_OLD:
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "too_old", state, **seen
+                )
             steps[candidate.url] = "store"
             if candidate.url in state.closed:  # abandoned: its media_failed is recorded
                 return False
@@ -1333,6 +1361,19 @@ class FootageBuilder:
             await self._settle(
                 workflow, candidate, evidence, losers, hashes, admitted_hashes, state
             )
+            if old:
+                state.old.add(candidate.url)
+            if relation == "same_event":
+                if held is not None:
+                    await self._displace(workflow, held, admitted_hashes, state, "same_event")
+                state.same_event = _Recording(
+                    candidate.url,
+                    candidate.url.partition(SECTION_MARK)[0],
+                    quota_key(candidate),
+                    [],
+                    facts,
+                    hashes,
+                )
             if state.card is not None and state.workspace is not None:
                 await self._remember(workflow, candidate, clip, window, hashes, state)
             return True
@@ -1371,12 +1412,17 @@ class FootageBuilder:
         self, candidate: CandidateView, frames: list[Frame], state: _Build
     ) -> CopyFacts:
         """An original or a copy, and how much on-screen text covers it (spec 9.4)."""
-        original = candidate.source in ORIGINAL_SOURCES or (
-            state.card is not None and is_own_account(candidate.owner_handle, state.card)
-        )
+        original = self._original(candidate, state)
         picked = [frames[int(len(frames) * share)] for share in COPY_SHARES] if frames else []
         share = text_share([await self._ports.text.read(frame) for frame in picked])
         return CopyFacts(candidate.url, original, share, candidate.published_at)
+
+    @staticmethod
+    def _original(candidate: CandidateView, state: _Build) -> bool:
+        """A creator's, a traced or an own account's clip (spec 9.4)."""
+        return candidate.source in ORIGINAL_SOURCES or (
+            state.card is not None and is_own_account(candidate.owner_handle, state.card)
+        )
 
     async def _evidence(
         self, candidate: CandidateView, path: Path, state: _Build
@@ -1434,10 +1480,15 @@ class FootageBuilder:
         )
 
     async def _displace(
-        self, workflow: str, other: _Recording, admitted_hashes: list[list[int]], state: _Build
+        self,
+        workflow: str,
+        other: _Recording,
+        admitted_hashes: list[list[int]],
+        state: _Build,
+        reason: RejectReason = "duplicate",
     ) -> None:
-        logger.info("footage copy displaced by a cleaner copy")
-        await asyncio.to_thread(self._store.reject, workflow, other.url, "duplicate")
+        logger.info("footage clip displaced reason=%s", reason)
+        await asyncio.to_thread(self._store.reject, workflow, other.url, reason)
         if state.workspace is not None:
             try:
                 await asyncio.to_thread(
@@ -1445,7 +1496,10 @@ class FootageBuilder:
                 )
             except Exception as error:
                 logger.warning("footage library drop failed error=%s", type(error).__name__)
-        del state.recordings[other.url]
+        state.recordings.pop(other.url, None)
+        state.old.discard(other.url)
+        if state.same_event is not None and state.same_event.url == other.url:
+            state.same_event = None
         admitted_hashes[:] = [h for h in admitted_hashes if h is not other.hashes]
         state.displaced.append(other.query)
 

@@ -308,7 +308,7 @@ def test_select_batch_rounds_across_queries_and_respects_the_caps() -> None:
     four = {q: [view(f"{q}1", q), view(f"{q}2", q)] for q in "abcd"}
     served = Counter({"a": 1, "b": 1, "c": 1})
     assert [c.url for c in select_batch(four, served, total=3, size=3)] == ["d1", "a1", "b1"]
-    assert select_batch({"a": [view("x", "a")]}, Counter(), total=6, size=3) == []
+    assert select_batch({"a": [view("x", "a")]}, Counter(), total=8, size=3) == []  # 10.6
 
 
 async def test_text_gates_and_story_gate_touch_no_media(
@@ -338,7 +338,7 @@ async def test_text_gates_and_story_gate_touch_no_media(
     assert downloader.calls == [] and judge.calls == []
 
 
-async def test_quota_two_per_query_six_in_total(store: FootageStore, tmp_path: Path) -> None:
+async def test_quota_two_per_query_eight_in_total(store: FootageStore, tmp_path: Path) -> None:
     answer = FootageQueryAnswer.model_validate(
         {
             "subjects": ["kemang"],
@@ -352,15 +352,15 @@ async def test_quota_two_per_query_six_in_total(store: FootageStore, tmp_path: P
     result = await _builder(
         store, queries=Queries(answer), search=Search(results), downloader=downloader
     ).build(_inputs(tmp_path))
-    assert result.status == "ok" and result.admitted == 6
+    assert result.status == "ok" and result.admitted == 8  # spec 10.6
     admitted = store.admitted("wf_a")
     per_query: dict[str, int] = {}
     for c in admitted:
         per_query[c.query] = per_query.get(c.query, 0) + 1
     assert max(per_query.values()) <= 2
     assert set(per_query) == {f"objek{n} kemang" for n in range(4)}  # no query starved
-    assert [c.position for c in admitted] == list(range(6))
-    assert len(downloader.calls) == 6  # stopped once six were admitted
+    assert [c.position for c in admitted] == list(range(8))
+    assert len(downloader.calls) == 8  # stopped once eight were admitted
 
 
 async def test_commentary_absent_object_and_vision_failure_are_rejected(
@@ -2285,3 +2285,94 @@ async def test_a_section_talking_is_kept(store: FootageStore, tmp_path: Path) ->
     sections = [c for c in store.candidates("wf_a") if c.source == "section"]
     assert sections and all(c.reason != "commentary" for c in sections)
     assert all(c.visual == PERSON_VISUAL for c in sections)
+
+
+def _video_main(tmp_path: Path) -> SourceReport:
+    """A main with a stored video, so the vision call gets the main's frame (spec 10.5)."""
+    video = tmp_path / "reports" / "wf_a" / "media" / "video.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"MAINREC" * 50)
+    return support_report(
+        url="https://www.tiktok.com/@akun/video/7499999999999999999",
+        owner="akun",
+        text="Banjir besar di Kemang pagi ini",
+        media="video",
+    )
+
+
+def _same_event_judge() -> Judge:
+    from thoth_control_plane.footage.context import PERSON_VISUAL
+
+    shown = FootageAnswer(kind="footage", shows_object="yes", same_event="yes")
+    return Judge({PERSON_VISUAL: shown})
+
+
+async def test_only_one_clean_original_of_the_incident_is_kept(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.6
+    own = _video(1, caption=SHOWN, owner="dennysumargo")
+    recaps = [_video(2, caption=SHOWN), _video(3, caption=SHOWN)]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): [own, recaps[0]],
+            ("tiktok", "Mutant minta diundang podcast Densu"): [recaps[1]],
+        }
+    )
+    await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(1, "dennysumargo")]
+    assert rows[_url(2)].reason == "same_event" and rows[_url(3)].reason == "same_event"
+
+
+async def test_a_same_event_repost_is_rejected_even_when_the_slot_is_free(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(2, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert store.admitted("wf_a") == []
+    assert rows[_url(2)].reason == "same_event"
+
+
+async def test_a_cleaner_same_event_original_takes_the_slot(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 2: the earlier of two clean originals keeps the one slot
+    late = _video(1, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-12T08:00:00Z"}
+    )
+    early = _video(2, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-09T08:00:00Z"}
+    )
+    search = Search(_hits(late, early, query="Mutant USS Denny Sumargo"))
+    result = await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2, "dennysumargo")]
+    assert rows[_url(1, "dennysumargo")].reason == "same_event"
+    assert result.admitted == 1
+
+
+async def test_at_most_two_old_clips(store: FootageStore, tmp_path: Path) -> None:  # revision 5
+    old = [
+        _video(n, caption=f"Mutant episode {n}").model_copy(
+            update={"published_at": "2025-03-01T08:00:00Z"}
+        )
+        for n in (1, 2, 3)
+    ]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): old[:2],
+            ("tiktok", "Mutant minta diundang podcast Densu"): old[2:],
+        }
+    )
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    reasons = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert len(store.admitted("wf_a")) == 2
+    assert reasons == ["too_old"]

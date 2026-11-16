@@ -22,6 +22,7 @@ MIN_PEAK = 3.0
 RECORDING_WIDTH = 480
 MAIN_STEP_SECONDS = 2.0
 UNKNOWN_DATE = "9999"
+CLEAN_SHARE = 0.15  # spec 10.6: the one same-event clip
 
 
 def triggered(best: Sequence[int]) -> bool:
@@ -69,3 +70,8 @@ def keep_first(a: CopyFacts, b: CopyFacts) -> bool:
         return (not copy.original, copy.share, copy.published_at or UNKNOWN_DATE)
 
     return rank(a) <= rank(b)
+
+
+def clean_original(facts: CopyFacts) -> bool:
+    """An original with little on-screen text: the only same-event clip a run keeps (10.6)."""
+    return facts.original and facts.share <= CLEAN_SHARE

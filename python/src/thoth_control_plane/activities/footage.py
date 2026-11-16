@@ -63,7 +63,7 @@ class Builder(Protocol):
     async def build(self, inputs: FootageInputs) -> FootageResult: ...
 
 
-MAX_FOOTAGE = 6
+MAX_FOOTAGE = 8  # spec 2026-11-15, 10.6
 
 
 def _done(status: str, count: int, started: float) -> FootageActivityResult:
