@@ -2161,3 +2161,30 @@ async def test_copy_evidence_is_read_outside_the_lock(  # final review, Importan
         store, search=search, recording_frames=frames, matcher=Matcher(), text=Clutter()
     ).build(_inputs(tmp_path))
     assert frames.most >= 2
+
+
+async def test_sections_get_their_own_turn_when_their_query_is_full(  # live wf_a91d3f0f
+    store: FootageStore, tmp_path: Path
+) -> None:
+    query = "Mutant USS Denny Sumargo"
+    search = Search(
+        {
+            ("tiktok", query): [_video(1, caption=SHOWN), _video(2, caption=SHOWN)],
+            ("youtube", query): [_podcast()],
+        }
+    )
+    await _builder(
+        store,
+        search=search,
+        downloader=WindowDownloader(),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = store.candidates("wf_a")
+    recaps = [c for c in rows if c.platform == "tiktok" and c.status == "admitted"]
+    sections = [c for c in rows if c.source == "section"]
+    assert len(recaps) == 2  # the search clips fill their query
+    kept = [c for c in sections if c.status == "admitted"]
+    assert sections and len(kept) == min(len(sections), 2)
+    assert all(c.query == query for c in sections)  # the stored query stays the parent's

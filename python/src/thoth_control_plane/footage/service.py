@@ -146,6 +146,9 @@ MAX_LONG_VIDEOS = 3
 CAPTION_LANGUAGE = "id"
 SECTION_MARK = "#t="
 LIBRARY = "library"  # the query library clips are counted under
+# Long-video sections have a quota of their own: under their parent's query, the search clips
+# that query found filled it first and the discussion was never screened (live wf_a91d3f0f).
+SECTIONS = "sections"
 MAX_TRACE_LISTINGS = 3  # creator listings are browser work; a run traces few accounts
 COPY_SHARES = (0.2, 0.5, 0.8)  # the frames a copy is first tried on, and read for text
 ORIGINAL_SOURCES = ("creator", "trace")
@@ -196,7 +199,7 @@ class _Evidence:
 class _Recording:
     url: str
     source: str  # the address before a section's `#t=`
-    query: str
+    query: str  # its quota key (`quota_key`)
     frames: list[Any]  # 1 fps features
     facts: CopyFacts
     hashes: list[int]
@@ -284,6 +287,11 @@ def _carousel(main: SourceReport) -> dict[str, PurePosixPath]:
     if not shaped or len(videos) < 2:
         return {}
     return {f"{url}#slide{media.index}": media.location for media in videos[1 : MAX_FOOTAGE + 1]}
+
+
+def quota_key(candidate: CandidateView) -> str:
+    """The queue a candidate is screened and counted under."""
+    return SECTIONS if candidate.source == "section" else candidate.query
 
 
 def select_batch(
@@ -1062,14 +1070,15 @@ class FootageBuilder:
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         clips = [c for c in candidates if c.media_kind == "video"]  # photos are checked apart
         pending = [c for c in clips if c.status == "pending"]
-        admitted = Counter(c.query for c in clips if c.status == "admitted")
+        admitted = Counter(quota_key(c) for c in clips if c.status == "admitted")
         used = [c.position for c in candidates if c.position is not None]
         state.positions = itertools.count(max(used, default=-1) + 1)
         queues = {
             query: sorted(
-                (c for c in pending if c.query == query), key=lambda c: -(c.story_score or 0.0)
+                (c for c in pending if quota_key(c) == query),
+                key=lambda c: -(c.story_score or 0.0),
             )
-            for query in queries
+            for query in [*queries, SECTIONS]
         }
         per_query = MAX_FOOTAGE if carousel else PER_QUERY
         total = sum(admitted.values())
@@ -1094,7 +1103,7 @@ class FootageBuilder:
             )
             for candidate, ok in zip(batch, outcomes, strict=True):
                 if ok:
-                    admitted[candidate.query] += 1
+                    admitted[quota_key(candidate)] += 1
                     total += 1
                 screened += 1
                 await progress.step("footage.screen_clips", n=screened, total=len(pending))
@@ -1387,7 +1396,7 @@ class FootageBuilder:
         state.recordings[candidate.url] = _Recording(
             candidate.url,
             evidence.source,
-            candidate.query,
+            quota_key(candidate),
             evidence.features,
             evidence.facts,
             hashes,
@@ -1609,7 +1618,7 @@ class FootageBuilder:
         state.recordings[candidate.url] = _Recording(
             candidate.url,
             candidate.url.partition(SECTION_MARK)[0],
-            candidate.query,
+            quota_key(candidate),
             features,
             await self._copy_facts(candidate, frames, state),
             hashes,
