@@ -108,18 +108,23 @@ class DraftPlan(StrictModel):
     assets: list[AssetRef] = Field(default_factory=list)
 
 
-def split_phrases(words: Sequence[WordTiming]) -> list[tuple[int, int]]:
-    """Inclusive word ranges: closed at punctuation or before ~2.4 s, never under 0.9 s."""
+def split_phrases(
+    words: Sequence[WordTiming],
+    min_seconds: float = MIN_PHRASE_SECONDS,
+    max_seconds: float = MAX_PHRASE_SECONDS,
+) -> list[tuple[int, int]]:
+    """Inclusive word ranges: closed at punctuation or before `max_seconds`, never under
+    `min_seconds`. The defaults are Style B's band; each style passes its own (spec 2026-11-17)."""
     ranges: list[tuple[int, int]] = []
     first = 0
     for index, word in enumerate(words):
         span = word.end_seconds - words[first].start_seconds
         following = words[index + 1] if index + 1 < len(words) else None
-        stop = bool(_CLOSES.search(word.text)) and span >= MIN_PHRASE_SECONDS
+        stop = bool(_CLOSES.search(word.text)) and span >= min_seconds
         too_long = (
             following is not None
-            and following.end_seconds - words[first].start_seconds > MAX_PHRASE_SECONDS
-            and span >= MIN_PHRASE_SECONDS
+            and following.end_seconds - words[first].start_seconds > max_seconds
+            and span >= min_seconds
             and not _CLOSES.search(following.text)
         )
         if stop or too_long or following is None:
@@ -127,7 +132,7 @@ def split_phrases(words: Sequence[WordTiming]) -> list[tuple[int, int]]:
             first = index + 1
     if len(ranges) > 1:
         a, b = ranges[-1]
-        if words[b].end_seconds - words[a].start_seconds < MIN_PHRASE_SECONDS:
+        if words[b].end_seconds - words[a].start_seconds < min_seconds:
             ranges.pop()
             ranges[-1] = (ranges[-1][0], b)
     return ranges

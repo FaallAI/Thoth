@@ -17,7 +17,7 @@ def test_both_built_in_styles_cover_every_beat() -> None:
 def test_style_a_values() -> None:
     a = BUILT_IN_STYLES["style_a"]
     assert a.captions.style == "boxed"
-    assert a.cuts.max_shot_seconds == 5.0
+    assert (a.cuts.min_shot_seconds, a.cuts.max_shot_seconds) == (1.5, 4.0)  # spec 2026-11-17
     assert a.narration.card_lines is False
     assert a.beats["hook"].heading_place == "title_top"
     assert a.beats["main"].background == "blur_fill"
@@ -40,7 +40,6 @@ def test_style_b_is_still_and_planned() -> None:
     assert b.revision == 2 and b.cuts.planned
     assert {look.move for look in b.beats.values()} == {"none"}
     assert {look.fit for look in b.beats.values()} == {"cover"}
-    assert not BUILT_IN_STYLES["style_a"].cuts.planned
 
 
 def test_a_template_missing_a_beat_is_refused() -> None:
@@ -55,3 +54,14 @@ def test_starters_are_written() -> None:
     b = BUILT_IN_STYLES["style_b"].narration.starter
     assert "Hook" in a and "Call-To-Value" in a
     assert "metafora" in b.lower() and "reaksi" in b.lower()
+
+
+def test_every_built_in_style_is_planned() -> None:  # spec 2026-11-17, goal 1
+    assert all(style.cuts.planned for style in BUILT_IN_STYLES.values())
+    assert BUILT_IN_STYLES["style_a"].revision == 2
+
+
+def test_a_stored_template_without_planned_is_planned() -> None:
+    body = BUILT_IN_STYLES["style_a"].model_dump()
+    del body["cuts"]["planned"]
+    assert StyleTemplate.model_validate(body).cuts.planned is True

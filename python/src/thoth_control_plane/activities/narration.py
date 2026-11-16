@@ -396,12 +396,13 @@ class NarrationActivities:
         document: EditDocumentV2,
         materials: Any,
         voiced: list[VoicedBeat],
+        band: tuple[float, float],
     ) -> Any:
         """The planner's plan, or None: past its deadline the draft cuts on phrases only."""
         try:
             return await asyncio.wait_for(
                 self._ports.planner.plan(  # type: ignore[union-attr]
-                    step.project_id, step.document_id, document, materials, voiced
+                    step.project_id, step.document_id, document, materials, voiced, band
                 ),
                 PLANNER_DEADLINE_SECONDS,
             )
@@ -451,7 +452,11 @@ class NarrationActivities:
             # A hand-edited beat is not re-cut, so its picture is not paid for again.
             edited = set(edited_beats(document, _roles(materials)))
             plan = await self._plan(
-                step, document, materials, [v for v in voiced if v.beat not in edited]
+                step,
+                document,
+                materials,
+                [v for v in voiced if v.beat not in edited],
+                style.cuts.band(),
             )
         narrated = narrate_document(
             document,

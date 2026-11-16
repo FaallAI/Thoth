@@ -720,7 +720,7 @@ class SlowPlanner:
         self.plan_value = plan
         self.calls: list[tuple[str, int]] = []
 
-    async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+    async def plan(self, project_id, document_id, document, materials, voices, band=None):  # type: ignore[no-untyped-def]
         self.calls.append((document_id, len(voices)))
         await asyncio.sleep(self.seconds)
         return self.plan_value
@@ -737,10 +737,21 @@ def test_a_planned_style_asks_the_planner_once() -> None:
 
 
 def test_an_unplanned_style_never_asks_the_planner() -> None:
-    planner = SlowPlanner()
-    built, seen = styled_ports("style_a")
-    built.planner = planner
-    narrate_once(built, seen)
+    # Every built-in style plans since spec 2026-11-17; a style may still turn it off.
+    from thoth_control_plane.domain import style_templates
+
+    a = style_templates.BUILT_IN_STYLES["style_a"]
+    unplanned = a.model_copy(update={"cuts": a.cuts.model_copy(update={"planned": False})})
+    original = dict(style_templates.BUILT_IN_STYLES)
+    style_templates.BUILT_IN_STYLES["style_a"] = unplanned
+    try:
+        planner = SlowPlanner()
+        built, seen = styled_ports("style_a")
+        built.planner = planner
+        narrate_once(built, seen)
+    finally:
+        style_templates.BUILT_IN_STYLES.clear()
+        style_templates.BUILT_IN_STYLES.update(original)
     assert planner.calls == []
 
 
@@ -761,7 +772,7 @@ def test_a_hand_edited_beat_is_not_planned(monkeypatch: pytest.MonkeyPatch) -> N
     seen: list[list[str]] = []
 
     class Recording(SlowPlanner):
-        async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+        async def plan(self, project_id, document_id, document, materials, voices, band=None):  # type: ignore[no-untyped-def]
             seen.append([v.beat for v in voices])
             return DraftPlan()
 

@@ -29,6 +29,8 @@ from thoth_control_plane.assembly.planner_shots import (
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2, TimelineVideoClip
 from thoth_control_plane.domain.narration import BEAT_ORDER, TranscriptSegment
 from thoth_control_plane.domain.planner import (
+    MAX_PHRASE_SECONDS,
+    MIN_PHRASE_SECONDS,
     BeatPlan,
     DraftPlan,
     PlanCard,
@@ -76,10 +78,12 @@ class Planner:
         document: EditDocumentV2,
         materials: StudioMaterials,
         voices: Sequence[Any],
+        band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
     ) -> DraftPlan | None:
-        """The draft's plan, stored before it is returned; None when it cannot be made."""
+        """The draft's plan, stored before it is returned; None when it cannot be made. `band` is
+        the style's phrase lengths (spec 2026-11-17)."""
         try:
-            return await self._plan(project_id, document_id, document, materials, voices)
+            return await self._plan(project_id, document_id, document, materials, voices, band)
         except Exception as error:
             logger.warning(
                 "planner unavailable; cutting on phrases only error=%s", type(error).__name__
@@ -93,6 +97,7 @@ class Planner:
         document: EditDocumentV2,
         materials: StudioMaterials,
         voices: Sequence[Any],
+        band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
     ) -> DraftPlan:
         stored = await self._store.get_plan(document_id)
         kept = {beat.beat: beat for beat in stored.beats} if stored else {}
@@ -103,7 +108,7 @@ class Planner:
         fresh: list[Any] = []
         for voice in voices:
             key = words_key(voice.words)
-            ranges = split_phrases(voice.words)
+            ranges = split_phrases(voice.words, *band)
             old = kept.get(voice.beat)
             if old is not None and old.words_key == key:
                 phrases = reuse_picks(old, ranges, voice.words)
@@ -132,7 +137,7 @@ class Planner:
             number = 0
             for voice in fresh:
                 phrases = []
-                for first, last in split_phrases(voice.words):
+                for first, last in split_phrases(voice.words, *band):
                     number += 1
                     text = " ".join(word.text for word in voice.words[first : last + 1])
                     heard = soundbite(text, mains)

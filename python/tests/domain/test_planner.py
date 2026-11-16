@@ -144,3 +144,9 @@ def fixture_soundbite_score() -> tuple[int, int]:
 def test_soundbite_hits_the_operators_blind_pick_on_the_fixtures() -> None:
     fired, hit = fixture_soundbite_score()
     assert fired >= 12 and hit >= 12, (fired, hit)
+
+
+def test_phrases_follow_the_given_band() -> None:  # spec 2026-11-17, goal 2
+    words = [w(f"kata{i}", i * 0.5, i * 0.5 + 0.45) for i in range(7)]  # 3.45 s, no stop
+    assert split_phrases(words, min_seconds=1.5, max_seconds=4.0) == [(0, 6)]
+    assert len(split_phrases(words)) >= 2  # the default band still closes near 2.4 s
