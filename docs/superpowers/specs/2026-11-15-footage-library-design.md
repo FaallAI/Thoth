@@ -499,10 +499,14 @@ Every admitted video clip carries `relation`:
   - aliases that include real names, common spellings, and the hashtag form of each name (no spaces, lowercase).
 - **`queries`** keeps at most 2 searches about the incident (for originals and tracing). The related queries are searched like the others.
 - **REFINE_PROMPT** may add related events the titles show. It keeps adding the real names the titles use.
+- **Round two always runs once.** Until now it was skipped when round one already had 6 passing clips. It was skipped in both Mutant runs (`refined` false), and that is why the card never learned "Saiful". Round one's story rejects are reopened after it, as before.
 
 ### 10.5 Gates
 
-- **Name matching.** A card name also matches its hashtag form (the name without spaces), so `#tretanmuslim` names Tretan Muslim.
+- **Name matching.**
+  - A card name also matches its hashtag form (the name without spaces), so `#tretanmuslim` names Tretan Muslim.
+  - A name word followed by the suffix "nya" also matches ("mutannya").
+  - Spelling variants come from the card's aliases (10.4).
 - **Time window.** A candidate that names a card person may be up to 2 years older than the main post. One that matches only by event words keeps the 30-day window.
 - **Vision judge.**
   - **Visual.** For a person query, it is "<person> in person". For a related query, it is that event's text.
