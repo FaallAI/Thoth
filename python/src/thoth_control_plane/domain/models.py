@@ -302,6 +302,10 @@ class StageSummary(StrictModel):
     # summaries and older clients stay valid.
     started_at: datetime | None = Field(default=None)
     finished_at: datetime | None = Field(default=None)
+    # Spec 2026-11-15, 10.12: a person's wait inside a running stage (the subject stop): since
+    # when it waits, and the seconds waited, which stay out of the stage's duration.
+    waiting_since: datetime | None = Field(default=None)
+    waited_seconds: float | None = Field(default=None)
     skip_reason: (
         Literal[
             "attribution_off",

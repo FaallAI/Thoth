@@ -8068,6 +8068,29 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "waited_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waited Seconds"
+          },
+          "waiting_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Since"
           }
         },
         "required": [

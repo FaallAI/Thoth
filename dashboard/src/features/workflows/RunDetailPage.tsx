@@ -168,7 +168,8 @@ export function RunDetailPage({
   const active = status === "queued" || status === "running" || status === "awaiting_approval";
   const project = projects.find((item) => item.project_id === summary.project_id);
   const title = summary.title || summary.source.display_url;
-  const review = summary.stages.find((stage) => stage.id === "approval");
+  // The stage a person holds: the review, or footage during the subject stop (spec 10.12).
+  const review = summary.stages.find((stage) => stage.status === "waiting") ?? summary.stages.find((stage) => stage.id === "approval");
   const failedStage = summary.stages.find((stage) => stage.status === "failed");
   const lastStep = steps.at(-1);
   const content = artifact(summary, "content_set");
@@ -180,8 +181,8 @@ export function RunDetailPage({
   let statusLine: string | null = null;
   if (status === "queued" || status === "running") {
     statusLine = minutes === null ? t("estimate.fewMinutes") : t("estimate.minutes", { minutes });
-  } else if (status === "awaiting_approval" && review?.started_at) {
-    statusLine = t("detail.waitingSince", { time: time(review.started_at) });
+  } else if (status === "awaiting_approval" && (review?.waiting_since ?? review?.started_at)) {
+    statusLine = t("detail.waitingSince", { time: time((review!.waiting_since ?? review!.started_at)!) });
   } else if (status === "succeeded") {
     statusLine = t("detail.finishedIn", { duration: duration(totalSeconds) });
   } else if (status === "failed" && kept.length > 0) {

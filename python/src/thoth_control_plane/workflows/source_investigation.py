@@ -500,7 +500,7 @@ class SourceInvestigationWorkflow:
             return None
         self._transition(WorkflowStatus.RUNNING)
         if self._plan is not None:
-            self._plan.resume("footage")
+            self._plan.resume("footage", workflow.now())
         if self._approval_decision != "approve":
             return None, False
         chosen = next(c for c in found.choices if c.choice_id == self._approval_choice)

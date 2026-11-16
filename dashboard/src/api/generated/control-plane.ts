@@ -4646,6 +4646,10 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled" | "skipped";
+            /** Waited Seconds */
+            waited_seconds?: number | null;
+            /** Waiting Since */
+            waiting_since?: string | null;
         };
         /** StatusCounts */
         StatusCounts: {

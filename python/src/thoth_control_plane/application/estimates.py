@@ -32,8 +32,10 @@ def _medians(histories: list[WorkflowSummary]) -> dict[str, float]:
         for stage in history.stages:
             if stage.status != "completed" or stage.started_at is None or stage.finished_at is None:
                 continue
+            # A person's wait inside the stage is no work (spec 2026-11-15, 10.12).
             durations.setdefault(stage.id, []).append(
                 (stage.finished_at - stage.started_at).total_seconds()
+                - (stage.waited_seconds or 0.0)
             )
     return {stage_id: median(values) for stage_id, values in durations.items()}
 

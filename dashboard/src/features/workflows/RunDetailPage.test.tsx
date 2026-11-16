@@ -147,7 +147,7 @@ function doubtfulSubject() {
     status: "awaiting_approval",
     stages: [
       { id: "source", label: "Fetch the source", status: "completed" },
-      { id: "footage", label: "Collect footage", status: "waiting", started_at: "2026-11-16T14:03:00Z" },
+      { id: "footage", label: "Collect footage", status: "waiting", started_at: "2026-11-16T14:03:00Z", waiting_since: "2026-11-16T14:05:00Z" },
     ],
     approval: {
       approval_id: "ap_2",
@@ -169,6 +169,7 @@ test("a doubtful subject asks which face the story is about", async () => {
   const user = userEvent.setup();
 
   const card = await screen.findByRole("region", { name: "Who is this story about?" });
+  expect(screen.getByText(/Waiting since/)).toBeDefined();  // from the footage stage's wait
   expect(within(card).queryByRole("button", { name: "Approve and continue" })).toBeNull();
   expect(within(card).getAllByRole("button").length).toBe(3);
   await user.click(within(card).getByRole("button", { name: "25 s on screen" }));

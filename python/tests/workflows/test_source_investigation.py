@@ -2135,6 +2135,8 @@ async def test_a_doubtful_subject_waits_for_a_choice(
             ("g1", 25),
         ]
         assert "TEMPLATE" not in awaiting.model_dump_json()  # the templates stay in the workflow
+        footage_stage = {stage.id: stage for stage in awaiting.stages}["footage"]
+        assert footage_stage.status == "waiting" and footage_stage.waiting_since is not None
         assert FOOTAGE_INPUTS == []  # footage waits for the choice
         await _choose(handle, "approve", "g9")  # not offered: ignored
         assert (await handle.query(SourceInvestigationWorkflow.summary)).status == (
@@ -2143,6 +2145,7 @@ async def test_a_doubtful_subject_waits_for_a_choice(
         await _choose(handle, "approve", "g1")
         result = await handle.result()
     assert result.status == "succeeded" and result.approval is None
+    assert {stage.id: stage.status for stage in result.stages}["footage"] == "completed"
     (footage,) = FOOTAGE_INPUTS
     assert (footage.subject, footage.face_check) == ("TEMPLATE-G1", True)
 
@@ -2182,6 +2185,7 @@ async def test_cancel_while_choosing_the_subject(
         result = await handle.result()
     assert result.status == "cancelled"
     assert FOOTAGE_INPUTS == []
+    assert {stage.id: stage.status for stage in result.stages}["footage"] == "cancelled"
 
 
 @pytest.mark.asyncio
