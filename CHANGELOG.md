@@ -66,7 +66,23 @@ On run `wf_c7efa4c2` the operator found footage "di kejadian yang sama dengan ma
 - **Each worker held two ArcFace sessions.** It now holds one (`shared_reader`), which matters given the WSL memory reaper.
 - **A carousel main's own slides were face-checked.** They no longer are.
 
-The 11 remaining minors are deferred; they are listed in the checkpoint.
+**The 11 minors, fixed on the operator's request** ("tolong perbaiki minor dulu"; daa644d7, 3c639548), each test first:
+- **Face reads.** Each read has its own detector, with no lock, so concurrent face steps no longer wait on each other. Skipped frames are grabbed, not decoded.
+- **Object path.** It has no old-clip cap; `too_old` applies only to runs with a card.
+- **The subject stop's wait.**
+  - The waiting text names the stage that waits, which is footage during the subject stop.
+  - The stage records `waiting_since` and `waited_seconds`.
+  - Estimates keep the wait out of footage's duration.
+- **Library rows** learn `related` from a later run, and never lose it.
+- **numpy.** A test guards that the API never imports it.
+- **A failed refine.** A test pins that round one's card is kept, marked refined.
+- **`same_event`.** A vision answer that skips the asked question is unusable (`vision_unavailable`), instead of passing as another event.
+- **Library copies.** A failed copy counts in `media_causes` (`library_copy`).
+- **`main_report`** is now public, and the activity no longer imports a private helper.
+- **YuNet** is pinned to opencv_zoo commit `f12e1279`; its SHA-256 was rechecked.
+- **Workflow tests** check the footage stage through the subject stop: waiting, completed after the choice, cancelled on a cancel.
+
+After the minors: `make test` 5150 passed, 250 skipped; lint clean; dashboard 2026 pass, `tsc` and build clean.
 
 **Next steps.**
 1. Push the branch and CI (own gate). CI now fetches about 167 MB more models.
