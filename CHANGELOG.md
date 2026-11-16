@@ -84,9 +84,16 @@ On run `wf_c7efa4c2` the operator found footage "di kejadian yang sama dengan ma
 
 After the minors: `make test` 5150 passed, 250 skipped; lint clean; dashboard 2026 pass, `tsc` and build clean.
 
+**Deploy (2026-11-16, operator "lakukan seperti biasa").**
+- e6dd785e was pushed to PR #133. Both CI runs were green (43885517692 and 43885532620).
+- Stage1 runs the branch image, matching the CI publish log: thoth `3f5a6fd6e01c`, renderer `a696b873ae07`, web `af9e1ee6b704`. `make deploy` applied editor migration 0035; `relation` exists on `footage_candidates` and `footage_library`.
+- The face models are present in the worker.
+- Health: web 200, 0 worker errors, 0 API 5xx, 0 running workflows.
+- Production runs code not yet in `master`.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-c906c16d.sh`. It restores the pins only, never `make deploy`; 0035 stays, since older images never read its column.
+
 **Next steps.**
-1. Push the branch and CI (own gate). CI now fetches about 167 MB more models.
-2. Deploy (own gate): editor migration 0035 and a new worker image carrying the face models.
+1. ~~Push and CI; deploy~~ (done 2026-11-16).
 3. A new Mutant run, judged by the operator (own gate). Expected: no stop, since Saiful is clear; no clip showing only Tretan Muslim; at most 1 same-event clip.
 4. One narration write, a paid call shown with its cost first (own gate).
 5. Merge PR #133 (own gate).
