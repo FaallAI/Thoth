@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-17 - The planner places every style's b-roll; clips stack as layers
+
+On draft `edoc_3ee4719b`, the Denny Sumargo podcast sections were admitted but never shown. Style A had one footage beat, 6.5 s long, filled in material order, and only 2 of 5 clips fit. The operator asked that Style B's placement become the default ("tapi bukan berarti akan menjadi hardcode"). They also asked why the timeline cannot stack clips the way CapCut does ("ya itu yang ku maksud"). The same draft in Style B showed 7 `clip_overlap` warnings.
+
+- **Spec:** `docs/superpowers/specs/2026-11-17-planner-default-design.md`.
+- **Plan:** `docs/superpowers/plans/2026-11-17-planner-default.md` (Tasks 1-4), executed natively.
+- **Brainstorm record:** items 80-85.
+
+**What the 7 warnings were.**
+- **Three were a real bug.** The import's profile card stayed under the planner's shots on the b-roll, so two pictures showed at once.
+- **Four were not conflicts.** A top title, a card and a credit shared the overlay lane at the same time, but they sit in different places on screen.
+- **Remotion already stacks.** The lower in the tree, the higher on screen (remotion.dev/docs/layers, via Context7). Only the editor's rule flagged these.
+
+**What changed.**
+- **Planner on by default** (b313d5f). `CutRules.planned` defaults to on, and a style can still turn it off.
+  - The phrase split reads each style's band: Style B keeps 0.9-2.4 s; Style A (revision 2) is planned at 1.5-4.0 s.
+  - The band reaches the planner (`plan(..., band)`).
+- **A planned beat owns its b-roll** (ec9882d). The import's positioned cards on the b-roll are removed when the plan placed pictures there.
+  - **Kept:** a beat the style hides, and locked cards.
+  - **The overlap guard stays** (operator, item 85). `b_roll_overlaps` names two b-roll pictures at once, and the narration write logs them with the document id. The planner's own card over its own shot is not flagged.
+- **Computed layers** (cf48bc3). In the shared composition, clips that play at once go on the lowest free layer.
+  - `lane.layered` is the draw order, so the render matches Studio.
+  - `lane.clips` stays in time order for the editor's rules and gestures.
+- **Studio** (ca563fe, e3e13fb1). A lane draws one 44 px row per layer, with the top layer highest, and rows hold still during a drag.
+  - `clip_overlap` is gone from Studio and from the server review. `main_track_gap` and `clip_exceeds_canvas` stay.
+
+**One consequence, accepted by the spec.** A clip already stacked over another stays above a clip that later joins the lower layer. A draft with that shape re-stacks. The three template-release goldens have the shape on their badge lane and still pass pixel parity.
+
+**Verification.**
+- `make test`: 5161 passed, 250 skipped.
+- `make lint`: clean.
+- Dashboard: 2028 pass, `tsc` and build clean.
+- Composition package: 47 pass.
+- Golden parity (`f1_verify3.sh`): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19.
+
+**Final review** (fresh reviewer): "With fixes", with 0 Critical, 2 Important and 8 Minor; one Minor was re-graded Important. All three were fixed test first in e3e13fb1:
+- **The b-roll guard flagged the planner's own card over its own shot.** It no longer does.
+- **Studio lanes re-layered during a drag.** Rows now hold still until the drag ends.
+- **A wrong ruling:** the draw order does re-stack one shape. That is now pinned by a test and written in the spec.
+
+**Deferred minors.**
+- A hidden clip draws on the bottom row and can cover a visible one.
+- The marquee selects across rows.
+- `clip_overlap` leftovers remain in the issue type and i18n.
+- One test swaps a global without monkeypatch.
+- A test helper duplicates the guard.
+- Two `band` defaults are unused.
+- The plan's "import material" wording is imprecise.
+
+**Next steps.**
+1. Push and CI (own gate).
+2. Deploy (own gate). There is no migration.
+3. One paid Style A narration on the Mutant draft (own gate). Expected: the podcast section that shows Saiful appears where the voice talks about it, and stacked titles, cards and credits show as layers with no warning.
+4. Merge PR #133 (own gate).
+
+Carried forward:
+- the deferred minors above;
+- the Style A explainer collage;
+- memes, SFX and effects picked by the planner;
+- moving clips between layers by hand.
+
 ## 2026-11-17 - No footage after the face check deploy, then no Denny Sumargo podcast
 
 **Run `wf_e8cfba2b`** ("kenapa ... tidak dapat footage"). Every clip that passed the text gate failed its download (24 TikTok, 5 YouTube), so nothing was admitted.
