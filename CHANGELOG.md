@@ -42,6 +42,11 @@ On draft `edoc_3ee4719b`, the Denny Sumargo podcast sections were admitted but n
 - **Studio lanes re-layered during a drag.** Rows now hold still until the drag ends.
 - **A wrong ruling:** the draw order does re-stack one shape. That is now pinned by a test and written in the spec.
 
+**Style A's short footage shots** (operator item 86, "pilihan 1 setuju").
+- **The risk** (raised by a side agent, measured on edoc_3ee4719b's stored shots): the half-phrase rule kept only 2 of the podcast's 9 real cuts (0.9-4.04 s) on a 4 s Style A phrase.
+- **The fix:** `CutRules.pick_cap_seconds` caps the rule. Style A sets 1.5 s, so 5 of 9 stay usable at any phrase length. Style B has no cap and is unchanged.
+- **Verification:** `make test` 5163 passed.
+
 **Deferred minors.**
 - A hidden clip draws on the bottom row and can cover a visible one.
 - The marquee selects across rows.
