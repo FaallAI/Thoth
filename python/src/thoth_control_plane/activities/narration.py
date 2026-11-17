@@ -653,7 +653,15 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
             if key
             else None
         )
-        planner = Planner(store, fetch_asset, model, settings.THOTH_FFMPEG, settings.THOTH_FFPROBE)
+        planner = Planner(
+            store,
+            fetch_asset,
+            model,
+            settings.THOTH_FFMPEG,
+            settings.THOTH_FFPROBE,
+            faces=_face_reader(settings),
+            people=_card_people(database),
+        )
 
     async def transcribe(video: Path) -> list[TranscriptSegment]:
         # ponytail: the first 15 minutes; a longer main video is not a short-form source.
@@ -713,3 +721,39 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
             planner=planner,
         )
     )
+
+
+def _face_reader(settings: Any) -> Any | None:
+    """The footage stage's shared ArcFace reader, or None: the planner then plans without faces
+    (spec 2026-11-17, 6)."""
+    if not settings.THOTH_FOOTAGE_ENABLED:
+        return None
+    try:
+        from thoth_control_plane.footage.adapters.faces import shared_reader
+
+        return shared_reader(settings.THOTH_FACE_MODELS_DIR)
+    except Exception as error:
+        logger.warning("planner face models unavailable: %s", type(error).__name__)
+        return None
+
+
+def _card_people(database: str) -> Callable[[str, str], Awaitable[list[str]]]:
+    """The names on the draft's source run's footage context card, subject first."""
+    from thoth_control_plane.footage.context import ContextCard
+    from thoth_control_plane.infrastructure.footage_store import FootageStore
+    from thoth_control_plane.infrastructure.studio_import_repository import (
+        PostgresStudioImportRepository,
+    )
+
+    imports = PostgresStudioImportRepository(database)
+    footage = FootageStore.connect(database)
+
+    async def people(project_id: str, document_id: str) -> list[str]:
+        inventory = await imports.get_inventory(project_id=project_id, document_id=document_id)
+        if inventory is None or inventory.source_workflow_id is None:
+            return []
+        run = await asyncio.to_thread(footage.run, inventory.source_workflow_id)
+        card = ContextCard.model_validate((run.context if run else None) or {})
+        return [person.name for person in card.people if person.name]
+
+    return people

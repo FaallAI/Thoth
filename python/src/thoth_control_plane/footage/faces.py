@@ -110,6 +110,23 @@ def shows_subject(subject: np.ndarray, faces: Sequence[Face]) -> bool:
     return len(seconds) >= MATCH_SECONDS
 
 
+def who_is_on_screen(
+    named: Sequence[tuple[str, np.ndarray]], faces: Sequence[Face], start: float, end: float
+) -> list[str] | None:
+    """The names whose template a face in [start, end) matches at MATCH, in `named` order; one
+    second is enough, shots are short (spec 2026-11-17, 6). [] when the shot has faces but none
+    named, None when it has no face."""
+    inside = [face for face in faces if int(start) <= face.second < end]
+    if not inside:
+        return None
+    names = []
+    for name, kept in named:
+        k = min(TOP_K, len(kept))
+        if k and any(float(np.sort(kept @ f.embedding)[-k:].mean()) >= MATCH for f in inside):
+            names.append(name)
+    return names
+
+
 def encode_template(array: np.ndarray) -> str:
     """The template as text for a workflow payload: float16, base64."""
     return base64.b64encode(np.asarray(array, dtype="<f2").tobytes()).decode("ascii")

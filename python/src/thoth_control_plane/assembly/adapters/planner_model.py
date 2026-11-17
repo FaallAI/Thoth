@@ -80,6 +80,9 @@ Rules, from the editor who judges this:
    that video's shots, best the shot where it is said ("WHAT EACH VIDEO SAYS").
 11. A footage clip showing the same scene as the main video from another angle is used only for
    phrases about that moment.
+12. A phrase that names a person listed in "WHO IS ON SCREEN IN EACH SHOT" takes shots where that
+   person is on screen, when there are any. A shot listed only with "other people" is never the
+   picture for a named person.
 
 For every phrase answer:
 - base: list of S ids; overlay: list with at most one C id;

@@ -84,3 +84,26 @@ def test_template_round_trips_through_text() -> None:
     back = decode_template(encode_template(kept))
     assert back.shape == (3, DIM)
     assert np.allclose(back, kept, atol=1e-3)
+
+
+def test_who_is_on_screen_names_the_known_faces_in_a_shot() -> None:  # 2026-11-17 spec §6
+    from thoth_control_plane.footage.faces import who_is_on_screen
+
+    saiful, densu, tretan = _unit(1), _unit(2), _unit(3)
+    named = [
+        ("Saeful", template(FaceGroup(members=_person(saiful, range(0, 20), 100), seconds=20))),
+        (
+            "Denny Sumargo",
+            template(FaceGroup(members=_person(densu, range(0, 20), 200), seconds=20)),
+        ),
+    ]
+    faces = [
+        Face(second=1, embedding=_near(densu, 7)),
+        Face(second=4, embedding=_near(tretan, 8)),
+        Face(second=6, embedding=_near(saiful, 9)),
+        Face(second=6, embedding=_near(densu, 10)),
+    ]
+    assert who_is_on_screen(named, faces, 0.0, 2.0) == ["Denny Sumargo"]
+    assert who_is_on_screen(named, faces, 3.5, 5.0) == []  # faces, but nobody named
+    assert who_is_on_screen(named, faces, 5.5, 7.0) == ["Saeful", "Denny Sumargo"]
+    assert who_is_on_screen(named, faces, 8.0, 9.0) is None  # no face in the shot

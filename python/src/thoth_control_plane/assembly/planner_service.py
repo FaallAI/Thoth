@@ -9,6 +9,7 @@ Any failure gives no plan, and the narration falls back to the phrase-start rhyt
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Sequence
@@ -43,6 +44,12 @@ from thoth_control_plane.domain.planner import (
     words_key,
 )
 from thoth_control_plane.domain.studio_imports import StudioMaterials
+from thoth_control_plane.footage.faces import (
+    MAIN_SECONDS,
+    group_faces,
+    template,
+    who_is_on_screen,
+)
 from thoth_control_plane.footage.reposts import credit_label
 
 logger = logging.getLogger(__name__)
@@ -62,6 +69,8 @@ class Planner:
         *,
         detect: Callable[..., Awaitable[list[tuple[float, float]]]] = detect_shots,
         frames: Callable[..., Awaitable[list[Path]]] = keyframes,
+        faces: Any | None = None,
+        people: Callable[[str, str], Awaitable[list[str]]] | None = None,
     ) -> None:
         self._store = store
         self._fetch = fetch_asset
@@ -70,6 +79,8 @@ class Planner:
         self._ffprobe = ffprobe
         self._detect = detect
         self._frames = frames
+        self._faces = faces  # a FaceReader; with `people`, the planner learns who is on screen
+        self._people = people
 
     async def plan(
         self,
@@ -318,7 +329,43 @@ class Planner:
         said = [f"- {s.shot_id} ({labels[s.shot_id]}): {s.said}" for s in shots if s.said]
         if said:
             sources += ["", "WHAT EACH VIDEO SAYS DURING EACH SHOT:", *said]
+        sources += await self._on_screen(project_id, document_id, shots, labels, files)
         return shots, cards, assets, files, sources
+
+    async def _on_screen(
+        self,
+        project_id: str,
+        document_id: str,
+        shots: Sequence[PlanShot],
+        labels: dict[str, str],
+        files: dict[str, Path],
+    ) -> list[str]:
+        """Who is on screen in each shot (spec 2026-11-17, 6): the main's two longest face groups,
+        named by the run's card. Any gap leaves the block out; never a failure."""
+        if self._faces is None or self._people is None or "MAIN" not in files:
+            return []
+        try:
+            people = (await self._people(project_id, document_id))[:2]
+            if not people:
+                return []
+            main = await asyncio.to_thread(self._faces.faces, files["MAIN"], 0.0, MAIN_SECONDS)
+            groups = group_faces(main)
+            named = [(name, template(group)) for name, group in zip(people, groups, strict=False)]
+            if not named:
+                return []
+            read: dict[str, list[Any]] = {"MAIN": main}
+            lines = []
+            for shot in shots:
+                label = labels[shot.shot_id]
+                if label not in read:
+                    read[label] = await asyncio.to_thread(self._faces.faces, files[label])
+                who = who_is_on_screen(named, read[label], shot.start_seconds, shot.end_seconds)
+                if who is not None:
+                    lines.append(f"- {shot.shot_id} ({label}): {', '.join(who) or 'other people'}")
+        except Exception as error:  # the faces are a hint: a planner without them still plans
+            logger.warning("planner faces unavailable: %s", type(error).__name__)
+            return []
+        return ["", "WHO IS ON SCREEN IN EACH SHOT:", *lines] if lines else []
 
     @staticmethod
     def _said(

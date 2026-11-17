@@ -360,3 +360,81 @@ async def test_footage_shots_carry_what_their_source_says() -> None:  # spec 202
     sources = model.calls[0]["sources"]
     assert "WHAT EACH VIDEO SAYS DURING EACH SHOT:" in sources
     assert f"- {footage[0].shot_id} (F1): dia bawa pedang" in sources.splitlines()
+
+
+class Faces:
+    """FaceReader's contract: the main shows the subject 20 s and Densu 10 s; the footage shows
+    Densu in its first shot and someone else in its second."""
+
+    def __init__(self) -> None:
+        import numpy as np
+
+        def unit(seed: int):  # type: ignore[no-untyped-def]
+            vector = np.random.default_rng(seed).standard_normal(512).astype(np.float32)
+            return vector / np.linalg.norm(vector)
+
+        self.saiful, self.densu, self.tretan = unit(1), unit(2), unit(3)
+
+    def faces(self, path: Path, start: float = 0.0, duration: float | None = None):  # type: ignore[no-untyped-def]
+        from thoth_control_plane.footage.faces import Face
+
+        if "vid_long" in path.name:
+            return [Face(second=1, embedding=self.densu), Face(second=4, embedding=self.tretan)]
+        return [Face(second=s, embedding=self.saiful) for s in range(20)] + [
+            Face(second=s, embedding=self.densu) for s in range(10)
+        ]
+
+
+async def test_the_planner_is_told_who_is_on_screen_in_each_shot() -> None:  # spec §6
+    async def people(_project: str, _document: str) -> list[str]:
+        return ["Saeful", "Denny Sumargo"]
+
+    store, model = Store(), Model([PhraseAnswer("P1", ["S3"], None, "terlihat")])
+    built = Planner(
+        store,
+        Fetcher(),
+        model,
+        "ffmpeg",
+        "ffprobe",
+        detect=Detect(),
+        frames=frames,
+        faces=Faces(),
+        people=people,
+    )
+    plan = await built.plan(
+        "project_001", DOC, draft(), MATERIALS, [voice("main", "Podcast Densu")]
+    )
+    assert plan is not None
+    footage = sorted(
+        (s for s in plan.shots if s.source == "footage"), key=lambda s: s.start_seconds
+    )
+    lines = model.calls[0]["sources"].splitlines()
+    assert "WHO IS ON SCREEN IN EACH SHOT:" in lines
+    assert f"- {footage[0].shot_id} (F1): Denny Sumargo" in lines
+    assert f"- {footage[1].shot_id} (F1): other people" in lines
+
+
+async def test_no_card_names_no_block() -> None:
+    async def people(_project: str, _document: str) -> list[str]:
+        return []
+
+    store, model = Store(), Model([PhraseAnswer("P1", ["S3"], None, "terlihat")])
+    built = Planner(
+        store,
+        Fetcher(),
+        model,
+        "ffmpeg",
+        "ffprobe",
+        detect=Detect(),
+        frames=frames,
+        faces=Faces(),
+        people=people,
+    )
+    await built.plan("project_001", DOC, draft(), MATERIALS, [voice("main", "Podcast Densu")])
+    assert "WHO IS ON SCREEN" not in model.calls[0]["sources"]
+
+
+def test_the_prompt_keeps_a_named_person_to_their_own_shots() -> None:
+    from thoth_control_plane.assembly.adapters.planner_model import SYSTEM_PROMPT
+
+    assert "WHO IS ON SCREEN" in SYSTEM_PROMPT and "other people" in SYSTEM_PROMPT
