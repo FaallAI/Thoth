@@ -30,9 +30,12 @@ The operator checked draft edoc_3ee4719b and found:
 
 **Verification:** `make test` 5172 passed, 250 skipped; `make lint` clean.
 
+**Deploy (operator "ya lanjut"):** 4a207742 was pushed to PR #133, CI went green, and the branch image was deployed to stage1.
+- **Images:** thoth `de3e4f079682`, renderer `b57c3fef4c56`, web `8b9cc515e7c7`. The pins match the running images.
+- **Checks:** web 200, 0 worker errors, 0 API 5xx, face models present.
+- **Rollback:** `rollback-to-5eaa22d3.sh` (pins only; no new migration).
+
 **Next steps:**
-- push to PR #133 and CI;
-- deploy the branch image to stage1;
 - one paid Style A narration on the Mutant draft, to prove the podcast picture, the length and the rhythm live;
 - merge PR #133.
 
