@@ -73,6 +73,8 @@ logger = logging.getLogger(__name__)
 
 #: The same request can be answered differently, so a refused answer is asked for once more.
 SCRIPT_ATTEMPTS = 2
+#: A script under this share of its target words is asked for once more (2026-11-17).
+MIN_LENGTH_SHARE = 0.8
 PROVIDER_RETRY_SECONDS = 5.0  # a 5xx or a dropped connection is asked once more
 #: The planner's share of the draft write (5 min): past it, the draft cuts on phrases only.
 PLANNER_DEADLINE_SECONDS = 180.0
@@ -252,6 +254,8 @@ class NarrationActivities:
                 card_line_max_words=card_words,
             )
             script = None
+            short = None  # a script far below its length, kept in case the retry is no better
+            wanted = round(preset.target_seconds * preset.words_per_second)
             for attempt in range(1, SCRIPT_ATTEMPTS + 1):
                 try:
                     answer = await ports.provider.complete_json(
@@ -267,6 +271,25 @@ class NarrationActivities:
                         sfx_ids={entry.sfx_id for entry in sfx},  # type: ignore[arg-type]
                         card_line_max_words=card_words if card_lines else None,
                     )
+                    words = sum(len(beat.text.split()) for beat in script.beats)
+                    # Draft edoc_3ee4719b (2026-11-17): 52 words for a 135-word target left the
+                    # video half as long and its b-roll thin. Asked once more; never a failure.
+                    if words < wanted * MIN_LENGTH_SHARE and attempt < SCRIPT_ATTEMPTS:
+                        logger.warning(
+                            "narration script short attempt=%d words=%d wanted=%d",
+                            attempt,
+                            words,
+                            wanted,
+                        )
+                        short, script = script, None
+                        user = (
+                            f"{user}\n\nYour last script had {words} words; write about "
+                            f"{wanted} words in all, spread over the beats."
+                        )
+                        continue
+                    if short is not None:
+                        longer = sum(len(beat.text.split()) for beat in short.beats)
+                        script = script if words >= longer else short
                     break
                 except (ProviderInvalidOutput, ScriptInvalid) as error:
                     logger.warning("narration script refused attempt=%d: %s", attempt, error)
@@ -279,6 +302,8 @@ class NarrationActivities:
                 except Exception as error:
                     logger.warning("narration script call failed: %s", type(error).__name__)
                     return await self._fail(step.document_id, _safe_failure_code(error))
+            if script is None:
+                script = short  # the retry was refused: the short script still narrates
             if script is None:
                 return await self._fail(step.document_id, "invalid_provider_output")
             # A headline nobody reviews shows only when the facts hold it (2026-11-12).

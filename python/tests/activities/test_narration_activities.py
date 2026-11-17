@@ -346,7 +346,8 @@ def test_transcribing_and_scripting_never_voice_anything() -> None:
     result = run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
 
     assert result.code is None
-    assert seen["voice"].requests == [] and seen["uploads"] == 0 and seen["provider_calls"] == 1
+    # GOOD_ANSWER is far below the 45 s target, so it is asked for once more (2026-11-17).
+    assert seen["voice"].requests == [] and seen["uploads"] == 0 and seen["provider_calls"] == 2
     store = seen["store"]
     assert [beat.beat for beat in store.script.beats] == ["hook", "main", "reactions"]
     assert store.estimate.characters == sum(len(beat.text) for beat in store.script.beats)
@@ -829,3 +830,33 @@ def test_the_planner_fetches_a_real_asset_record(tmp_path: Path) -> None:
     )
     missing = fetch_planner_asset(Repository(), Media(), "project_001", "asset_x", tmp_path)
     assert run(missing) is None
+
+
+def _long_answer(words: int) -> dict[str, Any]:
+    text = " ".join(["kata"] * (words // 3))
+    return {
+        "beats": [
+            {"beat": "hook", "text": f"Kucing ini bikin heboh {text}."},
+            {"beat": "main", "text": f"Ikan diambil dalam sekejap {text}."},
+            {"beat": "reactions", "text": f"Warganet tertawa, kata Andi {text}."},
+        ],
+        "sfx_cues": [],
+    }
+
+
+def test_a_script_far_below_its_length_is_asked_for_once_more() -> None:
+    # Draft edoc_3ee4719b (2026-11-17): a 45 s target came back as 52 words (about 21 s).
+    long_enough = _long_answer(120)
+    built, seen = ports(answers=[GOOD_ANSWER, long_enough])
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert result.code is None and seen["provider_calls"] == 2
+    assert "words" in seen["provider_requests"][1]["user"]  # the retry says how long to write
+    script = seen["store"].script
+    assert sum(len(beat.text.split()) for beat in script.beats) >= 108
+
+
+def test_a_short_script_asked_twice_is_still_used() -> None:
+    built, seen = ports(answers=[GOOD_ANSWER, GOOD_ANSWER])
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert result.code is None and seen["provider_calls"] == 2  # never a failed narration
+    assert seen["store"].status[-1] == ("awaiting_approval", None)
