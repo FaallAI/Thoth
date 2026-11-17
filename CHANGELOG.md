@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-18 - Studio plays videos from light preview proxies
+
+The operator reported that Studio playback stuttered on draft edoc_afd07b23, although the rendered video was fine.
+
+**Cause.** Every source is stored as downloaded, with long keyframe gaps: the main at 8.3 s, and footage at 4.2 s (60 fps), 7.0 s (HEVC) and 10.4 s. At about 2 s per cut, 23 of 32 cuts had to decode more than 1 s before their first frame, and up to 7.7 s. The Player premounted only 1 s ahead, so it paused to buffer.
+
+**Fix** (spec `docs/superpowers/specs/2026-11-18-preview-proxies-design.md`; commits a800a6af, ff2399e9, 3a3d1620):
+- **The proxy.** A video asset gets a preview proxy: H.264, 30 fps, a keyframe every second, the long side at most 960 px, AAC audio, faststart.
+- **When and where.** The API builds it in the background, one at a time, when a video's preview capability is issued and no proxy is kept yet. It is kept at `previews/<project>/<asset>.v1.mp4`. This is the glance's pattern, and it is billed to nobody.
+- **How it is served.**
+  - Once a proxy is kept, the capability points the Player at `.../preview/proxy`, under the same cookie.
+  - The render and every original are untouched.
+  - Without ffmpeg, or after a failed build, the original plays as before.
+- **Premount.** While playing, a video premounts 2 s ahead instead of 1 s.
+
+**Verification:**
+- `make test` 5182 passed, 250 skipped; `make lint` clean;
+- dashboard 2029 pass; `tsc -b` and build clean; composition 47 pass;
+- on the draft's six real sources, built in the worker's /tmp, every proxy had a keyframe gap of 1.00 s, took 0.6-4.8 s to build, and came to 27 MB in all.
+- `f1_verify3.sh` did not finish: Claude Code stopped it for low system memory.
+
+**Next steps:**
+- rerun `f1_verify3.sh`;
+- push to PR #133 and CI;
+- deploy to stage1;
+- open edoc_afd07b23 once so its proxies build, reopen it and play;
+- merge PR #133.
+
 ## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
 
 The operator checked draft edoc_3ee4719b and found:
