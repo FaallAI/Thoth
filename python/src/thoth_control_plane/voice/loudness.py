@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -30,6 +31,11 @@ _FORMATS: dict[str, tuple[str, list[str]]] = {
     "audio/x-wav": (".wav", ["-c:a", "pcm_s16le"]),
 }
 _TIMEOUT_SECONDS = 120
+#: loudnorm cannot measure a voice shorter than this: ffmpeg 5.1 (the worker's) turned a 2.87 s
+#: voice from -14 to -41 dB (draft edoc_3ee4719b, 2026-11-17). Silence pads the measurement to
+#: it and the result is cut back, so the voice keeps its own length and word timings.
+MIN_MEASURE_SECONDS = 3
+_DURATION = re.compile(r"Duration: (\d+):(\d+):([\d.]+)")
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -50,6 +56,7 @@ def normalize_loudness(audio: bytes, media_type: str, *, ffmpeg: str = "ffmpeg")
         return audio
     suffix, encoder = known
     target = f"I={TARGET_LUFS}:TP={TRUE_PEAK}:LRA={LOUDNESS_RANGE}"
+    pad = f"apad=whole_dur={MIN_MEASURE_SECONDS}"  # only a shorter voice gains silence
     with tempfile.TemporaryDirectory() as work:
         source = Path(work) / f"voice{suffix}"
         result = Path(work) / f"normalised{suffix}"
@@ -62,7 +69,7 @@ def normalize_loudness(audio: bytes, media_type: str, *, ffmpeg: str = "ffmpeg")
                 "-i",
                 str(source),
                 "-af",
-                f"loudnorm={target}:print_format=json",
+                f"{pad},loudnorm={target}:print_format=json",
                 "-f",
                 "null",
                 "-",
@@ -73,10 +80,18 @@ def normalize_loudness(audio: bytes, media_type: str, *, ffmpeg: str = "ffmpeg")
             start = measured.stderr.rindex("{")
             stats = json.loads(measured.stderr[start : measured.stderr.index("}", start) + 1])
             second = (
-                f"loudnorm={target}:measured_I={stats['input_i']}:measured_TP={stats['input_tp']}"
+                f"{pad},loudnorm={target}:measured_I={stats['input_i']}"
+                f":measured_TP={stats['input_tp']}"
                 f":measured_LRA={stats['input_lra']}:measured_thresh={stats['input_thresh']}"
                 f":offset={stats['target_offset']}:linear=true"
             )
+            found = _DURATION.search(measured.stderr)
+            if found is None:
+                raise ValueError("no duration")
+            hours, minutes, seconds = found.groups()
+            duration = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+            if duration < MIN_MEASURE_SECONDS:
+                second += f",atrim=end={duration:.3f}"  # back to the voice's own length
         except (ValueError, KeyError):
             logger.warning("narration loudness skipped: ffmpeg could not measure the voice")
             return audio

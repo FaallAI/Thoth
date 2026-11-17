@@ -67,6 +67,38 @@ def test_a_quiet_or_a_loud_voice_comes_out_at_the_target_level_and_length(volume
     assert abs(length - _measure(before)[1]) <= 0.08
 
 
+@pytest.mark.parametrize("seconds", [1.2, 2.8])
+def test_a_voice_shorter_than_three_seconds_is_not_flattened(seconds: float) -> None:
+    # Draft edoc_3ee4719b, 2026-11-17: the 2.87 s reactions voice went from -14 dB to -41 dB in
+    # the worker's ffmpeg 5.1 (loudnorm cannot measure under 3 s; ffmpeg 8 copes). The voice is
+    # measured padded with silence to 3 s and cut back to its own length.
+    before = _tone(-14.0, seconds)
+    after = normalize_loudness(before, "audio/mpeg")
+    level, length = _measure(after)
+    assert abs(level - TARGET_LUFS) <= 2.0
+    assert abs(length - _measure(before)[1]) <= 0.08
+
+
+def test_a_short_voice_is_measured_padded_and_cut_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.voice import loudness
+
+    filters: list[str] = []
+    real = loudness._run
+
+    def spy(command: list[str]):  # type: ignore[no-untyped-def]
+        filters.append(command[command.index("-af") + 1])
+        return real(command)
+
+    monkeypatch.setattr(loudness, "_run", spy)
+    loudness.normalize_loudness(_tone(-14.0, 2.0), "audio/mpeg")
+    first, second = filters
+    assert first.startswith("apad=whole_dur=3") and second.startswith("apad=whole_dur=3")
+    assert ",atrim=end=" in second
+    filters.clear()
+    loudness.normalize_loudness(_tone(-14.0, 4.0), "audio/mpeg")
+    assert ",atrim=" not in filters[1]  # a long voice is never cut
+
+
 def test_a_missing_ffmpeg_is_named_not_skipped() -> None:
     with pytest.raises(ToolMissing):
         normalize_loudness(_tone(-20.0), "audio/mpeg", ffmpeg="/nonexistent/ffmpeg")
