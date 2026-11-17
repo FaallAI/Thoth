@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
+
+The operator checked draft edoc_3ee4719b and found:
+- the phrase "podcast Denny Sumargo" showed Tretan Muslim;
+- the reactions narration was silent;
+- Style A's b-roll still fell short of Style B's.
+
+**Fixes:**
+- **68b4b2e6, a voice under 3 s keeps its level.**
+  - ffmpeg 5.1.9 in the worker measures loudnorm wrongly under 3 s: a 2.8 s voice went from -14 dB to -41 dB.
+  - The measurement now pads to 3 s and cuts the voice back to its length.
+  - Proven in the worker: 2.8 s gives -13.6 dB, and 3.5 s and 6 s are unchanged.
+- **cb316210, a script far below its length is asked for once more.**
+  - Under 80% of its target words, the model is asked again with the length.
+  - The longer of the two is kept; this never fails the narration.
+  - The Mutant script had 52 words for a 135-word target.
+- **5482fc99, Style A takes Style B's b-roll rhythm.**
+  - 0.9-2.4 s, revision 3, no pick cap (operator item 88). Its look is unchanged.
+- **899d4a6c and bb4f6165, the planner is told who is on screen in each shot** (spec `2026-11-17-planner-default-design.md` §6).
+  - The main's two longest ArcFace face groups (first 180 s) are named by the source run's footage card people. On the Mutant draft these are Saiful and Denny Sumargo.
+  - Each shot is listed with the names whose template matches at 0.42, or "other people".
+  - Prompt rule 12 keeps a named person to their own shots.
+  - With no card, faces or models, the block is left out.
+
+**Voice audit (read-only):** since 2026-11-12, 11 drafts hold 39 voices. Only the Mutant reactions voice (2.83 s) is under 3 s; every other voice is at least 3.5 s. The operator left that voice as it is.
+
+**Verification:** `make test` 5172 passed, 250 skipped; `make lint` clean.
+
+**Next steps:**
+- push to PR #133 and CI;
+- deploy the branch image to stage1;
+- one paid Style A narration on the Mutant draft, to prove the podcast picture, the length and the rhythm live;
+- merge PR #133.
+
+Open items carried forward: the footage downloader's JS runtime and yt-dlp-ejs, YouTube PO tokens, the exhausted DataImpulse plan (new proxy unassigned), the ArcFace start stall, and the 7 deferred minors.
+
 ## 2026-11-17 - The planner places every style's b-roll; clips stack as layers
 
 On draft `edoc_3ee4719b`, the Denny Sumargo podcast sections were admitted but never shown. Style A had one footage beat, 6.5 s long, filled in material order, and only 2 of 5 clips fit. The operator asked that Style B's placement become the default ("tapi bukan berarti akan menjadi hardcode"). They also asked why the timeline cannot stack clips the way CapCut does ("ya itu yang ku maksud"). The same draft in Style B showed 7 `clip_overlap` warnings.
