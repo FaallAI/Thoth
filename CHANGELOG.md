@@ -56,9 +56,15 @@ On draft `edoc_3ee4719b`, the Denny Sumargo podcast sections were admitted but n
 - Two `band` defaults are unused.
 - The plan's "import material" wording is imprecise.
 
+**Deploy (2026-11-17, operator "pilihan 1 setuju").**
+- 5eaa22d3 is in PR #133, CI green (44019999116, 44020005692), including template release parity.
+- Stage1 runs thoth `a0ddbacba65b`, renderer `47d8fc2acbd4`, web `1ac7c2df7629`.
+- Health: web 200, 0 worker errors, 0 API 5xx.
+- There is no migration. Rollback: `D:/thoth-tmp/bu/pins/rollback-to-5234c4f2.sh` (pins only).
+- Production runs code not yet in `master`.
+
 **Next steps.**
-1. Push and CI (own gate).
-2. Deploy (own gate). There is no migration.
+1. ~~Push and CI; deploy~~ (done 2026-11-17).
 3. One paid Style A narration on the Mutant draft (own gate). Expected: the podcast section that shows Saiful appears where the voice talks about it, and stacked titles, cards and credits show as layers with no warning.
 4. Merge PR #133 (own gate).
 
