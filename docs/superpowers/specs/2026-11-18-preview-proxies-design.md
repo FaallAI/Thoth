@@ -63,8 +63,9 @@ The capability, the preview and the render behave as today in each of these case
 
 ## 5. Cost
 
-- **Storage:** about 7-8 MB per minute of source, in `previews/`.
-- **CPU:** background API CPU for a few seconds per short clip.
+- **Storage:** about 14 MB per minute of source, in `previews/`. Measured on edoc_afd07b23's six sources: 13.4 MB for the 58 s main, and 27 MB in all.
+- **CPU:** background API CPU. Measured in the worker: 4.8 s for the 58 s main, and 0.6-2.2 s for each footage clip.
+- **Billing:** a proxy is billed to nobody, like a glance (operator, 2026-11-09).
 - **Orphans:** the upload sweep does not list `previews/`, and a deleted asset's proxy stays behind, as a glance does.
 
 ## 6. Evaluation
