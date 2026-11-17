@@ -26,8 +26,9 @@ _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 #: Workflow media (`reports`), editor uploads, render inputs and outputs, and the volume archive.
 #: `glance/` holds each asset's derived filmstrip or peaks (Tier 3b); the upload sweep skips it.
 #: `sfx/` holds the shared SFX library that projects copy from; `library/` each workspace's own.
+#: `previews/` holds each video's Player proxy (spec 2026-11-18); the upload sweep skips it.
 _PREFIXES = frozenset(
-    {"reports", "uploads", "renders", "work", "archive", "glance", "sfx", "library"}
+    {"reports", "uploads", "renders", "work", "archive", "glance", "sfx", "library", "previews"}
 )
 _CHUNK = 1024 * 1024
 
@@ -91,9 +92,9 @@ class MeteredMediaStore:
 
     def put_file(self, location: str, path: Path) -> None:
         self._inner.put_file(location, path)
-        if location.startswith("glance/"):
+        if location.startswith(("glance/", "previews/")):
             # Opening the Timeline builds the glance cache, a read-only view included; it bills
-            # nobody (operator, 2026-11-09).
+            # nobody (operator, 2026-11-09). A preview proxy is the same kind of cache.
             return
         from thoth_control_plane import metering
 

@@ -6,9 +6,10 @@
  * smuggle a capability through the URL.
  */
 
-/** A same-origin capability-cookie preview path the browser may load. */
+/** A same-origin capability-cookie preview path the browser may load, or a video's preview
+ * proxy one segment below it, under the same cookie (spec 2026-11-18). */
 const PREVIEW_SOURCE =
-  /^\/api\/v1\/projects\/[A-Za-z0-9_-]+\/editor-assets\/[A-Za-z0-9_-]+\/preview$/;
+  /^\/api\/v1\/projects\/[A-Za-z0-9_-]+\/editor-assets\/[A-Za-z0-9_-]+\/preview(\/proxy)?$/;
 
 /**
  * A server render's own staged asset, one flat name below the bundle's static

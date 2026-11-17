@@ -17,10 +17,14 @@ from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.project_store import ProjectStore
 from thoth_control_plane.infrastructure.source_account_models import Base
 
-#: Routes outside /api/v1 that need no caller, and the one /api/v1 route a capability opens.
+#: Routes outside /api/v1 that need no caller, and the /api/v1 routes a capability opens: an
+#: asset's preview and its video proxy, under the same cookie (spec 2026-11-18).
 #: The Xendit callback is public and token-verified by Xendit's callback token (billing 2.2).
 PUBLIC = {"/healthz", "/readyz", "/billing/webhooks/xendit"}
-CAPABILITY_ONLY = {"/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview"}
+CAPABILITY_ONLY = {
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview",
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview/proxy",
+}
 #: Values for path parameters other than project_id; the guard answers before they are validated.
 FILLERS = {"source_key": "a" * 64}
 

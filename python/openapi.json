@@ -15056,6 +15056,68 @@
         "summary": "Issue Editor Asset Preview Capability"
       }
     },
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview/proxy": {
+      "get": {
+        "description": "A video's preview proxy under the same cookie (spec 2026-11-18); the original if it is\ngone.",
+        "operationId": "stream_editor_asset_preview_proxy_api_v1_projects__project_id__editor_assets__asset_id__preview_proxy_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "thoth_editor_preview",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thoth Editor Preview"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Editor Asset Preview Proxy"
+      }
+    },
     "/api/v1/projects/{project_id}/library/{asset_id}/asset": {
       "post": {
         "description": "The draft's own copy of one library item; `current_actor` guards the project.",

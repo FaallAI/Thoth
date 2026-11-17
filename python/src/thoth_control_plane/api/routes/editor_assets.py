@@ -32,6 +32,7 @@ from thoth_control_plane.application.editor_assets import (
     EditorAssetsUnavailable,
     ListEditorAssetsRequest,
 )
+from thoth_control_plane.application.preview_proxies import PreviewProxyService, proxy_location
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.asset_glance import AssetGlance
 from thoth_control_plane.domain.editor_assets import (
@@ -180,7 +181,7 @@ async def issue_editor_asset_preview_capability(
     signer: Annotated[EditorPreviewSigner, Depends(get_preview_signer)],
 ) -> Response:
     """Mint a short-lived capability for one ready asset of one project."""
-    await _ready_record(service, project_id, asset_id)
+    record = await _ready_record(service, project_id, asset_id)
     settings = request.app.state.settings
     capability = signer.issue(
         project_id=project_id,
@@ -188,7 +189,16 @@ async def issue_editor_asset_preview_capability(
         now=datetime.now(tz=UTC),
     )
     preview_path = _preview_path(request, project_id, asset_id)
-    body = PreviewCapabilityResponse(preview_url=preview_path, expires_at=capability.expires_at)
+    # A video plays its proxy once one is kept, else the original while one is built (spec
+    # 2026-11-18). The URL is fixed per capability, so a Player never mixes two files' bytes.
+    preview_url = preview_path
+    if record.asset.kind == "video":
+        proxies = _proxy_service(request)
+        if await proxies.ready(project_id, asset_id):
+            preview_url = f"{preview_path}/proxy"
+        else:
+            proxies.request(project_id, asset_id, record.artifact_location, record.asset.media_type)
+    body = PreviewCapabilityResponse(preview_url=preview_url, expires_at=capability.expires_at)
     response = JSONResponse(content=body.model_dump(mode="json"), headers=PREVIEW_HEADERS)
     response.set_cookie(
         key=PREVIEW_COOKIE_NAME,
@@ -216,6 +226,39 @@ async def stream_editor_asset_preview(
     capability: CapabilityCookie = None,
 ) -> Response:
     """Stream one previewable artifact, authorized solely by the asset-scoped cookie."""
+    return await _stream_preview(request, project_id, asset_id, service, signer, capability)
+
+
+@router.get(
+    "/projects/{project_id}/editor-assets/{asset_id}/preview/proxy",
+    response_class=Response,
+    responses={status.HTTP_200_OK: {"content": {"application/octet-stream": {}}}},
+)
+async def stream_editor_asset_preview_proxy(
+    project_id: str,
+    asset_id: str,
+    request: Request,
+    service: Annotated[EditorAssetService, Depends(get_editor_asset_service)],
+    signer: Annotated[EditorPreviewSigner, Depends(get_preview_signer)],
+    capability: CapabilityCookie = None,
+) -> Response:
+    """A video's preview proxy under the same cookie (spec 2026-11-18); the original if it is
+    gone."""
+    return await _stream_preview(
+        request, project_id, asset_id, service, signer, capability, proxy=True
+    )
+
+
+async def _stream_preview(
+    request: Request,
+    project_id: str,
+    asset_id: str,
+    service: EditorAssetService,
+    signer: EditorPreviewSigner,
+    capability: str | None,
+    *,
+    proxy: bool = False,
+) -> Response:
     if capability is None:
         return _capability_refused(request, project_id, asset_id, clear=False)
     try:
@@ -227,6 +270,9 @@ async def stream_editor_asset_preview(
     record = await _ready_record(service, project_id, asset_id)
     media = request.app.state.media_store
     location = record.artifact_location
+    media_type = record.asset.media_type
+    if proxy and await _proxy_service(request).ready(project_id, asset_id):
+        location, media_type = proxy_location(project_id, asset_id), "video/mp4"
     try:
         size = await asyncio.to_thread(media.size, location)
     except (MediaUnavailable, MediaLocatorInvalid):
@@ -241,7 +287,7 @@ async def stream_editor_asset_preview(
     return ranged_response(
         size=size,
         read=lambda start, end: media.open_range(location, start, end),
-        media_type=record.asset.media_type,
+        media_type=media_type,
         range_header=request.headers.get("range"),
         headers=PREVIEW_HEADERS,
     )
@@ -268,6 +314,17 @@ def _capability_refused(
 
 #: An asset's bytes never change, so its glance may be kept a day in this browser.
 GLANCE_HEADERS = {"Cache-Control": "private, max-age=86400"}
+
+
+def _proxy_service(request: Request) -> PreviewProxyService:
+    """One per app, so its single build slot bounds ffmpeg across every request."""
+    proxies = getattr(request.app.state, "preview_proxies", None)
+    if proxies is None:
+        proxies = PreviewProxyService(
+            request.app.state.media_store, request.app.state.settings.THOTH_FFMPEG
+        )
+        request.app.state.preview_proxies = proxies
+    return proxies
 
 
 def _glance_service(request: Request, service: EditorAssetService) -> AssetGlanceService:
