@@ -55,10 +55,12 @@ def pick_bases(
     shots: Mapping[str, PlanShot],
     windows_seconds: Sequence[float],
     used: set[str],
+    cap_seconds: float | None = None,
 ) -> list[str | None]:
     """Per phrase, the base shot to show, or None for the main-video fallback. A soundbite takes
-    its first unused shot whatever its length; a model pick needs half its window. `used` is
-    shared by the caller across the whole draft, so a shot never repeats."""
+    its first unused shot whatever its length; a model pick needs half its window, never more
+    than `cap_seconds` when the style sets one. `used` is shared by the caller across the whole
+    draft, so a shot never repeats."""
     picks: list[str | None] = []
     for phrase, window in zip(phrases, windows_seconds, strict=True):
         chosen = None
@@ -66,7 +68,10 @@ def pick_bases(
             shot = shots.get(shot_id)
             if shot is None or shot_id in used:
                 continue
-            long_enough = shot.end_seconds - shot.start_seconds >= MIN_SHARE_OF_WINDOW * window
+            needed = MIN_SHARE_OF_WINDOW * window
+            if cap_seconds is not None:
+                needed = min(needed, cap_seconds)
+            long_enough = shot.end_seconds - shot.start_seconds >= needed
             if phrase.soundbite or long_enough:
                 chosen = shot_id
                 break
@@ -87,13 +92,14 @@ def assign_beat(
     background: bool,
     used: set[str],
     source_frames: Mapping[str, int],
+    cap_seconds: float | None = None,
 ) -> BeatAssignment:
     """The beat's shots and cards in timeline frames. `main_from_frame` is the main video's
     source frame at the beat's start; `background` says the main video plays under this beat."""
     shots = {shot.shot_id: shot for shot in plan.shots}
     cards = {card.card_id: card for card in plan.cards}
     lengths = [(end - start) / fps for start, end in windows]
-    picks = pick_bases(phrases, shots, lengths, used)
+    picks = pick_bases(phrases, shots, lengths, used, cap_seconds)
     placed: list[PlannedShot] = []
     placed_cards: list[PlannedCard] = []
     main_at = main_from_frame

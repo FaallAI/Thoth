@@ -394,7 +394,9 @@ def narrate_document(
         }
         ends = {beat: [a for a, _ in phrases] for beat, phrases in windows.items()}
         if plan is not None:
-            assignments = _assignments(plan, narrated_document, voices, windows, fps, band)
+            assignments = _assignments(
+                plan, narrated_document, voices, windows, fps, band, style.cuts.pick_cap_seconds
+            )
             assets.update({ref.asset_id: ref for ref in plan.assets})
     else:
         # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
@@ -489,6 +491,7 @@ def _assignments(
     windows: Mapping[str, list[Window]],
     fps: float,
     band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
+    cap_seconds: float | None = None,
 ) -> dict[BeatId, BeatAssignment]:
     """The plan in frames, beat by beat, sharing one record of used shots. A beat whose phrases
     no longer match the plan's (an edited script) keeps the phrase-start rhythm only."""
@@ -531,6 +534,7 @@ def _assignments(
             beat in BACKGROUND_BEATS,
             used,
             frames,
+            cap_seconds,
         )
     return out
 

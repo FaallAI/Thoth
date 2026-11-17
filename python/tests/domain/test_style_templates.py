@@ -65,3 +65,8 @@ def test_a_stored_template_without_planned_is_planned() -> None:
     body = BUILT_IN_STYLES["style_a"].model_dump()
     del body["cuts"]["planned"]
     assert StyleTemplate.model_validate(body).cuts.planned is True
+
+
+def test_only_style_a_caps_the_half_phrase_rule() -> None:  # item 86
+    assert BUILT_IN_STYLES["style_a"].cuts.pick_cap_seconds == 1.5
+    assert BUILT_IN_STYLES["style_b"].cuts.pick_cap_seconds is None

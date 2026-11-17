@@ -44,6 +44,9 @@ class CutRules(StrictModel):
     #: what it says; card lines sit over a phrase instead of taking a slot of their own. On by
     #: default for every style (spec 2026-11-17); a style may still turn it off.
     planned: bool = True
+    #: A planned footage pick lasts half its phrase, but never more than this (operator,
+    #: 2026-11-17, item 86): a slow style keeps short real cuts; None keeps the half rule.
+    pick_cap_seconds: Annotated[float, Field(ge=0.2, le=10.0)] | None = None
 
     def band(self) -> tuple[float, float]:
         """The phrase lengths this style cuts on, in seconds (spec 2026-11-17, goal 2)."""
@@ -123,7 +126,9 @@ def _a() -> StyleTemplate:
             "footage": moving,
             "outro": moving,
         },
-        cuts=CutRules(max_shot_seconds=4.0, min_shot_seconds=1.5, planned=True),
+        cuts=CutRules(
+            max_shot_seconds=4.0, min_shot_seconds=1.5, planned=True, pick_cap_seconds=1.5
+        ),
         captions=CaptionRules(style="boxed", words_per_caption=4),
         narration=NarrationRules(starter=_STARTER_A),
     )
