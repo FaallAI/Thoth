@@ -80,3 +80,34 @@ Record of the conversation: `.superpowers/sdd/2026-11-12-footage-library/brainst
   - the podcast section showing Saiful appears where the voice talks about the podcast;
   - Studio shows the Mutant Style B draft's stacked titles, cards and credits as layers, with no overlap warning.
 EOF
+## 6. Who is on screen, for the planner (2026-11-17, items 87-88)
+
+**Why.** On edoc_3ee4719b (Style A, revision 21), the phrase "podcast Denny Sumargo." showed the podcast section in which only Tretan Muslim is on screen. The planner judges pictures but cannot tell who a face is, so a phrase that names a person can get a shot of someone else. The operator said "ya lanjut".
+
+**What the planner gets.** A new block, `WHO IS ON SCREEN IN EACH SHOT`, beside `SOURCES` and `WHAT EACH VIDEO SAYS`:
+- **Known people.** These come from the main video's face groups (footage spec 10.12: ArcFace, average linkage, screen time), read from its first 180 s.
+  - The longest group is the story's subject, named by the source run's context card `people[0]`.
+  - The second group, when the card has a second person, is named by `people[1]`. It is the person the main video shows next most. On the Mutant main this is Densu, 31 s against Saiful's 54 s.
+  - No other group is named.
+- **Per shot.** For every candidate video shot (the main's and the footage's), the names whose group template matches a face within the shot's span. A match uses the same mean of the 5 best similarities at 0.42 as footage screening, and one matching second is enough, because shots are short. A shot with faces but no named match reads "other people". A shot without faces is not listed.
+- **Prompt rule.** A phrase that names a known person takes shots where that person is on screen, when there are any. A shot listed only with "other people" is never the picture for a named person.
+
+**Degrades without failing.** The block is left out, and the planner works as today, when any of these is missing:
+- the face models;
+- a card (no footage run, or a draft not imported from a run);
+- a main video;
+- any face group.
+
+The narration never fails because of it.
+
+**Cost.** No new paid call. The faces are read on the worker's CPU when a fresh plan is made: the main for at most 180 s, each footage clip once. This fits inside the planner's 5-minute share.
+
+**Left to the builder:** the prompt wording; how the source run's card reaches the planner (the draft's `source_workflow_id`, then the footage run's context).
+
+**Evaluation.**
+- **Offline:**
+  - the block names the subject and the second person per shot;
+  - "other people" is listed only for unnamed faces;
+  - the block is absent without a card or faces;
+  - the rule is in the prompt.
+- **Live** (operator gate): a new narration on the Mutant draft. A phrase naming Denny Sumargo shows Densu, or falls back to the main video, never a shot of Tretan Muslim alone.
