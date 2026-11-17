@@ -17,7 +17,8 @@ def test_both_built_in_styles_cover_every_beat() -> None:
 def test_style_a_values() -> None:
     a = BUILT_IN_STYLES["style_a"]
     assert a.captions.style == "boxed"
-    assert (a.cuts.min_shot_seconds, a.cuts.max_shot_seconds) == (1.5, 4.0)  # spec 2026-11-17
+    # Operator, 2026-11-17 (item 88): Style B's b-roll rhythm for Style A too.
+    assert (a.cuts.min_shot_seconds, a.cuts.max_shot_seconds) == (0.9, 2.4)
     assert a.narration.card_lines is False
     assert a.beats["hook"].heading_place == "title_top"
     assert a.beats["main"].background == "blur_fill"
@@ -58,7 +59,7 @@ def test_starters_are_written() -> None:
 
 def test_every_built_in_style_is_planned() -> None:  # spec 2026-11-17, goal 1
     assert all(style.cuts.planned for style in BUILT_IN_STYLES.values())
-    assert BUILT_IN_STYLES["style_a"].revision == 2
+    assert BUILT_IN_STYLES["style_a"].revision == 3
 
 
 def test_a_stored_template_without_planned_is_planned() -> None:
@@ -67,6 +68,7 @@ def test_a_stored_template_without_planned_is_planned() -> None:
     assert StyleTemplate.model_validate(body).cuts.planned is True
 
 
-def test_only_style_a_caps_the_half_phrase_rule() -> None:  # item 86
-    assert BUILT_IN_STYLES["style_a"].cuts.pick_cap_seconds == 1.5
-    assert BUILT_IN_STYLES["style_b"].cuts.pick_cap_seconds is None
+def test_no_built_in_style_caps_the_half_phrase_rule() -> None:
+    # Item 86 capped Style A's slow phrases; at Style B's rhythm (item 88) half a phrase is at
+    # most 1.2 s, so the cap stays available to a style but no built-in one sets it.
+    assert all(s.cuts.pick_cap_seconds is None for s in BUILT_IN_STYLES.values())

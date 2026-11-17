@@ -238,7 +238,10 @@ def test_the_main_video_cuts_on_every_beats_sentence_ends() -> None:
         if s.beat == "reactions"
     )
     end = reactions.start_frame + 40
-    after = styled(document, sentence_ends={"reactions": [end]})
+    # The sentence-end cursor with a 5 s shot, as Style A cut before it took Style B's rhythm
+    # (operator, 2026-11-17, item 88).
+    slow = A.model_copy(update={"cuts": A.cuts.model_copy(update={"max_shot_seconds": 5.0})})
+    after = styled(document, slow, sentence_ends={"reactions": [end]})
     assert end in {c.from_frame for c in _main_shots(after)}
 
 

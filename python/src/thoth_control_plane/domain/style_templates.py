@@ -115,8 +115,8 @@ def _a() -> StyleTemplate:
     return StyleTemplate(
         template_id="style_a",
         name="Style A",
-        # Revision 2 (spec 2026-11-17): planned b-roll at Style A's slower measured rhythm.
-        revision=2,
+        # Revision 3 (operator, 2026-11-17, item 88): Style B's b-roll rhythm, Style A's look.
+        revision=3,
         origin="built_in",
         beats={
             "hook": moving.model_copy(update={"heading_place": "title_top"}),
@@ -126,9 +126,7 @@ def _a() -> StyleTemplate:
             "footage": moving,
             "outro": moving,
         },
-        cuts=CutRules(
-            max_shot_seconds=4.0, min_shot_seconds=1.5, planned=True, pick_cap_seconds=1.5
-        ),
+        cuts=CutRules(max_shot_seconds=2.4, min_shot_seconds=0.9, planned=True),
         captions=CaptionRules(style="boxed", words_per_caption=4),
         narration=NarrationRules(starter=_STARTER_A),
     )
