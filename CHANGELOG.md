@@ -29,10 +29,14 @@ The operator reported that Studio playback stuttered on draft edoc_afd07b23, alt
 - **Checks:** web 200; ffmpeg present in the new API; 0 worker error lines; 0 API 5xx.
 - **Rollback:** `rollback-to-4a207742.sh`, which restores the pins only, as there is no new migration.
 
+**Live check and merge:**
+- the operator reopened edoc_afd07b23 and played it: no stutter ("oke sudah aman setelah ku coba");
+- PR #133 was merged on the operator's word, merge `817ee651`; stage1 keeps the branch image, which is the same code.
+
 **Next steps:**
-- open edoc_afd07b23 once so its proxies build, reopen it and play;
-- one paid Style A narration on the Mutant draft;
-- merge PR #133.
+- one paid Style A narration on the Mutant draft, started by the operator in Studio (approved; the e2e server did not connect);
+- the next roadmap item: stressed voice;
+- carry this local deploy record onto the next work branch.
 
 ## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
 
