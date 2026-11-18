@@ -23,10 +23,15 @@ The operator reported that Studio playback stuttered on draft edoc_afd07b23, alt
 - on the draft's six real sources, built in the worker's /tmp, every proxy had a keyframe gap of 1.00 s, took 0.6-4.8 s to build, and came to 27 MB in all.
 - Golden parity (`f1_verify3.sh`, rerun after Claude Code stopped the first run for low memory): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19, every frame 0 changed pixels.
 
+**Deploy of `a0f97728`, with the operator's approval:**
+- **Push:** PR #133, CI green.
+- **Images:** `api` and `worker` on `thoth@sha256:72ec11edfaa8`, renderer `fa8137f005d1`, web `1434e5f9b1d4`. The pins match the running images.
+- **Checks:** web 200; ffmpeg present in the new API; 0 worker error lines; 0 API 5xx.
+- **Rollback:** `rollback-to-4a207742.sh`, which restores the pins only, as there is no new migration.
+
 **Next steps:**
-- push to PR #133 and CI;
-- deploy to stage1;
 - open edoc_afd07b23 once so its proxies build, reopen it and play;
+- one paid Style A narration on the Mutant draft;
 - merge PR #133.
 
 ## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
