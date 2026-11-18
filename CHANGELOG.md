@@ -21,10 +21,9 @@ The operator reported that Studio playback stuttered on draft edoc_afd07b23, alt
 - `make test` 5182 passed, 250 skipped; `make lint` clean;
 - dashboard 2029 pass; `tsc -b` and build clean; composition 47 pass;
 - on the draft's six real sources, built in the worker's /tmp, every proxy had a keyframe gap of 1.00 s, took 0.6-4.8 s to build, and came to 27 MB in all.
-- `f1_verify3.sh` did not finish: Claude Code stopped it for low system memory.
+- Golden parity (`f1_verify3.sh`, rerun after Claude Code stopped the first run for low memory): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19, every frame 0 changed pixels.
 
 **Next steps:**
-- rerun `f1_verify3.sh`;
 - push to PR #133 and CI;
 - deploy to stage1;
 - open edoc_afd07b23 once so its proxies build, reopen it and play;
