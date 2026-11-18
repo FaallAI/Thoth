@@ -357,7 +357,7 @@ def test_admitted_clips_become_footage_and_feed_figures(tmp_path: Path) -> None:
     assert "A flooded street." in figures.prompts[0]
 
 
-def test_more_than_six_stored_clips_are_capped(tmp_path: Path) -> None:
+def test_more_than_eight_stored_clips_are_capped(tmp_path: Path) -> None:
     reader = FootageReader(
         _run(),
         [
@@ -366,11 +366,11 @@ def test_more_than_six_stored_clips_are_capped(tmp_path: Path) -> None:
                 url=f"https://www.tiktok.com/@broll/video/74000000000000000{n}",
                 media_location=f"reports/wf_a/footage/clip{n}.mp4",
             )
-            for n in range(7)
+            for n in range(9)
         ],
     )
     content = _footage_build(tmp_path, reader)
-    assert content.footage_status == "ok" and len(content.footage) == 6
+    assert content.footage_status == "ok" and len(content.footage) == 8  # spec 10.6
 
 
 def test_a_broken_stored_clip_is_left_out(tmp_path: Path) -> None:
@@ -474,3 +474,51 @@ def test_the_caption_read_gets_the_decode_pass_and_the_band_reader(
     asyncio.run(assembler.build(AssemblyInputs("wf_a", main, None, None, tmp_path)))
 
     assert seen["decoder"] is decoder and seen["bands"] is bands
+
+
+def test_context_path_clips_reach_the_content_set(tmp_path: Path) -> None:
+    """Footage library (spec 2026-11-15): a caption section, a traced original and a library clip
+    are footage like any other."""
+    from dataclasses import replace
+
+    base = _clip_view(_clean_ocr())
+    views = [
+        replace(
+            base,
+            source="section",
+            url="https://www.youtube.com/watch?v=Sy_S4TgvKbY#t=165.4",
+            platform="youtube",
+        ),
+        replace(
+            base,
+            source="trace",
+            url="https://www.youtube.com/watch?v=Sy_S4TgvKbZ",
+            platform="youtube",
+            media_location="reports/wf_a/footage/b.mp4",
+        ),
+        replace(
+            base,
+            source="library",
+            url="https://www.tiktok.com/@broll/video/7400000000000000003",
+            story_score=None,
+            media_location="reports/wf_a/footage/c.mp4",
+        ),
+    ]
+    content = _footage_build(tmp_path, FootageReader(_run(), views))
+    assert [item.source for item in content.footage] == ["section", "trace", "library"]
+
+
+def test_admitted_said_reaches_the_footage(tmp_path: Path) -> None:  # spec 2026-11-15, 9.5
+    said = [
+        {"text": "dia bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0},
+        {"text": 5},  # a bad entry is dropped, not the clip
+    ]
+    reader = FootageReader(_run(), [replace(_clip_view(_clean_ocr()), said=said)])
+    content = _footage_build(tmp_path, reader)
+    [item] = content.footage
+    assert [(s.text, s.start_seconds) for s in item.said] == [("dia bawa pedang", 292.0)]
+
+
+def test_a_clip_without_said_has_none(tmp_path: Path) -> None:
+    content = _footage_build(tmp_path, FootageReader(_run(), [_clip_view(_clean_ocr())]))
+    assert content.footage[0].said == []

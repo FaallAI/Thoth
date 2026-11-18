@@ -639,6 +639,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/editor-assets", "get"),
         ("/api/v1/projects/{project_id}/editor-assets", "post"),
         ("/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview", "get"),
+        ("/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview/proxy", "get"),
         ("/api/v1/projects/{project_id}/editor-assets/{asset_id}/glance", "get"),
         (
             "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview-capability",
@@ -727,6 +728,7 @@ def test_openapi_approval_input_is_narrow_and_no_workflow_retry_is_offered(gatew
         "approval_id",
         "decision",
         "note",
+        "choice",  # the face an approve picks (spec 2026-11-15, 10.12); optional
     }
     assert schemas["ApprovalSubmission"]["additionalProperties"] is False
     assert set(schemas["ApprovalSubmission"]["required"]) == {"approval_id", "decision"}
@@ -776,3 +778,23 @@ async def test_unbound_production_wiring_is_not_ready_and_cannot_start_work() ->
 
     assert readiness.status_code == 503
     assert started.status_code == 503
+
+
+def test_the_api_imports_no_numpy() -> None:  # final review, minor 10
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    probe = (
+        "import sys;"
+        "import thoth_control_plane.api.app;"
+        "import thoth_control_plane.workflows.source_investigation;"
+        "assert 'numpy' not in sys.modules, 'numpy imported'"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-500:]

@@ -28,6 +28,7 @@ import {
   snapFrame,
   timelineIssues,
   visibleLanes,
+  withRows,
 } from "./timeline_domain";
 import { sceneStripDocument } from "./timeline-test-fixtures";
 
@@ -207,14 +208,14 @@ test("a main-track gap and an over-long clip are reported as issues", () => {
   ]);
 });
 
-test("an overlap on one track is reported once for the later clip", () => {
+test("an overlap on one track stacks as a layer and is no issue", () => {
+  // Spec 2026-11-17, goal 5: clips stack as in an editor timeline; the b-roll guard lives in
+  // the narration write (b_roll_overlaps), not in a warning.
   const document = documentV2();
   document.clips!.push({ ...document.clips![1], clip_id: "clip_music_b", from_frame: 60 });
   document.tracks[1]!.clip_ids!.push("clip_music_b");
 
-  expect(timelineIssues(document).map((issue) => issue.issue_id)).toEqual([
-    "clip_overlap:clip_music_b",
-  ]);
+  expect(timelineIssues(document)).toEqual([]);
 });
 
 test("an issue maps to the selection that reveals it", () => {
@@ -1248,4 +1249,18 @@ test("a style's shot of a movie that ran out holds its last frame", () => {
   );
   const held = added.clips!.find((clip) => clip.clip_id === "clip_held");
   expect(held && "hold_after_source" in held && held.hold_after_source).toBe(true);
+});
+
+
+test("rows stay as they were while a gesture is in flight", () => {
+  // Final review (minor 2, re-graded): a clip dragged across another must not make its lane
+  // grow or shrink under the pointer; rows are taken from the document the gesture began on.
+  const document = documentV2();
+  const before = visibleLanes(document);
+  const moved = structuredClone(document);
+  moved.clips!.push({ ...moved.clips![1], clip_id: "clip_music_b", from_frame: 60 });
+  const frozen = new Map(before.map((lane) => [lane.track.track_id, { layers: lane.layers, layerOf: lane.layerOf }]));
+  const lanes = withRows(visibleLanes(moved), frozen);
+  const music = lanes.find((lane) => lane.track.track_id === document.clips![1].track_id)!;
+  expect(music.layers).toBe(before.find((lane) => lane.track.track_id === music.track.track_id)!.layers);
 });

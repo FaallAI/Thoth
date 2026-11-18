@@ -412,11 +412,11 @@ test("kinetic words step down to the low lane while a heading holds the middle",
   expect(lane()).toBe("middle");
 });
 
-test("while playing, a video mounts a second before its cut so the preview never stops to load it", () => {
+test("while playing, a video mounts two seconds before its cut so the preview never stops to load it", () => {
   const premount = (name: string) =>
     screen.getAllByTestId("sequence").find((node) => node.getAttribute("data-name") === name)!.getAttribute("data-premount");
   render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} premount />);
-  expect(premount("clip_video")).toBe("30");
+  expect(premount("clip_video")).toBe("60"); // Remotion Studio's own default (spec 2026-11-18)
   expect(premount("clip_text")).toBeNull();
   cleanup();
   // A held frame mounts nothing early: a hidden copy of a playing movie shifted its pixels, and

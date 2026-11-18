@@ -181,3 +181,13 @@ def test_the_trial_answers_keep_the_blind_first_shot_score() -> None:
     score = fixture_blind_first_shot_score()
     print(f"blind first-shot score on the trial fixtures: {score:.2f}")
     assert score >= 0.60, score
+
+
+def test_a_style_cap_lets_a_shorter_shot_cover_a_long_phrase() -> None:
+    # Operator, 2026-11-17 (item 86): a 1.6 s podcast shot under a 4 s Style A phrase needs no
+    # 2 s; the style caps the half rule at its shortest shot (1.5 s). Style B has no cap.
+    podcast = {"S9": shot("S9", "f3", "footage", 0.0, 1.6, "@curhatbang")}
+    assert pick_bases([ph(base=["S9"])], podcast, [4.0], set()) == [None]
+    assert pick_bases([ph(base=["S9"])], podcast, [4.0], set(), cap_seconds=1.5) == ["S9"]
+    short = {"S10": shot("S10", "f3", "footage", 0.0, 1.2, "@curhatbang")}
+    assert pick_bases([ph(base=["S10"])], short, [4.0], set(), cap_seconds=1.5) == [None]

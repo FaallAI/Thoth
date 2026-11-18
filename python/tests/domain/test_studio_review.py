@@ -173,12 +173,14 @@ def test_a_main_track_gap_blocks_review_approval() -> None:
     assert review_blocking_issues(EditDocumentV2.model_validate(payload)) == ("main_track_gap",)
 
 
-def test_overlapping_clips_on_one_track_block_review_approval() -> None:
+def test_overlapping_clips_on_one_track_stack_and_do_not_block_review() -> None:
+    # Spec 2026-11-17, goal 5: clips stack as layers; a styled draft's b-roll is guarded by
+    # `b_roll_overlaps` in the narration write instead.
     payload = document_v2_payload()
     clip_by_id(payload, "clip_002")["from_frame"] = 100
     clip_by_id(payload, "clip_002")["scene_id"] = None
 
-    assert review_blocking_issues(EditDocumentV2.model_validate(payload)) == ("clip_overlap",)
+    assert review_blocking_issues(EditDocumentV2.model_validate(payload)) == ()
 
 
 def test_empty_tracks_do_not_block_because_the_studio_never_reports_them() -> None:

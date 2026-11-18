@@ -83,6 +83,15 @@ test("rows show the post, where the run is, and its time; the project column onl
       current_step: { seq: 9, stage: "footage", attempt: 1, at: "2026-10-25T07:05:00Z", kind: "progress", code: "footage.screen_clips", n: 6, total: 12 },
     }),
     run({ workflow_id: "wf_wait", status: "awaiting_approval", title: null, project_id: null }),
+    run({
+      workflow_id: "wf_face",
+      status: "awaiting_approval",
+      title: "Who is the subject",
+      stages: [
+        { id: "source", label: "Fetch the source", status: "completed" },
+        { id: "footage", label: "Collect footage", status: "waiting", waiting_since: "2026-10-25T07:04:00Z" },
+      ],
+    }),
   ]);
   page(fake);
 
@@ -94,6 +103,9 @@ test("rows show the post, where the run is, and its time; the project column onl
   const waiting = screen.getByRole("link", { name: "https://www.tiktok.com/@a/video/1" }).closest("tr")!;
   expect(within(waiting).getByText(/Your review · waiting since/)).toBeDefined();
   expect(within(waiting).getByText("–")).toBeDefined();
+  // Spec 2026-11-15, 10.12: the subject stop waits inside footage, not at the review.
+  const face = screen.getByRole("link", { name: "Who is the subject" }).closest("tr")!;
+  expect(within(face).getByText(/Collect footage · waiting since/)).toBeDefined();
   expect(screen.queryByRole("columnheader", { name: "Project" })).toBeNull();
   expect(fake.listRuns.mock.calls[0][0]).toEqual({ projectId: "p1", status: [], platform: undefined, q: undefined });
 });

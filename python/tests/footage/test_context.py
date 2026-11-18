@@ -1,0 +1,248 @@
+"""The context card (footage library spec 2026-11-15, 4.1) and its matching (4.2-4.3)."""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+from tests.assembly.support import report as support_report
+from thoth_control_plane.acquisition.models import ReportComment
+from thoth_control_plane.footage.context import (
+    CARD_PROMPT,
+    PERSON_WINDOW,
+    REFINE_PROMPT,
+    CardPerson,
+    ContextCard,
+    card_material,
+    card_names,
+    card_objects,
+    context_objects,
+    context_reason,
+    in_window,
+    names_subject,
+    subject_names,
+)
+
+CARDS = Path(__file__).resolve().parents[1] / "fixtures" / "footage" / "context"
+
+
+def card(name: str) -> ContextCard:
+    return ContextCard.model_validate_json((CARDS / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def test_the_spike_cards_decode() -> None:
+    mutant = card("mutant_card")
+    assert [p.name for p in mutant.people] == ["Mutant", "Denny Sumargo"]
+    assert "Densu" in mutant.people[1].aliases
+    for name in ("rocky_card", "persib_card", "erio_card"):
+        assert card(name).people
+
+
+def test_nulls_and_junk_become_empty() -> None:
+    empty = ContextCard.model_validate({"people": None, "queries": "x", "event": None})
+    assert empty == ContextCard()
+    assert ContextCard.model_validate({"model": "m", "people": [{"name": "A", "aliases": None}]})
+
+
+def test_card_material_takes_the_top_comments_by_likes() -> None:
+    main = support_report(
+        url="https://www.tiktok.com/@akun/video/7499999999999999999",
+        owner="akun",
+        text="Mutant pengen diundang podcast Densu",
+        media="none",
+    )
+    comments = [
+        ReportComment(comment_id=f"77{n:017d}", author="u", text=f"komen {n}", likes=n)
+        for n in range(30)
+    ]
+    main = main.model_copy(update={"comments": comments})
+    material = json.loads(card_material(main, [{"name": "Mutant"}], "halo " * 1000))
+    assert len(material["comments"]) == 25
+    assert material["comments"][0] == {"text": "komen 29", "likes": 29}
+    assert material["caption"] == "Mutant pengen diundang podcast Densu"
+    assert material["figures"] == [{"name": "Mutant"}]
+    assert len(material["transcript"]) == 1500
+
+
+def _candidates() -> list[dict[str, object]]:
+    return json.loads((CARDS / "mutant_candidates.json").read_text(encoding="utf-8"))
+
+
+def test_short_and_marked_aliases_are_dropped() -> None:
+    rocky = ContextCard(people=[CardPerson(name="Bung Rocky", aliases=["TG", "Rocky?"])])
+    assert card_names(rocky) == ["bung rocky", "rocky"]
+
+
+def test_a_name_matches_whole_words_only() -> None:
+    sandy = ContextCard(people=[CardPerson(name="Sandy")])
+    assert context_reason("Sandyakala di Bandung", sandy) == "story"
+    assert context_reason("Sandy Walsh cetak gol", sandy) is None
+
+
+def test_the_mutant_candidates_pass_on_the_card() -> None:
+    mutant = card("mutant_card")
+    mutant.people[0].aliases.append("Saiful")
+    by_caption = {str(c["caption"]): c for c in _candidates()}
+    for start in (
+        "SAIFUL BUKAN MUTAN",
+        "Momen Saeful temui Denny Sumargo di acara Urban Sneaker Society",
+    ):
+        matches = [text for text in by_caption if text.startswith(start)]
+        assert matches, start
+        assert context_reason(matches[0], mutant) is None, start
+    # A news recap naming only Denny Sumargo is off the story (spec 10.12, revision 1).
+    (recap,) = [t for t in by_caption if t.startswith("Detik-detik Pria Mengamuk di Depan")]
+    assert context_reason(recap, mutant) == "story"
+    sneakers = [str(c["caption"]) for c in _candidates() if c["query"] == "sneakers"]
+    assert len(sneakers) == 13
+    assert all(context_reason(text, mutant) == "story" for text in sneakers)
+
+
+def test_an_unknown_time_stays_in_the_window() -> None:
+    now = datetime(2026, 11, 14, tzinfo=UTC)
+    main = "2026-11-10T11:16:32Z"
+    assert in_window(None, main, now)
+    assert not in_window("2026-10-01T00:00:00Z", main, now)
+    assert in_window("2026-11-12T00:00:00Z", main, now)
+    assert not in_window("2026-11-15T00:00:00Z", main, now)
+
+
+def test_context_objects_mark_person_queries() -> None:
+    mutant = card("mutant_card")
+    person, place = context_objects(
+        mutant, ["Mutant USS Denny Sumargo", "Urban Sneaker Society 2026 viral"]
+    )
+    assert person.person and person.visual == "a person on camera"  # spec 10.12
+    assert person.query == "Mutant USS Denny Sumargo"
+    assert not place.person and place.visual
+
+
+def test_english_filler_words_are_not_event_terms() -> None:  # final review, Important 3
+    rocky, mutant = card("rocky_card"), card("mutant_card")
+    assert context_reason("The best street food and the night market", rocky) == "story"
+    assert context_reason("Podcast terbaru di Jakarta bareng komika", mutant) == "story"
+    assert context_reason("the sneaker drop event this weekend", mutant) == "story"
+    assert context_reason("Keseruan Urban Sneaker Society hari kedua", mutant) is None
+
+
+def test_spoken_words_are_single_lowercase_words() -> None:  # spec 9.2
+    card = ContextCard.model_validate(
+        {
+            "spoken": [
+                "Pedang",
+                "marah",
+                None,
+                {"x": 1},
+                "dua kata",
+                "marah",
+                *[f"w{i}" for i in range(20)],
+            ]
+        }
+    )
+    assert card.spoken[:2] == ["pedang", "marah"]
+    assert "dua kata" not in card.spoken
+    assert len(card.spoken) == 12
+
+
+def test_an_old_card_decodes_without_spoken() -> None:
+    assert ContextCard.model_validate({"event": "x"}).spoken == []
+
+
+def test_subject_names_are_the_first_persons() -> None:
+    card = ContextCard.model_validate(
+        {"people": [{"name": "Mutant", "aliases": ["Saiful", "Ipul"]}, {"name": "Denny Sumargo"}]}
+    )
+    assert subject_names(card) == ["mutant", "saiful", "ipul"]  # longest first, stable
+    assert subject_names(ContextCard()) == []
+
+
+def test_the_prompts_ask_for_the_subject_first_and_spoken_words() -> None:
+    assert '"spoken"' in CARD_PROMPT
+    assert "people[0]" in CARD_PROMPT
+    assert "only in comments" in CARD_PROMPT
+    assert "people[0]" in REFINE_PROMPT
+
+
+def _mutant(**overrides: object) -> ContextCard:
+    return card("mutant_card").model_copy(update=overrides)
+
+
+def test_the_card_reads_related_events() -> None:  # spec 10.4
+    read = ContextCard.model_validate(
+        {
+            "people": [{"name": "Mutant"}],
+            "related": [
+                {"event": "Mutant at a medical check-up", "query": "Mutant Sekolah Normal"},
+                {"event": "no query"},
+                "junk",
+            ],
+        }
+    )
+    assert [r.query for r in read.related] == ["Mutant Sekolah Normal"]
+
+
+def test_an_old_card_decodes_without_related() -> None:
+    assert card("mutant_card").related == []
+
+
+def test_card_objects_take_two_incident_queries_and_the_related_ones() -> None:
+    mutant = card("mutant_card")
+    mutant.people[0].aliases.append("Saiful")
+    mutant = mutant.model_copy(
+        update={
+            "queries": ["a USS", "b USS", "c USS"],
+            "related": [
+                {"event": "Saiful's clarification with Gofar Hilman", "query": "Saiful Gofar"}
+            ],
+        }
+    )
+    mutant = ContextCard.model_validate(mutant.model_dump())
+    objects = card_objects(mutant)
+    assert [o.query for o in objects] == ["a USS", "b USS", "Saiful Gofar"]
+    related = objects[-1]
+    assert related.person  # the query names the subject
+    assert related.visual == "a person's clarification with Gofar Hilman"  # no card names
+
+
+def test_a_person_query_visual_names_nobody() -> None:  # spec 10.12, revision 3
+    (person,) = context_objects(_mutant(), ["Mutant bawa pedang"])
+    assert person.visual == "a person on camera" and person.person
+
+
+def test_names_match_hashtag_and_nya_forms_only() -> None:  # spec 10.5
+    from thoth_control_plane.footage.gates import mentions, norm
+
+    assert mentions(norm("#sekolahnormal #mutan #tretanmuslim"), "tretan muslim")
+    assert mentions(norm("Klarifikasi soal mutannya Saiful"), "mutan")
+    assert mentions(norm("Tretan Muslimnya datang"), "tretan muslim")
+    assert not mentions(norm("#mutantsquad"), "mutant")
+    assert not mentions(norm("komutan"), "mutan")
+
+
+def test_a_subject_clip_may_be_two_years_old() -> None:  # spec 10.5 and 10.12
+    now = datetime(2026, 11, 16, tzinfo=UTC)
+    old, main = "2024-12-11T08:24:00Z", "2026-11-08T00:00:00Z"
+    assert names_subject(norm_text("Mutant diajarin acting Jefri nichol"), _mutant())
+    assert not names_subject(norm_text("Podcast Denny Sumargo bareng artis"), _mutant())
+    assert in_window(old, main, now, before=PERSON_WINDOW)
+    assert not in_window(old, main, now)
+
+
+def norm_text(text: str) -> str:
+    from thoth_control_plane.footage.gates import norm
+
+    return norm(text)
+
+
+def test_a_name_without_its_title_names_the_subject() -> None:  # live wf_4ac021d9
+    titled = ContextCard.model_validate(
+        {"people": [{"name": "Saeful", "aliases": ["Master Saiful", "Bang Densu"]}]}
+    )
+    assert "saiful" in subject_names(titled)
+    assert names_subject(norm_text("saiful datang ke podcast"), titled)
+    assert "master" not in subject_names(titled)  # a title alone is never a name
+
+
+def test_the_card_prompt_asks_for_names_without_titles() -> None:
+    assert "without titles" in CARD_PROMPT

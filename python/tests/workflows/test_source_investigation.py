@@ -22,7 +22,12 @@ from thoth_control_plane.activities.content_assembly import (
     ContentAssemblyActivityInput,
     ContentAssemblyActivityResult,
 )
-from thoth_control_plane.activities.footage import FootageActivityInput, FootageActivityResult
+from thoth_control_plane.activities.footage import (
+    FootageActivityInput,
+    FootageActivityResult,
+    SubjectChoice,
+    SubjectResult,
+)
 from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.activities.source_attribution import (
     SourceAttributionActivityInput,
@@ -1306,6 +1311,35 @@ async def fake_footage(input_: FootageActivityInput) -> FootageActivityResult:
     return FootageActivityResult(footage_status="ok", footage_count=2)
 
 
+@activity.defn(name="find_subject")
+async def no_subject(input_: FootageActivityInput) -> SubjectResult:
+    return SubjectResult(status="none")
+
+
+@activity.defn(name="find_subject")
+async def clear_subject(input_: FootageActivityInput) -> SubjectResult:
+    return SubjectResult(status="clear", subject="TEMPLATE-SAIFUL")
+
+
+IMAGE = "data:image/jpeg;base64,/9j/AA=="
+
+
+@activity.defn(name="find_subject")
+async def doubtful_subject(input_: FootageActivityInput) -> SubjectResult:
+    return SubjectResult(
+        status="doubtful",
+        choices=[
+            SubjectChoice(choice_id="g0", image=IMAGE, seconds=30, template="TEMPLATE-G0"),
+            SubjectChoice(choice_id="g1", image=IMAGE, seconds=25, template="TEMPLATE-G1"),
+        ],
+    )
+
+
+@activity.defn(name="find_subject")
+async def crashing_subject(input_: FootageActivityInput) -> SubjectResult:
+    raise RuntimeError("subject detail must not enter history")
+
+
 @activity.defn(name="build_footage")
 async def crashing_footage(input_: FootageActivityInput) -> FootageActivityResult:
     raise RuntimeError("footage detail must not enter history")
@@ -1337,6 +1371,7 @@ async def test_footage_runs_after_attribution_and_before_assembly(
             fake_attribute,
             fake_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         result = await workflow_env.client.execute_workflow(
@@ -1364,6 +1399,7 @@ async def test_a_crashing_footage_stage_never_fails_the_workflow(
             fake_attribute,
             crashing_footage,
             fake_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1399,6 +1435,7 @@ async def test_a_crashing_footage_stage_reads_failed_while_the_run_succeeds(
             fake_attribute,
             crashing_footage,
             fake_assemble,
+            no_subject,
         ],
     ):
         result = await workflow_env.client.execute_workflow(
@@ -1426,6 +1463,7 @@ async def test_footage_off_runs_no_footage_activity(workflow_env: WorkflowEnviro
             fake_attribute,
             fake_footage,
             fake_assemble,
+            no_subject,
         ],
     ):
         await workflow_env.client.execute_workflow(
@@ -1446,7 +1484,13 @@ async def test_the_gateway_requests_footage_when_enabled(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[record_workflow_completed, fake_inspect, fake_footage, fake_assemble],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_footage,
+            fake_assemble,
+            no_subject,
+        ],
     ):
         gateway = TemporalWorkflowGateway(
             workflow_env.client, assemble_content=True, build_footage=True
@@ -1592,6 +1636,7 @@ async def test_an_approved_produce_video_runs_the_production_chain(
             ordered_attribute,
             fake_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1622,6 +1667,7 @@ async def test_a_rejected_produce_video_runs_nothing(workflow_env: WorkflowEnvir
             ordered_attribute,
             fake_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1653,6 +1699,7 @@ async def test_a_produce_video_chain_failure_fails_like_identify_original(
             ordered_attribute,
             fake_footage,
             failing_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1740,6 +1787,7 @@ async def test_the_plan_is_whole_from_the_first_snapshot_and_tracks_the_run(
             ordered_attribute,
             fake_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1805,6 +1853,7 @@ async def test_a_rejected_produce_video_skips_the_chain_with_its_reason(
             ordered_attribute,
             fake_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1853,6 +1902,7 @@ async def test_a_cancel_during_footage_cancels_the_open_stage_and_skips_the_rest
             fake_attribute,
             blocking_footage,
             ordered_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -1898,6 +1948,7 @@ async def test_an_assembly_failure_marks_the_assembly_stage_failed(
             fake_attribute,
             fake_footage,
             failing_assemble,
+            no_subject,
         ],
     ):
         handle = await workflow_env.client.start_workflow(
@@ -2001,3 +2052,205 @@ async def test_a_history_recorded_before_the_stage_plan_replays_a_second_time(
 ) -> None:
     # One more replay of each, from a fresh parse of the same file: replays are repeatable.
     await _replay_pre_stage_plan_history(workflow_id, fixture)
+
+
+async def _subject_run(workflow_env: WorkflowEnvironment, subject: Any, workflow_id: str) -> Any:
+    FOOTAGE_INPUTS.clear()
+    return Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            fake_footage,
+            subject,
+            fake_assemble,
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_clear_subject_runs_footage_with_the_check(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # spec 10.12
+    async with await _subject_run(workflow_env, clear_subject, "wf_test_subject_clear"):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_clear",
+            task_queue="test",
+        )
+    assert result.status == "succeeded"
+    (footage,) = FOOTAGE_INPUTS
+    assert (footage.subject, footage.face_check) == ("TEMPLATE-SAIFUL", True)
+
+
+@pytest.mark.asyncio
+async def test_no_main_faces_run_footage_without_the_check(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with await _subject_run(workflow_env, no_subject, "wf_test_subject_none"):
+        await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_none",
+            task_queue="test",
+        )
+    (footage,) = FOOTAGE_INPUTS
+    assert (footage.subject, footage.face_check) == (None, False)
+
+
+async def _choose(handle: Any, decision: str, choice: str | None) -> None:
+    await handle.signal(
+        SourceInvestigationWorkflow.record_approval,
+        ApprovalSignal(
+            approval_id=(
+                await handle.query(SourceInvestigationWorkflow.summary)
+            ).approval.approval_id,
+            decision=ApprovalDecision(decision=decision, choice=choice),
+            actor=ACTOR_SNAPSHOT,
+            decided_at=datetime(2026, 11, 16, tzinfo=UTC),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_doubtful_subject_waits_for_a_choice(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # spec 10.12: "tertahan hanya kalau ragu"
+    async with await _subject_run(workflow_env, doubtful_subject, "wf_test_subject_doubt"):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_doubt",
+            task_queue="test",
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        awaiting = await handle.query(SourceInvestigationWorkflow.summary)
+        assert awaiting.approval.kind == "choose_subject"
+        assert [(c.choice_id, c.seconds) for c in awaiting.approval.choices] == [
+            ("g0", 30),
+            ("g1", 25),
+        ]
+        assert "TEMPLATE" not in awaiting.model_dump_json()  # the templates stay in the workflow
+        footage_stage = {stage.id: stage for stage in awaiting.stages}["footage"]
+        assert footage_stage.status == "waiting" and footage_stage.waiting_since is not None
+        assert FOOTAGE_INPUTS == []  # footage waits for the choice
+        await _choose(handle, "approve", "g9")  # not offered: ignored
+        assert (await handle.query(SourceInvestigationWorkflow.summary)).status == (
+            "awaiting_approval"
+        )
+        await _choose(handle, "approve", "g1")
+        result = await handle.result()
+    assert result.status == "succeeded" and result.approval is None
+    assert {stage.id: stage.status for stage in result.stages}["footage"] == "completed"
+    (footage,) = FOOTAGE_INPUTS
+    assert (footage.subject, footage.face_check) == ("TEMPLATE-G1", True)
+
+
+@pytest.mark.asyncio
+async def test_rejecting_every_face_runs_footage_without_the_check(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # Review Focus 7
+    async with await _subject_run(workflow_env, doubtful_subject, "wf_test_subject_none_of"):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_none_of",
+            task_queue="test",
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        await _choose(handle, "reject", None)
+        result = await handle.result()
+    assert result.status == "succeeded"
+    (footage,) = FOOTAGE_INPUTS
+    assert (footage.subject, footage.face_check) == (None, False)
+
+
+@pytest.mark.asyncio
+async def test_cancel_while_choosing_the_subject(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # Review Focus 8
+    async with await _subject_run(workflow_env, doubtful_subject, "wf_test_subject_cancel"):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_cancel",
+            task_queue="test",
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        await handle.signal(SourceInvestigationWorkflow.request_cancel)
+        result = await handle.result()
+    assert result.status == "cancelled"
+    assert FOOTAGE_INPUTS == []
+    assert {stage.id: stage.status for stage in result.stages}["footage"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_subject_stage_fails_the_footage_stage_only(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # spec 10.12: a missing model is an explicit error, footage stays optional
+    async with await _subject_run(workflow_env, crashing_subject, "wf_test_subject_crash"):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_subject_crash",
+            task_queue="test",
+        )
+    assert result.status == "succeeded"
+    assert FOOTAGE_INPUTS == []
+    assert {stage.id: stage.status for stage in result.stages}["footage"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_passes_only_an_offered_face(
+    workflow_env: WorkflowEnvironment,
+) -> None:  # spec 10.12: POST .../approval carries the chosen face
+    from thoth_control_plane.application.workflows import ApprovalNotAllowed
+
+    FOOTAGE_INPUTS.clear()
+    owner = Actor(actor_id="owner", actor_type="user")
+    async with Worker(
+        workflow_env.client,
+        task_queue=TASK_QUEUE,
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_footage,
+            doubtful_subject,
+            fake_assemble,
+        ],
+    ):
+        gateway = TemporalWorkflowGateway(
+            workflow_env.client, assemble_content=True, build_footage=True
+        )
+        started = await gateway.start(
+            VALID_IDENTIFY_REQUEST, actor=owner, idempotency_key="subject-001"
+        )
+        handle = workflow_env.client.get_workflow_handle(
+            started.workflow_id, result_type=WorkflowSummary
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        awaiting = await gateway.get(started.workflow_id, actor=owner)
+        assert awaiting.approval is not None
+        with pytest.raises(ApprovalNotAllowed):
+            await gateway.record_approval(
+                started.workflow_id,
+                approval=ApprovalSubmission(
+                    approval_id=awaiting.approval.approval_id, decision="approve", choice="g9"
+                ),
+                actor=owner,
+            )
+        await gateway.record_approval(
+            started.workflow_id,
+            approval=ApprovalSubmission(
+                approval_id=awaiting.approval.approval_id, decision="approve", choice="g0"
+            ),
+            actor=owner,
+        )
+        assert (await handle.result()).status == "succeeded"
+    (footage,) = FOOTAGE_INPUTS
+    assert footage.subject == "TEMPLATE-G0"

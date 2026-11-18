@@ -15,6 +15,7 @@ mkdir -p "$HOME/thoth-tmp"
 export THOTH_TEST_WHISPER_MODEL_DIR="${THOTH_TEST_WHISPER_MODEL_DIR:-$HOME/thoth-models/whisper-tiny}"
 export THOTH_TEST_DIARIZATION_MODEL_DIR="${THOTH_TEST_DIARIZATION_MODEL_DIR:-$HOME/thoth-models/diarization}"
 export THOTH_TEST_EMBEDDING_MODEL_DIR="${THOTH_TEST_EMBEDDING_MODEL_DIR:-$HOME/thoth-models/embedding}"
+export THOTH_TEST_FACE_MODELS_DIR="${THOTH_TEST_FACE_MODELS_DIR:-$HOME/thoth-models/faces}"
 export PYTHONPATH="$PWD/src"
 
 [ "$#" -gt 0 ] || set -- tests

@@ -689,6 +689,35 @@
         "title": "ApplyStyleRequest",
         "type": "object"
       },
+      "ApprovalChoice": {
+        "additionalProperties": false,
+        "description": "One answer an approval offers (spec 2026-11-15, 10.12): a face of the main video.",
+        "properties": {
+          "choice_id": {
+            "pattern": "^[a-z0-9_]{1,32}$",
+            "title": "Choice Id",
+            "type": "string"
+          },
+          "image": {
+            "maxLength": 40000,
+            "pattern": "^data:image/jpeg;base64,",
+            "title": "Image",
+            "type": "string"
+          },
+          "seconds": {
+            "minimum": 0.0,
+            "title": "Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "choice_id",
+          "image",
+          "seconds"
+        ],
+        "title": "ApprovalChoice",
+        "type": "object"
+      },
       "ApprovalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -707,6 +736,14 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Approval Id",
             "type": "string"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalChoice"
+            },
+            "maxItems": 8,
+            "title": "Choices",
+            "type": "array"
           },
           "kind": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -737,6 +774,18 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Approval Id",
             "type": "string"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9_]{1,32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choice"
           },
           "decision": {
             "enum": [
@@ -7877,6 +7926,31 @@
         "title": "SplitClip",
         "type": "object"
       },
+      "SpokenLine": {
+        "additionalProperties": false,
+        "description": "One caption line a footage source says, in its own seconds (a TranscriptSegment's\nfields; `domain.narration` cannot be imported here without a cycle).",
+        "properties": {
+          "end_seconds": {
+            "title": "End Seconds",
+            "type": "number"
+          },
+          "start_seconds": {
+            "title": "Start Seconds",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "start_seconds",
+          "end_seconds"
+        ],
+        "title": "SpokenLine",
+        "type": "object"
+      },
       "StageProgress": {
         "additionalProperties": false,
         "properties": {
@@ -7994,6 +8068,29 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "waited_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waited Seconds"
+          },
+          "waiting_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Since"
           }
         },
         "required": [
@@ -8614,6 +8711,17 @@
             ],
             "title": "Author"
           },
+          "clip_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Start"
+          },
           "disposition": {
             "enum": [
               "unresolved",
@@ -8760,6 +8868,13 @@
               }
             ],
             "title": "Role"
+          },
+          "said": {
+            "items": {
+              "$ref": "#/components/schemas/SpokenLine"
+            },
+            "title": "Said",
+            "type": "array"
           },
           "shows_object": {
             "anyOf": [
@@ -14939,6 +15054,68 @@
           }
         },
         "summary": "Issue Editor Asset Preview Capability"
+      }
+    },
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview/proxy": {
+      "get": {
+        "description": "A video's preview proxy under the same cookie (spec 2026-11-18); the original if it is\ngone.",
+        "operationId": "stream_editor_asset_preview_proxy_api_v1_projects__project_id__editor_assets__asset_id__preview_proxy_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "thoth_editor_preview",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Thoth Editor Preview"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Editor Asset Preview Proxy"
       }
     },
     "/api/v1/projects/{project_id}/library/{asset_id}/asset": {

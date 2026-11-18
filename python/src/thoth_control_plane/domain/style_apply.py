@@ -74,6 +74,38 @@ _BEAT_ROLE = {
 }
 
 
+def b_roll_overlaps(document: EditDocumentV2) -> list[tuple[str, str]]:
+    """Pairs of shown b-roll pictures that play at once. Studio stacks them as layers without a
+    warning (spec 2026-11-17, goal 5), so a style or planner that leaves an old picture under a
+    new one is caught here instead: the narration write logs it."""
+    tracks = {t.track_id for t in document.tracks if t.kind == "b_roll"}
+    shown = sorted(
+        (
+            c
+            for c in document.clips
+            if isinstance(c, TimelineVideoClip) and c.track_id in tracks and not c.hidden
+        ),
+        key=lambda c: c.from_frame,
+    )
+    pairs = []
+    for index, clip in enumerate(shown):
+        end = clip.from_frame + clip.duration_in_frames
+        for later in shown[index + 1 :]:
+            if later.from_frame >= end:
+                break
+            if later.track_id != clip.track_id:
+                continue
+            # The planner's own card over its own shot is by design (final review, 2026-11-17);
+            # anything involving an import clip is the bug this guard is for.
+            both_planned = PLANNER_CLIP.fullmatch(clip.clip_id) and PLANNER_CLIP.fullmatch(
+                later.clip_id
+            )
+            if both_planned and (clip.position is not None or later.position is not None):
+                continue
+            pairs.append((clip.clip_id, later.clip_id))
+    return pairs
+
+
 def style_operations(
     document: EditDocumentV2,
     template: StyleTemplate,
@@ -330,6 +362,26 @@ def style_operations(
                 and not clip.body.strip()
             )
         )
+    }
+    # A planned beat owns its b-roll (spec 2026-11-17, goal 4): an import card the planner did
+    # not pick would sit under its shots, two pictures at once (edoc_3ee4719b). A beat whose plan
+    # placed nothing on the b-roll keeps its material.
+    showing = {
+        beat
+        for beat, plan in planned.items()
+        if template.beats[beat].use
+        and (plan.cards or any(shot.layer == "broll" for shot in plan.shots))
+    }
+    gone |= {
+        clip.clip_id
+        for clip in document.clips
+        if isinstance(clip, TimelineVideoClip)
+        and clip.track_id == b_roll_track
+        and clip.position is not None
+        and not clip.locked
+        and planner_beat(clip.clip_id) is None
+        and beats.get(clip.clip_id) in showing
+        and clip.clip_id not in old_cards
     }
     # A planned card moves: the import's unlocked placement of that card is taken away first.
     movable = [

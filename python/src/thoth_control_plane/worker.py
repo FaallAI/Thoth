@@ -24,7 +24,10 @@ from thoth_control_plane.activities import (
     build_source_attribution_activity,
     build_source_investigation_activity,
 )
-from thoth_control_plane.activities.footage import build_footage_activity
+from thoth_control_plane.activities.footage import (
+    build_footage_activity,
+    build_subject_activity,
+)
 from thoth_control_plane.activities.meter_scope import (
     MeterScopeInterceptor,
     record_workflow_completed,
@@ -156,6 +159,7 @@ def build_source_investigation_worker(
             build_source_attribution_activity(settings, reports=reports, media=media),
             build_content_assembly_activity(settings, reports=reports, media=media),
             build_footage_activity(settings, reports=reports, media=media),
+            build_subject_activity(settings, reports=reports, media=media),
             record_workflow_completed,
         ],
         interceptors=[MeterScopeInterceptor(client), ProgressScopeInterceptor()],
@@ -220,6 +224,10 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError("embedding_model_missing")
         if find_spec("onnxruntime") is None or find_spec("tokenizers") is None:
             raise SettingsValidationError("embedding_runtime_missing")
+        from thoth_control_plane.footage.adapters.faces import FACE_FILES
+
+        if missing(settings.THOTH_FACE_MODELS_DIR, FACE_FILES):
+            raise SettingsValidationError("face_model_missing")
 
 
 def build_prompt_proposal_worker(

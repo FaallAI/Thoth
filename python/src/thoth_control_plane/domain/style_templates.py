@@ -41,8 +41,16 @@ class CutRules(StrictModel):
     cycle_materials: bool = True
     card_between_facts: bool = False
     #: Planner stage 1 (spec 2026-11-13): cut on phrase starts, each phrase's picture chosen by
-    #: what it says; card lines sit over a phrase instead of taking a slot of their own.
-    planned: bool = False
+    #: what it says; card lines sit over a phrase instead of taking a slot of their own. On by
+    #: default for every style (spec 2026-11-17); a style may still turn it off.
+    planned: bool = True
+    #: A planned footage pick lasts half its phrase, but never more than this (operator,
+    #: 2026-11-17, item 86): a slow style keeps short real cuts; None keeps the half rule.
+    pick_cap_seconds: Annotated[float, Field(ge=0.2, le=10.0)] | None = None
+
+    def band(self) -> tuple[float, float]:
+        """The phrase lengths this style cuts on, in seconds (spec 2026-11-17, goal 2)."""
+        return self.min_shot_seconds, self.max_shot_seconds
 
 
 class CaptionRules(StrictModel):
@@ -107,7 +115,8 @@ def _a() -> StyleTemplate:
     return StyleTemplate(
         template_id="style_a",
         name="Style A",
-        revision=1,
+        # Revision 3 (operator, 2026-11-17, item 88): Style B's b-roll rhythm, Style A's look.
+        revision=3,
         origin="built_in",
         beats={
             "hook": moving.model_copy(update={"heading_place": "title_top"}),
@@ -117,7 +126,7 @@ def _a() -> StyleTemplate:
             "footage": moving,
             "outro": moving,
         },
-        cuts=CutRules(max_shot_seconds=5.0),
+        cuts=CutRules(max_shot_seconds=2.4, min_shot_seconds=0.9, planned=True),
         captions=CaptionRules(style="boxed", words_per_caption=4),
         narration=NarrationRules(starter=_STARTER_A),
     )

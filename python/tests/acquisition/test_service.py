@@ -628,6 +628,21 @@ async def test_tikwm_resolver_resolves_via_http_with_sanitized_fixture(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_tikwm_resolver_waits_for_a_slow_answer() -> None:
+    # 2026-11-17: TikWm answered in 27-28 s; a 15 s read timeout lost every footage clip.
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.extensions["timeout"])
+        return httpx.Response(200, json=tikwm_fixture_payload(), request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        resolver = TikWmResolver(client, rate_gate=TikWmRateGate(min_interval_seconds=0.0))
+        await resolver.resolve(SOURCE_URL)
+    assert seen["read"] >= 45.0
+
+
+@pytest.mark.asyncio
 async def test_tikwm_resolver_maps_transport_errors_to_cdn_unavailable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("boom", request=request)

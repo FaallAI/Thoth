@@ -170,3 +170,11 @@ async def test_an_odd_phrase_id_is_skipped_not_fatal() -> None:
     ]
     answers = await ask(model(Recorder([answer(phrases)])))
     assert answers == [PhraseAnswer("P2", ["S2"], None, "y")]
+
+
+def test_the_prompt_places_footage_talk_and_a_second_angle() -> None:  # spec 2026-11-15, 9.6
+    from thoth_control_plane.assembly.adapters.planner_model import SYSTEM_PROMPT
+
+    assert "WHAT EACH VIDEO SAYS" in SYSTEM_PROMPT
+    assert "retells what someone said in a footage video" in SYSTEM_PROMPT
+    assert "same scene as the main video from another angle" in SYSTEM_PROMPT

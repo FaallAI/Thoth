@@ -2,7 +2,7 @@
 
 Pure: no I/O. Each media item keeps the `MediaRef` it came from, keyed by the inventory item id
 the import gate gives it (`<role>_<order:03d>`), so the importer copies exactly that object.
-Schema 1 bounds a Content Set at one main, six footage and twelve comments, far inside the
+Schema 1 bounds a Content Set at one main, eight footage and twelve comments, far inside the
 gate's item and scene limits, so nothing here truncates.
 """
 
@@ -170,6 +170,9 @@ def _footage(built: _Builder, role: SourceRole, clips: list[Footage]) -> None:
                 "story_score": clip.story_score,
                 "shows_object": clip.shows_object,
                 "query": clip.query,
+                # What the source says around the clip, for the narration and the planner.
+                "said": [line.model_dump(mode="json") for line in clip.said],
+                "clip_start": clip.clip_start,
             },
         )
 

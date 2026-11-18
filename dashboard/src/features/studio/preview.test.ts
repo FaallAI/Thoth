@@ -61,6 +61,21 @@ test("accepts only same-origin editor-asset preview paths", () => {
   }
 });
 
+test("accepts a video's preview proxy path and no other suffix", () => {
+  // Spec 2026-11-18: the proxy is served under the same capability cookie, one segment deeper.
+  expect(safePreviewSource("/api/v1/projects/p1/editor-assets/a1/preview/proxy")).toBe(
+    "/api/v1/projects/p1/editor-assets/a1/preview/proxy",
+  );
+  for (const hostile of [
+    "/api/v1/projects/p1/editor-assets/a1/preview/other",
+    "/api/v1/projects/p1/editor-assets/a1/preview/proxy/",
+    "/api/v1/projects/p1/editor-assets/a1/preview/proxy?x=1",
+    "/api/v1/projects/p1/editor-assets/a1/preview/../proxy",
+  ]) {
+    expect(safePreviewSource(hostile)).toBeUndefined();
+  }
+});
+
 test("accepts the server render's own staged static path and nothing beside it", () => {
   expect(safePreviewSource("/public/asset_1.mp4")).toBe("/public/asset_1.mp4");
 

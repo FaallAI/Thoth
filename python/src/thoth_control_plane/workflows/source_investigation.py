@@ -21,7 +21,12 @@ with workflow.unsafe.imports_passed_through():
         ContentAssemblyActivityInput,
         assemble_content,
     )
-    from thoth_control_plane.activities.footage import FootageActivityInput, build_footage
+    from thoth_control_plane.activities.footage import (
+        FootageActivityInput,
+        SubjectResult,
+        build_footage,
+        find_subject,
+    )
     from thoth_control_plane.activities.source_attribution import (
         SourceAttributionActivityInput,
         attribute_source,
@@ -32,6 +37,7 @@ with workflow.unsafe.imports_passed_through():
     )
     from thoth_control_plane.domain import (
         ActorSnapshot,
+        ApprovalChoice,
         ApprovalRequest,
         ApprovalSignal,
         ArtifactRef,
@@ -55,6 +61,10 @@ COMPLETION_PATCH = "usage-workflow-completed"
 # Spec 2026-10-24: an approved produce_video runs the production chain. Histories recorded
 # before it (approved, then succeeded at once) replay unchanged.
 PRODUCE_CHAIN_PATCH = "produce-video-chain"
+# Spec 2026-11-15, 10.12: footage first finds the story's subject by face, and stops for the
+# operator when the face is doubtful. Histories recorded before it run footage as before.
+SUBJECT_PATCH = "footage-subject"
+SUBJECT_KIND = "choose_subject"
 
 
 @workflow.defn
@@ -74,6 +84,7 @@ class SourceInvestigationWorkflow:
         self._artifacts: list[ArtifactRef] = []
         self._approval: ApprovalRequest | None = None
         self._approval_decision: str | None = None
+        self._approval_choice: str | None = None
         self._cancel_requested = False
         self._attribution_location: str | None = None
         self._original_report: str | None = None
@@ -375,6 +386,19 @@ class SourceInvestigationWorkflow:
         self._record_event(
             EventKind.STAGE_STARTED, stage=StageProgress(name="footage", progress=0.0)
         )
+        subject: str | None = None
+        face_check = False
+        if workflow.patched(SUBJECT_PATCH):
+            found = await self._subject()
+            if found is None:  # cancelled, or the subject stage failed
+                if not self._cancel_requested:
+                    self._footage_failed()
+                    self._record_event(
+                        EventKind.STAGE_COMPLETED,
+                        stage=StageProgress(name="footage", progress=1.0),
+                    )
+                return
+            subject, face_check = found
         task = asyncio.create_task(
             workflow.execute_activity(
                 build_footage,
@@ -382,6 +406,8 @@ class SourceInvestigationWorkflow:
                     workflow_id=self._workflow_id,
                     attribution=self._attribution_location,
                     original_report=self._original_report,
+                    subject=subject,
+                    face_check=face_check,
                 ),
                 start_to_close_timeout=timedelta(minutes=20),
                 heartbeat_timeout=timedelta(minutes=2),
@@ -399,20 +425,7 @@ class SourceInvestigationWorkflow:
         except ActivityError:
             # Spec section 4: a failure after all attempts warns, and the workflow goes on.
             result = None
-            # F1 (run progress phase 3): the stage reads failed, not completed; `complete`
-            # below ignores a failed stage, and the run still succeeds.
-            self._plan_fail("footage")
-            self._source_events.append(
-                SourceProgressEvent(
-                    kind="stage.failed",
-                    payload={
-                        "stage": "footage",
-                        "status": "failed",
-                        "footage_status": "unavailable",
-                    },
-                )
-            )
-            self._event_sequence += 1
+            self._footage_failed()
         if result is not None:
             self._source_events.extend(result.events)
             self._event_sequence += len(result.events)
@@ -420,6 +433,78 @@ class SourceInvestigationWorkflow:
         self._record_event(
             EventKind.STAGE_COMPLETED, stage=StageProgress(name="footage", progress=1.0)
         )
+
+    def _footage_failed(self) -> None:
+        # F1 (run progress phase 3): the stage reads failed, not completed; `complete` ignores a
+        # failed stage, and the run still succeeds.
+        self._plan_fail("footage")
+        self._source_events.append(
+            SourceProgressEvent(
+                kind="stage.failed",
+                payload={"stage": "footage", "status": "failed", "footage_status": "unavailable"},
+            )
+        )
+        self._event_sequence += 1
+
+    async def _subject(self) -> tuple[str | None, bool] | None:
+        """The subject's face template and whether clips must show it (spec 10.12); None when
+        the run was cancelled or the stage failed."""
+        task = asyncio.create_task(
+            workflow.execute_activity(
+                find_subject,
+                FootageActivityInput(
+                    workflow_id=self._workflow_id,
+                    attribution=self._attribution_location,
+                    original_report=self._original_report,
+                ),
+                result_type=SubjectResult,
+                start_to_close_timeout=timedelta(minutes=10),
+                heartbeat_timeout=timedelta(minutes=2),
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+        )
+        await workflow.wait_condition(lambda: self._cancel_requested or task.done())
+        if self._cancel_requested and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, ActivityError):
+                await task
+            return None
+        try:
+            found = await task
+        except ActivityError:
+            return None
+        if found.status == "clear":
+            return found.subject, True
+        if found.status != "doubtful":
+            return None, False
+        # Doubtful: the operator picks the face, or none of them (operator, 2026-11-16).
+        self._approval = ApprovalRequest(
+            approval_id=_approval_id(f"{self._workflow_id}:subject"),
+            kind=SUBJECT_KIND,
+            prompt="Who is this story about?",
+            allowed_decisions=["approve", "reject"],
+            choices=[
+                ApprovalChoice(choice_id=c.choice_id, image=c.image, seconds=c.seconds)
+                for c in found.choices
+            ],
+        )
+        self._approval_decision = None
+        self._approval_choice = None
+        self._transition(WorkflowStatus.AWAITING_APPROVAL)
+        self._record_event(EventKind.APPROVAL_REQUIRED)
+        await workflow.wait_condition(
+            lambda: self._cancel_requested or self._approval_decision is not None
+        )
+        self._approval = None
+        if self._cancel_requested:
+            return None
+        self._transition(WorkflowStatus.RUNNING)
+        if self._plan is not None:
+            self._plan.resume("footage", workflow.now())
+        if self._approval_decision != "approve":
+            return None, False
+        chosen = next(c for c in found.choices if c.choice_id == self._approval_choice)
+        return chosen.template, True
 
     async def _assemble(self) -> bool:
         """Build the content set; False when a required part failed (the workflow fails)."""
@@ -488,9 +573,15 @@ class SourceInvestigationWorkflow:
             or signal.actor.actor_id != self._actor_id
             or signal.actor.actor_type != self._actor_type
             or self._approval_decision is not None
+            or (
+                signal.decision.decision == "approve"
+                and bool(approval.choices)
+                and signal.decision.choice not in {c.choice_id for c in approval.choices}
+            )
         ):
             return
         self._approval_decision = signal.decision.decision
+        self._approval_choice = signal.decision.choice
         self._event_sequence += 1
         self._updated_at = workflow.now()
         self._record_event(EventKind.APPROVAL_RECORDED)
@@ -538,7 +629,9 @@ class SourceInvestigationWorkflow:
             elif kind == EventKind.STAGE_COMPLETED and stage is not None:
                 self._plan.complete(stage.name, at)
             elif kind == EventKind.APPROVAL_REQUIRED:
-                self._plan.wait("approval", at)
+                # The subject stop waits inside the footage stage (spec 10.12).
+                subject = self._approval is not None and self._approval.kind == SUBJECT_KIND
+                self._plan.wait("footage" if subject else "approval", at)
             elif kind == EventKind.WORKFLOW_CANCELLED:
                 self._plan.cancel_open(at)
         sequence = len(self._workflow_events) + 1

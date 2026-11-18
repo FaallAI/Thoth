@@ -25,7 +25,15 @@ _LABELS: dict[str, str] = {
 class _Stage:
     """Mutable per-stage state; `StagePlan.snapshot()` turns it into `StageSummary`."""
 
-    __slots__ = ("finished_at", "skip_reason", "stage_id", "started_at", "status")
+    __slots__ = (
+        "finished_at",
+        "skip_reason",
+        "stage_id",
+        "started_at",
+        "status",
+        "waited",
+        "waiting_since",
+    )
 
     def __init__(self, stage_id: str) -> None:
         self.stage_id = stage_id
@@ -33,6 +41,8 @@ class _Stage:
         self.started_at: datetime | None = None
         self.finished_at: datetime | None = None
         self.skip_reason: str | None = None
+        self.waiting_since: datetime | None = None
+        self.waited = 0.0
 
 
 class StagePlan:
@@ -59,8 +69,19 @@ class StagePlan:
         if stage.status not in {"queued", "running"}:
             return
         stage.status = "waiting"
+        stage.waiting_since = at
         if stage.started_at is None:
             stage.started_at = at
+
+    def resume(self, stage_id: str, at: datetime) -> None:
+        """A waiting stage runs again once its wait is answered (spec 2026-11-15, 10.12); the
+        wait is kept apart from the stage's own time."""
+        stage = self._stage(stage_id)
+        if stage.status == "waiting":
+            stage.status = "running"
+            if stage.waiting_since is not None:
+                stage.waited += (at - stage.waiting_since).total_seconds()
+            stage.waiting_since = None
 
     def complete(self, stage_id: str, at: datetime) -> None:
         stage = self._stage(stage_id)
@@ -109,6 +130,8 @@ class StagePlan:
                 ),
                 started_at=stage.started_at,
                 finished_at=stage.finished_at,
+                waiting_since=stage.waiting_since if stage.status == "waiting" else None,
+                waited_seconds=stage.waited or None,
                 skip_reason=stage.skip_reason,  # type: ignore[arg-type]
             )
             for stage in self._stages

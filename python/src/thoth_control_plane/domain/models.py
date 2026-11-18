@@ -210,16 +210,26 @@ class ActorSnapshot(StrictModel):
     display_name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
 
 
+class ApprovalChoice(StrictModel):
+    """One answer an approval offers (spec 2026-11-15, 10.12): a face of the main video."""
+
+    choice_id: Annotated[str, Field(pattern=r"^[a-z0-9_]{1,32}$")]
+    image: Annotated[str, Field(pattern=r"^data:image/jpeg;base64,", max_length=40_000)]
+    seconds: Annotated[int, Field(ge=0)]
+
+
 class ApprovalRequest(StrictModel):
     approval_id: OpaqueId
     kind: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
     prompt: Annotated[str, Field(min_length=1, max_length=2_000)]
     allowed_decisions: list[Literal["approve", "reject"]]
+    choices: list[ApprovalChoice] = Field(default_factory=list, max_length=8)
 
 
 class ApprovalDecision(StrictModel):
     decision: Literal["approve", "reject"]
     note: Annotated[str, Field(max_length=2_000)] | None = None
+    choice: Annotated[str, Field(pattern=r"^[a-z0-9_]{1,32}$")] | None = None
     provider_payload: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -292,6 +302,10 @@ class StageSummary(StrictModel):
     # summaries and older clients stay valid.
     started_at: datetime | None = Field(default=None)
     finished_at: datetime | None = Field(default=None)
+    # Spec 2026-11-15, 10.12: a person's wait inside a running stage (the subject stop): since
+    # when it waits, and the seconds waited, which stay out of the stage's duration.
+    waiting_since: datetime | None = Field(default=None)
+    waited_seconds: float | None = Field(default=None)
     skip_reason: (
         Literal[
             "attribution_off",

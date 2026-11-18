@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 32
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 35
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -92,7 +92,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 26
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 29  # 35 minus the 6 applied by hand
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -396,10 +396,16 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0031_workspace_assets.py").unlink()
     (before / "0032_planner.sql").unlink()
     (before / "alembic" / "versions" / "0032_planner.py").unlink()
+    (before / "0033_footage_library.sql").unlink()
+    (before / "alembic" / "versions" / "0033_footage_library.py").unlink()
+    (before / "0034_footage_said.sql").unlink()
+    (before / "alembic" / "versions" / "0034_footage_said.py").unlink()
+    (before / "0035_footage_relation.sql").unlink()
+    (before / "alembic" / "versions" / "0035_footage_relation.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 19
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 22
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"

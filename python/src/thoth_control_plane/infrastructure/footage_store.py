@@ -6,24 +6,29 @@ Synchronous like the source-account store; callers wrap calls in `asyncio.to_thr
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
+from thoth_control_plane.footage.frames import is_duplicate
 from thoth_control_plane.footage.models import (
     REJECT_REASONS,
     AdmittedClip,
     CandidateView,
     FootageObject,
+    LibraryClip,
     NewCandidate,
     RunView,
 )
 from thoth_control_plane.infrastructure.footage_models import (
     FootageCandidateRow,
+    FootageLibraryRow,
     FootageRunRow,
     FootageSearchRow,
 )
@@ -38,6 +43,13 @@ def normalize_query(query: str) -> str:
 def _text(value: str | None) -> str | None:
     """PostgreSQL TEXT refuses NUL, so scraped text loses it before it is stored."""
     return None if value is None else value.replace("\x00", "")
+
+
+def _said(value: object) -> list[dict[str, Any]]:
+    """Stored `said`, or [] for anything that is not a list of objects (spec 9.5)."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
 
 
 def _view(row: FootageCandidateRow) -> CandidateView:
@@ -66,6 +78,8 @@ def _view(row: FootageCandidateRow) -> CandidateView:
         clip_start=row.clip_start,
         ocr=row.ocr,
         position=row.position,
+        said=_said(row.said),
+        relation=row.relation or "unknown",
     )
 
 
@@ -76,6 +90,38 @@ def _run_view(row: FootageRunRow) -> RunView:
         footage_status=row.footage_status,
         objects=[FootageObject.model_validate(item) for item in row.objects],
         profile_page=row.profile_page,
+        context=row.context,
+    )
+
+
+LIBRARY_LOOKUP = 12
+
+
+def _parsed(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _library_clip(row: FootageLibraryRow) -> LibraryClip:
+    return LibraryClip(
+        url=row.url,
+        platform=row.platform,
+        owner_handle=row.owner_handle,
+        published_at=row.published_at,
+        section_start=row.section_start,
+        section_end=row.section_end,
+        media_location=row.media_location,
+        media_checksum=row.media_checksum,
+        hashes=list(row.hashes or []),
+        names=list(row.names or []),
+        event=row.event,
+        ocr=dict(row.ocr or {}),
+        said=_said(row.said),
+        relation=row.relation or "unknown",
     )
 
 
@@ -216,6 +262,7 @@ class FootageStore:
                         source_duration=item.source_duration,
                         status=item.status,
                         reason=item.reason,
+                        said=list(item.said),
                         created_at=now,
                         updated_at=now,
                     )
@@ -266,6 +313,7 @@ class FootageStore:
             row.clip_start = clip.clip_start
             row.ocr = clip.ocr
             row.position = clip.position
+            row.relation = clip.relation
             row.updated_at = self._clock()
 
     def reopen(self, workflow_id: str, url: str) -> None:
@@ -278,6 +326,7 @@ class FootageStore:
             row.clip_duration = row.clip_start = None
             row.ocr = None
             row.position = None
+            row.relation = "unknown"
             row.updated_at = self._clock()
 
     def admitted(self, workflow_id: str, media_kind: str = "video") -> list[CandidateView]:
@@ -303,3 +352,117 @@ class FootageStore:
         if row is None:
             raise ValueError("no such footage candidate")
         return row
+
+    # Footage library (spec 2026-11-15): the run's context card and the per-workspace library.
+
+    def set_context(self, workflow_id: str, context: dict[str, object] | None) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(FootageRunRow, workflow_id)
+            if row is None:
+                raise ValueError("no footage run for this workflow")
+            row.context = context
+
+    def add_objects(self, workflow_id: str, objects: Sequence[FootageObject]) -> None:
+        """Round two's queries join the run's objects, so a retry searches them too."""
+        with self._sessions.begin() as session:
+            row = session.get(FootageRunRow, workflow_id)
+            if row is None:
+                raise ValueError("no footage run for this workflow")
+            known = {item["query"] for item in row.objects}
+            row.objects = [
+                *row.objects,
+                *(item.model_dump() for item in objects if item.query not in known),
+            ]
+
+    def workspace_of(self, workflow_id: str) -> str | None:
+        from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
+
+        with self._sessions() as session:
+            return session.scalar(
+                select(ProjectRow.workspace_id)
+                .join(WorkflowRunRow, WorkflowRunRow.project_id == ProjectRow.project_id)
+                .where(WorkflowRunRow.workflow_id == workflow_id)
+            )
+
+    def add_library(self, workspace_id: str, workflow_id: str, clip: LibraryClip) -> None:
+        """Keep a clip; a copy of a kept clip (same pictures) merges into it, and the earlier
+        published one stays the source with its credit."""
+        with self._sessions.begin() as session:
+            rows = session.scalars(
+                select(FootageLibraryRow).where(FootageLibraryRow.workspace_id == workspace_id)
+            ).all()
+            same = next(
+                (r for r in rows if r.url == clip.url and r.section_start == clip.section_start),
+                None,
+            ) or next((r for r in rows if is_duplicate(clip.hashes, [r.hashes or []])), None)
+            if same is None:
+                session.add(
+                    FootageLibraryRow(
+                        id=uuid.uuid4().hex,
+                        workspace_id=workspace_id,
+                        first_workflow_id=workflow_id,
+                        created_at=self._clock(),
+                        **self._library_fields(clip),
+                    )
+                )
+                return
+            same.names = sorted({*(same.names or []), *clip.names})
+            # Spec 10.7: a later run that keeps the clip as another event makes it reusable.
+            related = "related" in (same.relation, clip.relation)
+            new, old = _parsed(clip.published_at), _parsed(same.published_at)
+            if new is not None and (old is None or new < old):
+                for name, value in self._library_fields(clip).items():
+                    if name != "names":
+                        setattr(same, name, value)
+            if related:
+                same.relation = "related"
+
+    @staticmethod
+    def _library_fields(clip: LibraryClip) -> dict[str, object]:
+        return {
+            "url": clip.url,
+            "platform": clip.platform,
+            "owner_handle": clip.owner_handle,
+            "published_at": clip.published_at,
+            "section_start": clip.section_start,
+            "section_end": clip.section_end,
+            "media_location": clip.media_location,
+            "media_checksum": clip.media_checksum,
+            "hashes": list(clip.hashes),
+            "names": sorted(set(clip.names)),
+            "event": clip.event,
+            "ocr": dict(clip.ocr),
+            "said": list(clip.said),
+            "relation": clip.relation,
+        }
+
+    def drop_library(self, workspace_id: str, workflow_id: str, url: str) -> None:
+        """Forget a clip this run kept and then lost to a cleaner copy (spec 9.4); a row an
+        earlier run kept stays."""
+        with self._sessions.begin() as session:
+            session.execute(
+                delete(FootageLibraryRow).where(
+                    FootageLibraryRow.workspace_id == workspace_id,
+                    FootageLibraryRow.first_workflow_id == workflow_id,
+                    FootageLibraryRow.url == url,
+                )
+            )
+
+    def library(
+        self, workspace_id: str, names: Sequence[str], since: datetime, until: datetime
+    ) -> list[LibraryClip]:
+        """The workspace's clips sharing a name, published in the window or at an unknown
+        time, newest first."""
+        # ponytail: filters the workspace's rows in Python; a jsonb `?|` index when it grows.
+        wanted = set(names)
+        with self._sessions() as session:
+            rows = session.scalars(
+                select(FootageLibraryRow).where(FootageLibraryRow.workspace_id == workspace_id)
+            ).all()
+        found = []
+        for row in rows:
+            when = _parsed(row.published_at)
+            if wanted & set(row.names or []) and (when is None or since <= when <= until):
+                found.append(row)
+        found.sort(key=lambda r: _parsed(r.published_at) or since, reverse=True)
+        return [_library_clip(row) for row in found[:LIBRARY_LOOKUP]]

@@ -175,3 +175,19 @@ def test_histories_without_stage_timestamps_do_not_count_toward_the_minimum() ->
 
     timed += [succeeded("wf_3", {"source": 200.0}), succeeded("wf_4", {"source": 200.0})]
     assert estimate_seconds_remaining(run, untimed + timed, NOW) == 200
+
+
+def test_a_person_wait_inside_a_stage_is_not_its_duration() -> None:  # spec 10.12
+    from thoth_control_plane.application.estimates import _medians
+
+    run = succeeded("wf_wait", {"footage": 400.0})
+    footage = next(s for s in run.stages if s.id == "footage")
+    waited = run.model_copy(
+        update={
+            "stages": [
+                s.model_copy(update={"waited_seconds": 300.0}) if s is footage else s
+                for s in run.stages
+            ]
+        }
+    )
+    assert _medians([waited])["footage"] == 100.0

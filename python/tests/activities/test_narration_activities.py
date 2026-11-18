@@ -346,7 +346,8 @@ def test_transcribing_and_scripting_never_voice_anything() -> None:
     result = run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
 
     assert result.code is None
-    assert seen["voice"].requests == [] and seen["uploads"] == 0 and seen["provider_calls"] == 1
+    # GOOD_ANSWER is far below the 45 s target, so it is asked for once more (2026-11-17).
+    assert seen["voice"].requests == [] and seen["uploads"] == 0 and seen["provider_calls"] == 2
     store = seen["store"]
     assert [beat.beat for beat in store.script.beats] == ["hook", "main", "reactions"]
     assert store.estimate.characters == sum(len(beat.text) for beat in store.script.beats)
@@ -393,6 +394,18 @@ def test_a_provider_outage_is_not_asked_again() -> None:
     result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
 
     assert result.code == "provider_unavailable" and seen["provider_calls"] == 1
+
+
+def test_a_passing_provider_outage_is_asked_once_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Live edoc_fbd1139e (2026-11-16): one 5xx ended the narration; a second try is usual.
+    from thoth_control_plane.activities import narration
+
+    monkeypatch.setattr(narration, "PROVIDER_RETRY_SECONDS", 0.0)
+    built, seen = ports(answers=[ProviderUnavailable(status=503, transient=True), GOOD_ANSWER])
+
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert result.code is None and seen["provider_calls"] == 2
 
 
 def test_a_refused_answer_logs_why(caplog: pytest.LogCaptureFixture) -> None:
@@ -708,7 +721,7 @@ class SlowPlanner:
         self.plan_value = plan
         self.calls: list[tuple[str, int]] = []
 
-    async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+    async def plan(self, project_id, document_id, document, materials, voices, band=None):  # type: ignore[no-untyped-def]
         self.calls.append((document_id, len(voices)))
         await asyncio.sleep(self.seconds)
         return self.plan_value
@@ -725,10 +738,21 @@ def test_a_planned_style_asks_the_planner_once() -> None:
 
 
 def test_an_unplanned_style_never_asks_the_planner() -> None:
-    planner = SlowPlanner()
-    built, seen = styled_ports("style_a")
-    built.planner = planner
-    narrate_once(built, seen)
+    # Every built-in style plans since spec 2026-11-17; a style may still turn it off.
+    from thoth_control_plane.domain import style_templates
+
+    a = style_templates.BUILT_IN_STYLES["style_a"]
+    unplanned = a.model_copy(update={"cuts": a.cuts.model_copy(update={"planned": False})})
+    original = dict(style_templates.BUILT_IN_STYLES)
+    style_templates.BUILT_IN_STYLES["style_a"] = unplanned
+    try:
+        planner = SlowPlanner()
+        built, seen = styled_ports("style_a")
+        built.planner = planner
+        narrate_once(built, seen)
+    finally:
+        style_templates.BUILT_IN_STYLES.clear()
+        style_templates.BUILT_IN_STYLES.update(original)
     assert planner.calls == []
 
 
@@ -749,7 +773,7 @@ def test_a_hand_edited_beat_is_not_planned(monkeypatch: pytest.MonkeyPatch) -> N
     seen: list[list[str]] = []
 
     class Recording(SlowPlanner):
-        async def plan(self, project_id, document_id, document, materials, voices):  # type: ignore[no-untyped-def]
+        async def plan(self, project_id, document_id, document, materials, voices, band=None):  # type: ignore[no-untyped-def]
             seen.append([v.beat for v in voices])
             return DraftPlan()
 
@@ -806,3 +830,33 @@ def test_the_planner_fetches_a_real_asset_record(tmp_path: Path) -> None:
     )
     missing = fetch_planner_asset(Repository(), Media(), "project_001", "asset_x", tmp_path)
     assert run(missing) is None
+
+
+def _long_answer(words: int) -> dict[str, Any]:
+    text = " ".join(["kata"] * (words // 3))
+    return {
+        "beats": [
+            {"beat": "hook", "text": f"Kucing ini bikin heboh {text}."},
+            {"beat": "main", "text": f"Ikan diambil dalam sekejap {text}."},
+            {"beat": "reactions", "text": f"Warganet tertawa, kata Andi {text}."},
+        ],
+        "sfx_cues": [],
+    }
+
+
+def test_a_script_far_below_its_length_is_asked_for_once_more() -> None:
+    # Draft edoc_3ee4719b (2026-11-17): a 45 s target came back as 52 words (about 21 s).
+    long_enough = _long_answer(120)
+    built, seen = ports(answers=[GOOD_ANSWER, long_enough])
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert result.code is None and seen["provider_calls"] == 2
+    assert "words" in seen["provider_requests"][1]["user"]  # the retry says how long to write
+    script = seen["store"].script
+    assert sum(len(beat.text.split()) for beat in script.beats) >= 108
+
+
+def test_a_short_script_asked_twice_is_still_used() -> None:
+    built, seen = ports(answers=[GOOD_ANSWER, GOOD_ANSWER])
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert result.code is None and seen["provider_calls"] == 2  # never a failed narration
+    assert seen["store"].status[-1] == ("awaiting_approval", None)

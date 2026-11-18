@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     THOTH_WHISPER_MODEL_DIR: Path = Path("/opt/thoth/models/whisper-large-v3-turbo")
     THOTH_DIARIZATION_MODEL_DIR: Path = Path("/opt/thoth/models/diarization")
     THOTH_EMBEDDING_MODEL_DIR: Path = Path("/opt/thoth/models/embedding")
+    # The footage face check (spec 2026-11-15, 10.12): YuNet and ArcFace.
+    THOTH_FACE_MODELS_DIR: Path = Path("/opt/thoth/models/faces")
     # Stage 5a content assembly. Off by default; the worker refuses to start with it on and
     # no ffmpeg or ffprobe (operator, 2026-10-11).
     THOTH_CONTENT_ASSEMBLY_ENABLED: bool = False
@@ -121,6 +123,10 @@ class Settings(BaseSettings):
     THOTH_SUBTITLE_OCR_MAX_FRAMES: Annotated[int, Field(ge=1, le=60)] = 12
     THOTH_FIGURES_MODEL: str = "deepseek/deepseek-v4-flash-0731"
     THOTH_FOOTAGE_QUERY_MODEL: str = "deepseek/deepseek-v4-flash-0731"
+    # Footage library (spec 2026-11-15): the context card path, and the model that reads it;
+    # the query model above is its fallback.
+    THOTH_FOOTAGE_CONTEXT_ENABLED: bool = True
+    THOTH_FOOTAGE_CARD_MODEL: str = "google/gemini-3.1-flash-lite"
     # Where activities stage media for ffmpeg and the models; None is the system temp directory.
     THOTH_MEDIA_SCRATCH_DIR: Path | None = None
     # Workflow media in S3-compatible storage (spec 2026-10-17); unset keeps it on the volume.

@@ -1,4 +1,5 @@
-"""Fetch the pinned models: whisper, the two diarization ONNX files, and the footage embedding model.
+"""Fetch the pinned models: whisper, the two diarization ONNX files, the footage embedding model,
+and the two face models (YuNet and ArcFace, spec 2026-11-15, 10.12).
 
 Run by the Docker build (large-v3-turbo) and by CI (tiny, for tests). Every file is pinned by
 revision or URL and verified by SHA-256; a mismatch exits non-zero (operator, 2026-10-13:
@@ -60,6 +61,25 @@ EMBEDDING = {
 }
 
 
+# Spec 2026-11-15, 10.12: the story's subject by face. The operator waived licence concerns.
+FACES = {
+    "yunet.onnx": {
+        "url": (
+            "https://media.githubusercontent.com/media/opencv/opencv_zoo/"
+            "f12e12798e8314f7c074a6656816c048dcc95b7a/models/"
+            "face_detection_yunet/face_detection_yunet_2023mar.onnx"
+        ),
+        "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    },
+    "arcface.onnx": {
+        "repo": "immich-app/buffalo_l",
+        "revision": "381829d83a41c0d0e03d0c5b9a4f6ddcaf5d6855",
+        "file": "recognition/model.onnx",
+        "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43",
+    },
+}
+
+
 def verify(path: Path, expected: str) -> None:
     with path.open("rb") as handle:  # streamed: the turbo model is 1.6 GB
         digest = hashlib.file_digest(handle, "sha256").hexdigest()
@@ -109,6 +129,30 @@ def fetch_embedding(out: Path) -> None:
         verify(target / name, digest)
 
 
+def fetch_faces(out: Path) -> None:
+    from huggingface_hub import hf_hub_download
+
+    target = out / "faces"
+    target.mkdir(parents=True, exist_ok=True)
+    for name, asset in FACES.items():
+        with tempfile.TemporaryDirectory() as scratch:
+            if "url" in asset:
+                download = Path(scratch) / "download"
+                with urllib.request.urlopen(asset["url"], timeout=120) as response:  # noqa: S310
+                    download.write_bytes(response.read())
+            else:
+                download = Path(
+                    hf_hub_download(
+                        asset["repo"],
+                        asset["file"],
+                        revision=asset["revision"],
+                        local_dir=scratch,
+                    )
+                )
+            shutil.copyfile(download, target / name)
+        verify(target / name, asset["sha256"])
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--whisper", choices=sorted(WHISPER), required=True)
@@ -117,3 +161,4 @@ if __name__ == "__main__":
     fetch_whisper(arguments.whisper, arguments.out)
     fetch_diarization(arguments.out)
     fetch_embedding(arguments.out)
+    fetch_faces(arguments.out)

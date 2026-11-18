@@ -65,7 +65,12 @@ function RunRow({
   const running = stages.find((stage) => stage.status === "running");
   let line: string | null = null;
   if (run.status === "awaiting_approval") {
-    line = t("runs.row.waitingSince", { stage: stageName(t, "approval"), time: time(run.updated_at) });
+    // The subject stop waits inside footage (spec 2026-11-15, 10.12); other stops at the review.
+    const waiting = stages.find((stage) => stage.status === "waiting");
+    line = t("runs.row.waitingSince", {
+      stage: stageName(t, waiting?.id ?? "approval", waiting?.label),
+      time: time(waiting?.waiting_since ?? run.updated_at),
+    });
   } else if (run.status === "failed" && failed) {
     line = t("runs.row.failedAt", { stage: stageName(t, failed.id, failed.label) });
   } else if (running) {

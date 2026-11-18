@@ -22,6 +22,7 @@ type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 import { fitMoveList, shiftMoves, speedPercent, splitMoves, stretchMoves, visibleLanes } from "@thoth/remotion-composition";
 
 export { speedPercent, visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
+import type { TimelineLane } from "@thoth/remotion-composition";
 
 /** The drag payload an Assets row carries onto a Timeline lane (spec 2026-11-08 §6). */
 export const ASSET_DRAG_TYPE = "application/x-thoth-asset";
@@ -274,6 +275,23 @@ export function placementChanges(
   };
 }
 
+/** A lane row's height in pixels: a lane has one row per layer (spec 2026-11-17). */
+export const ROW_HEIGHT = 44;
+
+/** Each track's layers when a gesture began. */
+export type FrozenRows = Map<string, { layers: number; layerOf: Map<string, number> }>;
+
+/**
+ * Lanes laid out with the rows a gesture began on: a clip dragged across another must not make
+ * its lane grow or shrink under the pointer (final review, 2026-11-17).
+ */
+export function withRows(lanes: TimelineLane[], rows: FrozenRows): TimelineLane[] {
+  return lanes.map((lane) => {
+    const kept = rows.get(lane.track.track_id);
+    return kept ? { ...lane, layers: kept.layers, layerOf: kept.layerOf } : lane;
+  });
+}
+
 export function timelineIssues(document: EditDocumentV2): TimelineIssue[] {
   const issues: TimelineIssue[] = [];
   const add = (code: TimelineIssueCode, kind: "clip" | "track", id: string, trackId: string) =>
@@ -285,9 +303,8 @@ export function timelineIssues(document: EditDocumentV2): TimelineIssue[] {
       if (track.kind === "main_video" && clip.from_frame > expectedStart) {
         add("main_track_gap", "clip", clip.clip_id, track.track_id);
       }
-      if (clip.from_frame < expectedStart) {
-        add("clip_overlap", "clip", clip.clip_id, track.track_id);
-      }
+      // Clips that play at once stack as layers (spec 2026-11-17, goal 5): no warning. The b-roll
+      // guard against two pictures at once lives in the narration write (b_roll_overlaps).
       if (clip.from_frame + clip.duration_in_frames > document.canvas.duration_in_frames) {
         add("clip_exceeds_canvas", "clip", clip.clip_id, track.track_id);
       }

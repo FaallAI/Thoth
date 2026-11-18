@@ -305,8 +305,9 @@ export function AdvancedTimelineComposition({
   return (
     <AbsoluteFill style={CANVAS}>
       {/* Lanes are editor rows, so a hidden track still has one; the composition drops it. */}
-      {lanes.flatMap(({ track, clips }) =>
-          clips
+      {/* Within a lane, by layer: a clip stacked over another is drawn after it (spec 2026-11-17). */}
+      {lanes.flatMap(({ track, layered }) =>
+          layered
             .filter((clip) => !clip.hidden)
             .map((clip) => (
               <Sequence
@@ -314,10 +315,11 @@ export function AdvancedTimelineComposition({
                 name={clip.clip_id}
                 from={clip.from_frame}
                 durationInFrames={clip.duration_in_frames}
-                // While playing, a video loads a second ahead: at a cut the Player would otherwise
-                // pause to buffer, and the narration stops with it (stage1, 2026-11-12). Only while
-                // playing: a hidden copy of a movie on screen shifted a held frame's pixels.
-                premountFor={premount && clip.kind === "video" ? Math.round(document.canvas.fps) : undefined}
+                // While playing, a video loads two seconds ahead (Remotion Studio's default): at a
+                // cut the Player would otherwise pause to buffer, and the narration stops with it
+                // (stage1, 2026-11-12; spec 2026-11-18). Only while playing: a hidden copy of a
+                // movie on screen shifted a held frame's pixels.
+                premountFor={premount && clip.kind === "video" ? Math.round(2 * document.canvas.fps) : undefined}
               >
                 {renderClip(
                   clip,

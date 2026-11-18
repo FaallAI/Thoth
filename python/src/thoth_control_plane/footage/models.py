@@ -26,6 +26,10 @@ RejectReason = Literal[
     "duplicate",
     "media_failed",
     "vision_unavailable",
+    "repost",  # an original replaced it (footage library spec 2026-11-15, 4.5)
+    "same_event",  # spec 10.6: a second or unclean clip of the incident
+    "too_old",  # spec 10.12: a third clip older than 30 days
+    "subject_absent",  # spec 10.12: the story's subject is not on screen
 ]
 REJECT_REASONS: frozenset[str] = frozenset(get_args(RejectReason))
 
@@ -53,6 +57,8 @@ class NewCandidate:
     status: str = "pending"
     reason: str | None = None
     media_kind: str = "video"  # "image" for a creator photo (spec 5c-2, G4)
+    # What the video says around a section (spec 2026-11-15, 9.3), TranscriptSegment dumps.
+    said: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,8 @@ class CandidateView:
     ocr: dict[str, Any] | None
     position: int | None
     media_kind: str = "video"
+    said: list[dict[str, Any]] = field(default_factory=list)
+    relation: str = "unknown"  # spec 10.3
 
 
 @dataclass(frozen=True)
@@ -91,6 +99,29 @@ class RunView:
     objects: list[FootageObject]
     # The TikTok profile page card from the creator listing (spec 5c-2), a CardArtifact dump.
     profile_page: dict[str, Any] | None = None
+    # The context card (footage library spec 2026-11-15, 4.1); None on the object path.
+    context: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class LibraryClip:
+    """One clip in a workspace's footage library (spec 2026-11-15, 4.5)."""
+
+    url: str
+    platform: str
+    owner_handle: str
+    published_at: str | None
+    section_start: float
+    section_end: float | None
+    media_location: str
+    media_checksum: str
+    hashes: list[int]
+    names: list[str]
+    event: str
+    # The admission's OCR dump: the import reads it as `MainOcr`.
+    ocr: dict[str, Any] = field(default_factory=dict)
+    said: list[dict[str, Any]] = field(default_factory=list)
+    relation: str = "unknown"  # spec 10.7: only `related` is reused
 
 
 @dataclass(frozen=True)
@@ -105,6 +136,7 @@ class AdmittedClip:
     clip_start: float
     ocr: dict[str, Any]
     position: int
+    relation: str = "unknown"
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,16 @@ class OrbMatcher:
     async def compare(self, repost: list[Any], candidate: list[Any]) -> list[int]:
         return await asyncio.to_thread(self._compare, repost, candidate)
 
+    async def matrix(self, a: list[Any], b: list[Any]) -> list[list[int]]:
+        """Inliers for every pair, a row per frame of `a` (footage copies, spec 2026-11-15
+        9.9: a copy's best matches line up in time)."""
+        return await asyncio.to_thread(self._matrix, a, b)
+
+    def _matrix(self, a: list[Any], b: list[Any]) -> list[list[int]]:
+        cv2 = _cv2()
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+        return [[_inliers(cv2, matcher, frame, other) for other in b] for frame in a]
+
     def _prepare(self, frames: list[Frame]) -> list[Any]:
         cv2 = _cv2()
         import numpy as np

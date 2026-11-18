@@ -9,6 +9,7 @@ Any failure gives no plan, and the narration falls back to the phrase-start rhyt
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Sequence
@@ -27,8 +28,10 @@ from thoth_control_plane.assembly.planner_shots import (
     keyframes,
 )
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2, TimelineVideoClip
-from thoth_control_plane.domain.narration import BEAT_ORDER
+from thoth_control_plane.domain.narration import BEAT_ORDER, TranscriptSegment
 from thoth_control_plane.domain.planner import (
+    MAX_PHRASE_SECONDS,
+    MIN_PHRASE_SECONDS,
     BeatPlan,
     DraftPlan,
     PlanCard,
@@ -41,6 +44,13 @@ from thoth_control_plane.domain.planner import (
     words_key,
 )
 from thoth_control_plane.domain.studio_imports import StudioMaterials
+from thoth_control_plane.footage.faces import (
+    MAIN_SECONDS,
+    group_faces,
+    template,
+    who_is_on_screen,
+)
+from thoth_control_plane.footage.reposts import credit_label
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +69,8 @@ class Planner:
         *,
         detect: Callable[..., Awaitable[list[tuple[float, float]]]] = detect_shots,
         frames: Callable[..., Awaitable[list[Path]]] = keyframes,
+        faces: Any | None = None,
+        people: Callable[[str, str], Awaitable[list[str]]] | None = None,
     ) -> None:
         self._store = store
         self._fetch = fetch_asset
@@ -67,6 +79,8 @@ class Planner:
         self._ffprobe = ffprobe
         self._detect = detect
         self._frames = frames
+        self._faces = faces  # a FaceReader; with `people`, the planner learns who is on screen
+        self._people = people
 
     async def plan(
         self,
@@ -75,10 +89,12 @@ class Planner:
         document: EditDocumentV2,
         materials: StudioMaterials,
         voices: Sequence[Any],
+        band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
     ) -> DraftPlan | None:
-        """The draft's plan, stored before it is returned; None when it cannot be made."""
+        """The draft's plan, stored before it is returned; None when it cannot be made. `band` is
+        the style's phrase lengths (spec 2026-11-17)."""
         try:
-            return await self._plan(project_id, document_id, document, materials, voices)
+            return await self._plan(project_id, document_id, document, materials, voices, band)
         except Exception as error:
             logger.warning(
                 "planner unavailable; cutting on phrases only error=%s", type(error).__name__
@@ -92,6 +108,7 @@ class Planner:
         document: EditDocumentV2,
         materials: StudioMaterials,
         voices: Sequence[Any],
+        band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
     ) -> DraftPlan:
         stored = await self._store.get_plan(document_id)
         kept = {beat.beat: beat for beat in stored.beats} if stored else {}
@@ -102,7 +119,7 @@ class Planner:
         fresh: list[Any] = []
         for voice in voices:
             key = words_key(voice.words)
-            ranges = split_phrases(voice.words)
+            ranges = split_phrases(voice.words, *band)
             old = kept.get(voice.beat)
             if old is not None and old.words_key == key:
                 phrases = reuse_picks(old, ranges, voice.words)
@@ -131,7 +148,7 @@ class Planner:
             number = 0
             for voice in fresh:
                 phrases = []
-                for first, last in split_phrases(voice.words):
+                for first, last in split_phrases(voice.words, *band):
                     number += 1
                     text = " ".join(word.text for word in voice.words[first : last + 1])
                     heard = soundbite(text, mains)
@@ -219,10 +236,24 @@ class Planner:
         main_tracks = {t.track_id for t in document.tracks if t.kind == "main_video"}
         videos = [c for c in document.clips if isinstance(c, TimelineVideoClip)]
         main = next((c.asset_id for c in videos if c.track_id in main_tracks), None)
-        handles = {i.asset_id: i.owner_handle for i in materials.items if i.asset_id}
+        handles = {
+            i.asset_id: credit_label(i.platform, i.owner_handle)
+            for i in materials.items
+            if i.asset_id
+        }
         footage: list[str] = [
             i.asset_id for i in materials.items if i.role == "footage" and i.asset_id
         ]
+        # What each footage source says, in its own seconds, and where its clip starts there
+        # (spec 2026-11-15, 9.6).
+        talk = {
+            i.asset_id: (
+                [TranscriptSegment.model_validate(line.model_dump()) for line in i.said],
+                i.clip_start or 0.0,
+            )
+            for i in materials.items
+            if i.role == "footage" and i.asset_id and i.said
+        }
         footage += [
             c.asset_id
             for c in videos
@@ -240,6 +271,7 @@ class Planner:
         ]
         transcript = await self._store.get_transcript(document_id)
         shots: list[PlanShot] = []
+        labels: dict[str, str] = {}  # shot id -> its video's label, for the speech block
         assets: list[AssetRef] = []
         files: dict[str, Path] = {}
         sources: list[str] = ["SOURCES:"]
@@ -273,10 +305,11 @@ class Planner:
                         source=kind,  # type: ignore[arg-type]
                         start_seconds=start,
                         end_seconds=end,
-                        said=shot_speech(transcript, start, end) if kind == "main" else "",
+                        said=self._said(kind, asset_id, start, end, transcript, talk),
                         handle=handle,
                     )
                 )
+                labels[shots[-1].shot_id] = label
         cards: list[PlanCard] = []
         for asset_id, item_id, role in card_items:
             if asset_id in seen:
@@ -293,10 +326,60 @@ class Planner:
             sources.append(
                 "- CARDS: " + ", ".join(f"{c.card_id} = {c.kind.replace('_', ' ')}" for c in cards)
             )
-        said = [f"- {s.shot_id}: {s.said}" for s in shots if s.said]
+        said = [f"- {s.shot_id} ({labels[s.shot_id]}): {s.said}" for s in shots if s.said]
         if said:
-            sources += ["", "WHAT THE MAIN VIDEO SAYS DURING EACH SHOT:", *said]
+            sources += ["", "WHAT EACH VIDEO SAYS DURING EACH SHOT:", *said]
+        sources += await self._on_screen(project_id, document_id, shots, labels, files)
         return shots, cards, assets, files, sources
+
+    async def _on_screen(
+        self,
+        project_id: str,
+        document_id: str,
+        shots: Sequence[PlanShot],
+        labels: dict[str, str],
+        files: dict[str, Path],
+    ) -> list[str]:
+        """Who is on screen in each shot (spec 2026-11-17, 6): the main's two longest face groups,
+        named by the run's card. Any gap leaves the block out; never a failure."""
+        if self._faces is None or self._people is None or "MAIN" not in files:
+            return []
+        try:
+            people = (await self._people(project_id, document_id))[:2]
+            if not people:
+                return []
+            main = await asyncio.to_thread(self._faces.faces, files["MAIN"], 0.0, MAIN_SECONDS)
+            groups = group_faces(main)
+            named = [(name, template(group)) for name, group in zip(people, groups, strict=False)]
+            if not named:
+                return []
+            read: dict[str, list[Any]] = {"MAIN": main}
+            lines = []
+            for shot in shots:
+                label = labels[shot.shot_id]
+                if label not in read:
+                    read[label] = await asyncio.to_thread(self._faces.faces, files[label])
+                who = who_is_on_screen(named, read[label], shot.start_seconds, shot.end_seconds)
+                if who is not None:
+                    lines.append(f"- {shot.shot_id} ({label}): {', '.join(who) or 'other people'}")
+        except Exception as error:  # the faces are a hint: a planner without them still plans
+            logger.warning("planner faces unavailable: %s", type(error).__name__)
+            return []
+        return ["", "WHO IS ON SCREEN IN EACH SHOT:", *lines] if lines else []
+
+    @staticmethod
+    def _said(
+        kind: str,
+        asset_id: str,
+        start: float,
+        end: float,
+        transcript: Sequence[TranscriptSegment],
+        talk: dict[str, tuple[list[TranscriptSegment], float]],
+    ) -> str:
+        if kind == "main":
+            return shot_speech(transcript, start, end)
+        lines, offset = talk.get(asset_id, ([], 0.0))
+        return shot_speech(lines, offset + start, offset + end)
 
     async def _ask(
         self,

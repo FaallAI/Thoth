@@ -20,6 +20,8 @@ data/cookies.txt
 
 # ── Media / binary artifacts ────────────────────────────────────────────────────
 *.mp4
+# The face reader's real-model fixtures (spec 2026-11-15, 10.12), 243 KB in all.
+!python/tests/fixtures/footage/faces/*.mp4
 *.wav
 *.ass
 *.exe

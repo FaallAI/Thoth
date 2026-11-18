@@ -12,6 +12,7 @@ which is how one beat is re-voiced. Clip IDs derive from beats, so the result is
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from bisect import bisect_right
@@ -35,17 +36,25 @@ from thoth_control_plane.domain.edit_document_v2 import (
     frames_left,
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
-from thoth_control_plane.domain.planner import DraftPlan, content_words, split_phrases
+from thoth_control_plane.domain.planner import (
+    MAX_PHRASE_SECONDS,
+    MIN_PHRASE_SECONDS,
+    DraftPlan,
+    content_words,
+    split_phrases,
+)
 from thoth_control_plane.domain.planner_assign import BeatAssignment, assign_beat
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
 from thoth_control_plane.domain.style_apply import (
     PLANNER_CLIP,
+    b_roll_overlaps,
     beat_fingerprints,
     style_operations,
 )
 from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
+logger = logging.getLogger(__name__)
 NARRATION_PREFIX = "clip_narration_"
 CAPTION_PREFIX = "clip_caption_narration_"
 SFX_PREFIX = "clip_sfx_"
@@ -378,13 +387,16 @@ def narrate_document(
     assignments: dict[BeatId, BeatAssignment] | None = None
     if style.cuts.planned:
         # Planner stage 1 (spec 2026-11-13): cut on phrase starts; a plan picks each picture.
+        band = style.cuts.band()  # the style's phrase lengths (spec 2026-11-17)
         windows = {
-            beat: _phrase_windows(voices[beat].words, start, new_windows[beat], fps)  # type: ignore[index]
+            beat: _phrase_windows(voices[beat].words, start, new_windows[beat], fps, band)  # type: ignore[index]
             for beat, start in starts.items()
         }
         ends = {beat: [a for a, _ in phrases] for beat, phrases in windows.items()}
         if plan is not None:
-            assignments = _assignments(plan, narrated_document, voices, windows, fps)
+            assignments = _assignments(
+                plan, narrated_document, voices, windows, fps, band, style.cuts.pick_cap_seconds
+            )
             assets.update({ref.asset_id: ref for ref in plan.assets})
     else:
         # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
@@ -422,6 +434,14 @@ def narrate_document(
     for ref in plan.assets if plan is not None else []:
         resolved.setdefault(ref.asset_id, ref)
     styled = apply_edit_operations(narrated_document, operations, resolved_assets=resolved)
+    if stacked := b_roll_overlaps(styled):
+        # Studio shows them as layers without a warning; the log still catches the bug.
+        logger.warning(
+            "narration left pictures stacked on the b-roll document=%s pairs=%d first=%s",
+            styled.document_id,
+            len(stacked),
+            stacked[0],
+        )
     if not curve:
         return _recorded(styled, roles_by_item, kept)
     # New shots of a movie duck under the voice like the clip they replaced.
@@ -444,11 +464,15 @@ def _planner_beat(clip_id: str) -> str | None:
 
 
 def _phrase_windows(
-    words: Sequence[WordTiming], start: int, window: Window, fps: float
+    words: Sequence[WordTiming],
+    start: int,
+    window: Window,
+    fps: float,
+    band: tuple[float, float],
 ) -> list[Window]:
     """A voiced beat's phrase windows: each from its first word to the next phrase's first
     word, the first from the beat's start and the last to its end (spec 2026-11-13, 5.1)."""
-    ranges = split_phrases(words)
+    ranges = split_phrases(words, *band)
     if not ranges:
         return [window]
     cuts = [window[0]]
@@ -466,6 +490,8 @@ def _assignments(
     voices: Mapping[str, VoicedBeat],
     windows: Mapping[str, list[Window]],
     fps: float,
+    band: tuple[float, float] = (MIN_PHRASE_SECONDS, MAX_PHRASE_SECONDS),
+    cap_seconds: float | None = None,
 ) -> dict[BeatId, BeatAssignment]:
     """The plan in frames, beat by beat, sharing one record of used shots. A beat whose phrases
     no longer match the plan's (an edited script) keeps the phrase-start rhythm only."""
@@ -493,7 +519,7 @@ def _assignments(
         if voice is None or phrase_windows is None:
             continue
         ranges = [(p.first_word, p.last_word) for p in beat_plan.phrases]
-        if ranges != split_phrases(voice.words) or len(ranges) != len(phrase_windows):
+        if ranges != split_phrases(voice.words, *band) or len(ranges) != len(phrase_windows):
             continue
         at = phrase_windows[0][0]
         under = next((c for c in mains if c.from_frame <= at < c.end_frame), None)
@@ -508,6 +534,7 @@ def _assignments(
             beat in BACKGROUND_BEATS,
             used,
             frames,
+            cap_seconds,
         )
     return out
 

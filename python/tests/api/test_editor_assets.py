@@ -549,3 +549,83 @@ async def test_a_glance_of_another_projects_asset_is_not_found(gateway, tmp_path
         response = await client.get(GLANCE_URL, headers=AUTH_HEADERS)
 
     assert response.status_code == 404
+
+
+class Proxies:
+    """The preview proxy service's contract, recorded (spec 2026-11-18)."""
+
+    def __init__(self, ready: bool) -> None:
+        self.is_ready = ready
+        self.requested: list[tuple[str, str]] = []
+
+    async def ready(self, project_id: str, asset_id: str) -> bool:
+        return self.is_ready
+
+    def request(self, project_id: str, asset_id: str, location: str, media_type: str) -> None:
+        self.requested.append((project_id, asset_id))
+
+
+@pytest.mark.asyncio
+async def test_a_video_without_a_proxy_asks_for_one_and_previews_the_original(
+    gateway, tmp_path: Path
+) -> None:
+    app = preview_app(gateway, tmp_path)
+    app.state.preview_proxies = proxies = Proxies(ready=False)
+    async with client_for(app) as client:
+        issued = await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
+
+    assert issued.json()["preview_url"] == PREVIEW_URL
+    assert proxies.requested == [("project_001", "asset_main")]
+
+
+@pytest.mark.asyncio
+async def test_a_video_with_a_proxy_previews_the_proxy_under_the_same_cookie(
+    gateway, tmp_path: Path
+) -> None:
+    app = preview_app(gateway, tmp_path)
+    app.state.preview_proxies = proxies = Proxies(ready=True)
+    kept = tmp_path / "previews" / "project_001" / "asset_main.v1.mp4"
+    kept.parent.mkdir(parents=True)
+    kept.write_bytes(b"proxy-bytes")
+    async with client_for(app) as client:
+        issued = await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
+        served = await client.get(f"{PREVIEW_URL}/proxy")
+        client.cookies.clear()
+        refused = await client.get(f"{PREVIEW_URL}/proxy")
+
+    assert issued.json()["preview_url"] == f"{PREVIEW_URL}/proxy"
+    assert f"Path={PREVIEW_URL}" in issued.headers["set-cookie"]  # it covers /proxy too
+    assert proxies.requested == []
+    assert served.status_code == 200 and served.content == b"proxy-bytes"
+    assert served.headers["content-type"] == "video/mp4"
+    assert refused.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_the_proxy_route_serves_the_original_when_the_proxy_is_gone(
+    gateway, tmp_path: Path
+) -> None:
+    app = preview_app(gateway, tmp_path)
+    app.state.preview_proxies = Proxies(ready=False)
+    async with client_for(app) as client:
+        await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
+        served = await client.get(f"{PREVIEW_URL}/proxy")
+
+    assert served.status_code == 200 and served.content == MEDIA_BYTES
+
+
+@pytest.mark.asyncio
+async def test_an_image_never_asks_for_a_proxy(gateway, tmp_path: Path) -> None:
+    payload = {**asset().model_dump(), "kind": "image", "media_type": "image/png"}
+    image = EditorAssetRecord.model_construct(
+        asset=EditorAsset.model_construct(**payload),
+        artifact_location="uploads/project_001/asset_main.mp4",
+        provenance="operator_upload",
+    )
+    app = preview_app(gateway, tmp_path, records={("project_001", "asset_main"): image})
+    app.state.preview_proxies = proxies = Proxies(ready=False)
+    async with client_for(app) as client:
+        issued = await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
+
+    assert issued.json()["preview_url"] == PREVIEW_URL
+    assert proxies.requested == []

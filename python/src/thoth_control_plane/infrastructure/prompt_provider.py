@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -56,6 +57,9 @@ def public_prompt_provider_catalog(
             )
         )
     return tuple(public)
+
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAICompatiblePromptProvider:
@@ -149,11 +153,13 @@ class OpenAICompatiblePromptProvider:
         except httpx.TimeoutException as error:
             raise ProviderTimeout() from error
         except httpx.HTTPError as error:
-            raise ProviderUnavailable() from error
+            logger.warning("prompt provider request failed error=%s", type(error).__name__)
+            raise ProviderUnavailable(transient=True) from error
         if response.status_code == 429:
             raise ProviderRateLimited()
         if response.status_code >= 400:
-            raise ProviderUnavailable()
+            logger.warning("prompt provider refused status=%d", response.status_code)
+            raise ProviderUnavailable(response.status_code, transient=response.status_code >= 500)
         usage = _usage(response)
         await metering.record_call(
             model_id,

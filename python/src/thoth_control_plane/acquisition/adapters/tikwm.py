@@ -23,6 +23,8 @@ from thoth_control_plane.acquisition.normalize import normalize_engagement, publ
 from thoth_control_plane.domain.models import StrictModel
 
 TIKWM_ORIGIN = "https://www.tikwm.com"
+# TikWm answers slowly at busy hours (27-28 s on 2026-11-17); 15 s lost every footage clip.
+REQUEST_TIMEOUT_SECONDS = 45.0
 _POST_ID_PATTERN = re.compile(r"^[0-9]{5,32}$")
 _RATE_LIMIT_CODES = frozenset({-1})
 _RATE_LIMIT_MARKERS = ("frequently", "rate limit", "too many request")
@@ -172,7 +174,7 @@ class TikWmResolver:
             response = await self._client.get(
                 "https://www.tikwm.com/api/",
                 params={"url": source_url, "hd": "1"},
-                timeout=httpx.Timeout(15.0),
+                timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS),
             )
             response.raise_for_status()
             payload = response.json()

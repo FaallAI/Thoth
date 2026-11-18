@@ -30,6 +30,14 @@ def test_every_model_is_pinned_by_revision_and_checksum() -> None:
         assert len(asset["sha256"]) == 64
 
 
+def test_the_face_models_are_pinned(tmp_path: Path) -> None:  # spec 10.12
+    module = _module()
+    assert set(module.FACES) == {"yunet.onnx", "arcface.onnx"}
+    for asset in module.FACES.values():
+        assert len(asset["sha256"]) == 64
+    assert len(module.FACES["arcface.onnx"]["revision"]) == 40
+
+
 def test_a_checksum_mismatch_stops_the_fetch(tmp_path: Path) -> None:
     module = _module()
     target = tmp_path / "file.bin"

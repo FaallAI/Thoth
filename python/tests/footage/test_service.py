@@ -184,13 +184,20 @@ class Judge:
         self.answers = answers or {}
         self.calls: list[str] = []
         self.people: list[bool] = []
+        self.references: list[Frame | None] = []
 
     async def judge(
-        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        self,
+        frames: Sequence[Frame],
+        visual: str,
+        *,
+        person: bool = False,
+        reference: Frame | None = None,
     ) -> FootageAnswer:
         key = visual
         self.calls.append(key)
         self.people.append(person)
+        self.references.append(reference)
         answer = self.answers.get(
             key, FootageAnswer(kind="footage", shows_object="yes", description="A flooded street.")
         )
@@ -215,6 +222,7 @@ def _builder(
     per_candidate_seconds: float = 90.0,
     grace_seconds: float = 10.0,
     overrun_seconds: float = 120.0,
+    context_enabled: bool = False,
     **ports: Any,
 ) -> FootageBuilder:
     values: dict[str, Any] = {
@@ -239,6 +247,8 @@ def _builder(
         per_candidate_seconds=per_candidate_seconds,
         grace_seconds=grace_seconds,
         overrun_seconds=overrun_seconds,
+        context_enabled=context_enabled,
+        caption_spacing=0.0,  # the pause between caption fetches is real time
     )
 
 
@@ -299,7 +309,7 @@ def test_select_batch_rounds_across_queries_and_respects_the_caps() -> None:
     four = {q: [view(f"{q}1", q), view(f"{q}2", q)] for q in "abcd"}
     served = Counter({"a": 1, "b": 1, "c": 1})
     assert [c.url for c in select_batch(four, served, total=3, size=3)] == ["d1", "a1", "b1"]
-    assert select_batch({"a": [view("x", "a")]}, Counter(), total=6, size=3) == []
+    assert select_batch({"a": [view("x", "a")]}, Counter(), total=8, size=3) == []  # 10.6
 
 
 async def test_text_gates_and_story_gate_touch_no_media(
@@ -329,7 +339,7 @@ async def test_text_gates_and_story_gate_touch_no_media(
     assert downloader.calls == [] and judge.calls == []
 
 
-async def test_quota_two_per_query_six_in_total(store: FootageStore, tmp_path: Path) -> None:
+async def test_quota_two_per_query_eight_in_total(store: FootageStore, tmp_path: Path) -> None:
     answer = FootageQueryAnswer.model_validate(
         {
             "subjects": ["kemang"],
@@ -343,15 +353,15 @@ async def test_quota_two_per_query_six_in_total(store: FootageStore, tmp_path: P
     result = await _builder(
         store, queries=Queries(answer), search=Search(results), downloader=downloader
     ).build(_inputs(tmp_path))
-    assert result.status == "ok" and result.admitted == 6
+    assert result.status == "ok" and result.admitted == 8  # spec 10.6
     admitted = store.admitted("wf_a")
     per_query: dict[str, int] = {}
     for c in admitted:
         per_query[c.query] = per_query.get(c.query, 0) + 1
     assert max(per_query.values()) <= 2
     assert set(per_query) == {f"objek{n} kemang" for n in range(4)}  # no query starved
-    assert [c.position for c in admitted] == list(range(6))
-    assert len(downloader.calls) == 6  # stopped once six were admitted
+    assert [c.position for c in admitted] == list(range(8))
+    assert len(downloader.calls) == 8  # stopped once eight were admitted
 
 
 async def test_commentary_absent_object_and_vision_failure_are_rejected(
@@ -655,7 +665,7 @@ async def test_a_missing_tool_cancels_the_sibling_checks(
 
     class Blocking(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             if visual != "blocked":
                 return await super().judge(frames, visual, person=person)
@@ -684,7 +694,7 @@ async def test_a_candidate_past_its_time_is_media_failed_and_deleted(
 ) -> None:
     class Slow(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             await asyncio.sleep(10)
             return await super().judge(frames, visual, person=person)
@@ -709,7 +719,7 @@ async def test_the_deadline_stops_after_the_running_batch(
 
     class Slow(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             await asyncio.sleep(1.2)  # the first batch outlasts the deadline
             return await super().judge(frames, visual, person=person)
@@ -872,7 +882,7 @@ async def test_a_check_that_ignores_cancellation_is_abandoned(
 
     class Deaf(Judge):
         async def judge(
-            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False, **_: Any
         ) -> FootageAnswer:
             task = asyncio.current_task()
             assert task is not None
@@ -1243,3 +1253,1476 @@ async def test_a_search_outage_with_creator_material_is_logged(
         result = await _builder(store, search=search, **ports).build(_creator_inputs(tmp_path))
     assert result.status == "ok"
     assert "footage search unavailable; creator material only" in caplog.text
+
+
+# The context path (footage library spec 2026-11-15, 4.1-4.3).
+
+CONTEXT = Path(__file__).resolve().parents[1] / "fixtures" / "footage" / "context"
+
+
+def _card(name: str = "mutant_card") -> Any:
+    from thoth_control_plane.footage.context import ContextCard
+
+    return ContextCard.model_validate_json((CONTEXT / f"{name}.json").read_text(encoding="utf-8"))
+
+
+class Cards:
+    """The card model: the card for the first prompt, `refined` for round two."""
+
+    def __init__(self, card: Any, refined: Any = None) -> None:
+        self.answer, self.refined = card, refined
+        self.calls: list[str] = []
+        self.materials: list[str] = []
+
+    async def card(self, system: str, material: str) -> Any:
+        from thoth_control_plane.footage.context import CARD_PROMPT
+
+        self.calls.append("card" if system == CARD_PROMPT else "refine")
+        self.materials.append(material)
+        return self.answer if system == CARD_PROMPT else self.refined
+
+
+def _searched(search: Search) -> set[str]:
+    return {query for platform, query in search.calls if platform == "tiktok"}
+
+
+async def test_the_context_path_searches_people_queries(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search()
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    assert _searched(search) == set(_card().queries[:2])  # spec 10.4: two incident queries
+    run = store.run("wf_a")
+    assert run is not None and run.context is not None
+    assert [p["name"] for p in run.context["people"]] == ["Mutant", "Denny Sumargo"]
+
+
+async def test_sneakers_are_rejected_and_saiful_passes(store: FootageStore, tmp_path: Path) -> None:
+    card = _card()
+    refined = card.model_copy(deep=True)
+    refined.people[0].aliases.append("Saiful")
+    refined.queries = []
+    search = Search(
+        _hits(
+            _video(1, caption="Master Saiful ngamuk di USS"),
+            _video(2, caption="Sneakers hitam putih yang simpel"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(store, search=search, card=Cards(card, refined), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    by_caption = {c.caption: c for c in store.candidates("wf_a")}
+    assert by_caption["Master Saiful ngamuk di USS"].status == "admitted"
+    sneakers = by_caption["Sneakers hitam putih yang simpel"]
+    assert (sneakers.status, sneakers.reason) == ("rejected", "story")
+
+
+async def test_round_two_adds_queries_from_titles(store: FootageStore, tmp_path: Path) -> None:
+    card = _card()
+    refined = card.model_copy(deep=True)
+    refined.queries = ["saiful denny sumargo", "Mutant USS Denny Sumargo"]
+    cards = Cards(card, refined)
+    search = Search(
+        _hits(
+            _video(1, caption="Master Saiful Ngamuk di Depan Denny Sumargo"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(store, search=search, card=cards, context_enabled=True).build(_inputs(tmp_path))
+    assert cards.calls == ["card", "refine"]
+    assert "Master Saiful Ngamuk di Depan Denny Sumargo" in cards.materials[1]
+    assert "saiful denny sumargo" in _searched(search)
+    run = store.run("wf_a")
+    assert run is not None
+    assert [o.query for o in run.objects][-1] == "saiful denny sumargo"
+    assert len(run.objects) == 3  # 2 incident queries + 1; the repeat is not added twice
+
+
+async def test_own_account_candidates_are_screened_first(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+    downloader = Downloader()
+    search = Search(
+        _hits(
+            _video(1, caption="Mutant viral, Densu bereaksi", owner="tribunnews"),
+            _video(2, caption="Mutant datang ke podcast Densu", owner="curhatbang"),
+            query="Mutant USS Denny Sumargo",
+        )
+    )
+    await _builder(
+        store, search=search, downloader=downloader, card=Cards(card), context_enabled=True
+    ).build(_inputs(tmp_path))
+    assert "curhatbang" in downloader.calls[0][0]
+
+
+async def test_no_card_falls_back_to_object_queries(store: FootageStore, tmp_path: Path) -> None:
+    queries, search = Queries(TWO_OBJECTS), Search()
+    await _builder(
+        store, queries=queries, search=search, card=Cards(None), context_enabled=True
+    ).build(_inputs(tmp_path))
+    assert queries.calls == 1
+    assert "banjir kemang" in _searched(search)
+    run = store.run("wf_a")
+    assert run is not None and run.context is None
+
+
+async def test_a_retry_reuses_the_stored_card(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.context import context_objects
+
+    card = _card()
+    store.start_run("wf_a", context_objects(card, card.queries[:4]))
+    store.set_context("wf_a", {**card.model_dump(), "refined": True})
+    cards, search = Cards(card), Search()
+    await _builder(store, search=search, card=cards, context_enabled=True).build(_inputs(tmp_path))
+    assert cards.calls == []
+    assert _searched(search) == set(card.queries[:4])
+
+
+async def test_context_disabled_runs_today(store: FootageStore, tmp_path: Path) -> None:
+    cards, queries = Cards(_card()), Queries(TWO_OBJECTS)
+    await _builder(store, queries=queries, card=cards).build(_inputs(tmp_path))
+    assert cards.calls == [] and queries.calls == 1
+
+
+async def test_creator_posts_pass_the_context_gate(store: FootageStore, tmp_path: Path) -> None:
+    ports = _creator(
+        CreatorListing(
+            videos=[
+                _own(1, "Urban Sneaker Society #densu #Dennysumargo Mutant datang"),
+                _own(2, "Kuta beach sunset today"),
+            ],
+            photos=[],
+        )
+    )
+    await _builder(store, card=Cards(_card()), context_enabled=True, **ports).build(
+        _creator_inputs(tmp_path)
+    )
+    by_caption = {c.caption: c for c in store.candidates("wf_a")}
+    assert (
+        by_caption["Urban Sneaker Society #densu #Dennysumargo Mutant datang"].status != "rejected"
+    )
+    sunset = by_caption["Kuta beach sunset today"]
+    assert (sunset.status, sunset.reason) == ("rejected", "story")
+
+
+# Long videos and reposts on the context path (spec 2026-11-15, 4.4-4.5).
+
+PODCAST = "https://www.youtube.com/watch?v=Sy_S4TgvKbY"
+PODCAST_TITLE = (
+    "MASTER SAIFUL MENGAMUK⁉️ JANGAN PANGGIL AKU MUTANT‼️ - AKHIRNYA BERTEMU TRETAN MUSLIM"
+)
+
+
+def _podcast(caption: str = PODCAST_TITLE) -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id="Sy_S4TgvKbY",
+        owner_handle="curhatbang",
+        canonical_url=PODCAST,
+        caption=caption,
+        duration_seconds=3219.0,
+    )
+
+
+class Captions:
+    def __init__(self, data: bytes | None) -> None:
+        self.data = data
+        self.calls: list[tuple[str, str]] = []
+
+    async def captions(self, url: str, language: str) -> bytes | None:
+        self.calls.append((url, language))
+        return self.data
+
+
+CAPTIONS = (CONTEXT / "podcast_captions.json3").read_bytes()
+
+
+def _yt(query: str, *videos: DiscoveredVideo) -> Search:
+    return Search({("youtube", query): list(videos)})
+
+
+async def test_a_long_video_becomes_sections_at_its_moments(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    sections = [c for c in rows.values() if c.source == "section"]
+    assert 1 <= len(sections) <= 3
+    starts = [float(c.url.split("#t=")[1]) for c in sections]
+    assert all(c.url.startswith(PODCAST + "#t=") for c in sections)
+    assert all(start >= 30 for start in starts)
+
+
+async def test_a_long_video_without_a_named_line_downloads_nothing(  # Review Focus 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    rocky = ContextCard(people=[CardPerson(name="Rocky Gerung")], queries=["Rocky Gerung bicara"])
+    downloader = Downloader()
+    await _builder(
+        store,
+        search=_yt("Rocky Gerung bicara", _podcast("Rocky Gerung bicara soal Wantimpres")),
+        downloader=downloader,
+        card=Cards(rocky),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    assert not [c for c in rows.values() if c.source == "section"]
+    assert downloader.calls == []
+
+
+async def test_a_section_downloads_its_window(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.moments import section
+
+    downloader = Downloader()
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        downloader=downloader,
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert downloader.calls
+    for url, _window in downloader.calls:
+        assert url == PODCAST
+    admitted = store.admitted("wf_a")
+    assert admitted
+    for clip in admitted:
+        moment = float(clip.url.split("#t=")[1])
+        assert clip.clip_start == section(moment)[0]
+        assert (PODCAST, section(moment)) in downloader.calls
+
+
+class TraceCreator:
+    """Lists only the credited account; the main creator's own listing is empty."""
+
+    def __init__(self, videos: list[DiscoveredVideo]) -> None:
+        self.videos = videos
+        self.calls: list[tuple[str, str]] = []
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None:
+        self.calls.append((platform, handle))
+        return CreatorListing(videos=self.videos if handle == "curhatbang" else [], photos=[])
+
+
+REPOST = "Master Saiful Ngamuk di depan Denny Sumargo | Sumber: YouTube curhatbang"
+
+
+def _saiful() -> Any:
+    """The Mutant card once round two learned the subject's real name: a clip must name the
+    subject (spec 10.12, revision 1), and the repost says "Saiful"."""
+    card = _card()
+    card.people[0].aliases.append("Saiful")
+    return card
+
+
+async def test_a_credited_repost_is_replaced_by_its_original(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    creator = TraceCreator([_podcast()])
+    search = Search(
+        _hits(_video(1, caption=REPOST, owner="tribunbanten"), query="Mutant USS Denny Sumargo")
+    )
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_saiful()),
+        captions_text=Captions(CAPTIONS),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.caption: c for c in store.candidates("wf_a")}
+    assert (rows[REPOST].status, rows[REPOST].reason) == ("rejected", "repost")
+    assert any(c.source == "trace" and c.url == PODCAST for c in store.candidates("wf_a"))
+    assert ("youtube", "curhatbang") in creator.calls
+
+
+async def test_a_traced_original_that_is_the_main_post_is_rejected_main(  # Review Focus 5
+    store: FootageStore, tmp_path: Path
+) -> None:
+    main = _report()
+    own = DiscoveredVideo(
+        post_id="7499999999999999999",
+        owner_handle="akun",
+        canonical_url=str(main.source.canonical_url),
+        caption="Banjir besar di Kemang pagi ini",
+        duration_seconds=20.0,
+    )
+    search = Search(
+        _hits(_video(1, caption=REPOST, owner="tribunbanten"), query="Mutant USS Denny Sumargo")
+    )
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_saiful()),
+        creator=TraceCreator([own]),
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path, main))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[str(main.source.canonical_url)].reason == "main"
+    assert rows[str(_video(1, owner="tribunbanten").canonical_url)].reason != "repost"
+
+
+# The library across runs (spec 2026-11-15, 4.6).
+
+
+def _in_workspace(store: FootageStore, workspace: str, *workflows: str) -> None:
+    from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
+
+    with store._sessions.begin() as session:
+        for workflow in workflows:
+            session.add(
+                ProjectRow(
+                    project_id=f"p_{workflow}",
+                    name="p",
+                    created_at=NOW,
+                    updated_at=NOW,
+                    workspace_id=workspace,
+                )
+            )
+            session.add(
+                WorkflowRunRow(
+                    workflow_id=workflow,
+                    project_id=f"p_{workflow}",
+                    actor_type="user",
+                    actor_id="u",
+                    display_url="https://example.com",
+                    platform="tiktok",
+                    status="running",
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+
+
+class Media:
+    """The media store's fetch: copies a stored location into the run."""
+
+    def __init__(self, root: Path, fail: bool = False) -> None:
+        self.root, self.fail = root, fail
+        self.calls: list[str] = []
+
+    async def __call__(self, location: str, target: Path) -> None:
+        self.calls.append(location)
+        if self.fail:
+            raise OSError("gone")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((self.root / location).read_bytes())
+
+
+SHOWN = "Mutant datang ke podcast Densu"
+
+
+async def _run_a(store: FootageStore, tmp_path: Path) -> None:
+    """Run A keeps one `related` clip: its main has a video, so the scene is asked (10.5)."""
+    search = Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path, _video_main(tmp_path))
+    )
+
+
+def _inputs_b(tmp_path: Path) -> FootageInputs:
+    return FootageInputs(
+        workflow_id="wf_b",
+        report=_report(),
+        attribution=None,
+        original=None,
+        artifact_root=tmp_path,
+    )
+
+
+async def test_an_admit_writes_the_library_with_the_card_names(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a")
+    await _run_a(store, tmp_path)
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    kept = store.library("ws1", ["mutant"], since, until)
+    assert [c.url for c in kept] == [str(_video(1).canonical_url)]
+    assert {"mutant", "denny sumargo"} <= set(kept[0].names)
+    assert kept[0].event == f"{_card().event} {_card().place}" and kept[0].ocr
+
+
+async def test_a_second_run_on_the_story_reuses_the_library(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    downloader, search, media = Downloader(), Search(), Media(tmp_path)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]  # run A's queries are cached for 24 h
+    await _builder(
+        store,
+        search=search,
+        downloader=downloader,
+        card=Cards(card_b),
+        library_media=media,
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    reused = [c for c in store.admitted("wf_b") if c.source == "library"]
+    assert [c.url for c in reused] == [str(_video(1).canonical_url)]
+    assert downloader.calls == []
+    assert media.calls
+    assert "Mutant podcast Densu terbaru" in _searched(search)  # the rest is still searched
+
+
+async def test_a_library_copy_failure_is_one_reject(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    result = await _builder(
+        store, card=Cards(_card()), library_media=Media(tmp_path, fail=True), context_enabled=True
+    ).build(_inputs_b(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_b")}
+    assert rows[str(_video(1).canonical_url)].reason == "media_failed"
+    assert result.status == "none"
+
+
+async def test_a_library_clip_that_is_the_main_post_is_not_reused(  # final review, Important 4
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    kept = _video(1, caption=SHOWN)
+    main = support_report(url=str(kept.canonical_url), owner="kreator", text=SHOWN, media="none")
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store, card=Cards(card_b), library_media=Media(tmp_path), context_enabled=True
+    ).build(
+        FootageInputs(
+            workflow_id="wf_b", report=main, attribution=None, original=None, artifact_root=tmp_path
+        )
+    )
+    rows = {c.url: c for c in store.candidates("wf_b")}
+    assert rows[str(kept.canonical_url)].reason == "main"
+    assert not store.admitted("wf_b")
+
+
+class AnyCreator:
+    """Lists the same videos for every account but the main creator's."""
+
+    def __init__(self, videos: list[DiscoveredVideo]) -> None:
+        self.videos = videos
+        self.calls: list[tuple[str, str]] = []
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None:
+        self.calls.append((platform, handle))
+        return CreatorListing(videos=[] if handle == "akun" else self.videos, photos=[])
+
+
+async def test_an_own_account_clip_tagging_someone_is_not_a_repost(  # final review, Important 6
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+    own = _video(1, caption="Mutant bareng @tretanmuslim di podcast Densu", owner="curhatbang")
+    other = _video(2, caption="Mutant di podcast tretan", owner="tretanmuslim")
+    creator = AnyCreator([other])
+    await _builder(
+        store,
+        search=Search(_hits(own, query="Mutant USS Denny Sumargo")),
+        card=Cards(card),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[str(own.canonical_url)].reason != "repost"
+    assert ("tiktok", "tretanmuslim") not in creator.calls
+
+
+async def test_trace_lists_at_most_three_accounts(  # final review, Important 7
+    store: FootageStore, tmp_path: Path
+) -> None:
+    reposts = [
+        _video(n, caption=f"Mutant ngamuk di depan Densu cr: @sumber{n}", owner=f"repost{n}")
+        for n in range(1, 6)
+    ]
+    creator = AnyCreator([])
+    await _builder(
+        store,
+        search=Search(_hits(*reposts, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        creator=creator,
+        photos=Photos(),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    traced = [call for call in creator.calls if call[1].startswith("sumber")]
+    assert len(traced) == 3
+
+
+async def test_library_clips_survive_a_search_outage(  # final review, Important 7
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    result = await _builder(
+        store,
+        search=Search(fail={"tiktok", "youtube", "x"}),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    assert result.status == "ok" and result.admitted == 1
+
+
+async def test_own_long_videos_get_their_captions_first(  # final review, Important 8
+    store: FootageStore, tmp_path: Path
+) -> None:
+    card = _card()
+    card.people[1].accounts = ["@curhatbang"]
+
+    def long(video_id: str, owner: str) -> DiscoveredVideo:
+        return DiscoveredVideo(
+            post_id=video_id,
+            owner_handle=owner,
+            canonical_url=f"https://www.youtube.com/watch?v={video_id}",
+            caption="Mutant ngamuk di depan Denny Sumargo",
+            duration_seconds=3000.0,
+        )
+
+    videos = [long(f"AAAAAAAAAA{n}", f"recap{n}") for n in range(3)] + [
+        long("zzzzzzzzzzz", "curhatbang")
+    ]
+    captions = Captions(CAPTIONS)
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", *videos),
+        card=Cards(card),
+        captions_text=captions,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert captions.calls[0][0] == "https://www.youtube.com/watch?v=zzzzzzzzzzz"
+
+
+async def test_a_library_clip_from_another_story_of_the_same_person_is_not_reused(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-15: the event must match too
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    other = ContextCard(
+        people=[CardPerson(name="Denny Sumargo", aliases=["Densu"]), CardPerson(name="Vior")],
+        event="Vior curhat soal pernikahan di podcast Curhat Bang",
+        place="Jakarta",
+        queries=["Vior Denny Sumargo podcast"],
+    )
+    media = Media(tmp_path)
+    await _builder(store, card=Cards(other), library_media=media, context_enabled=True).build(
+        _inputs_b(tmp_path)
+    )
+    assert media.calls == []
+    assert not [c for c in store.candidates("wf_b") if c.source == "library"]
+
+
+async def test_the_same_pair_of_people_reuses_the_library_without_event_words(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-15: two people in common mark the same story
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    saiful = ContextCard(
+        people=[
+            CardPerson(name="Saiful", aliases=["Mutant", "Master Saiful"]),
+            CardPerson(name="Denny Sumargo", aliases=["Densu"]),
+        ],
+        event="Saiful marah di podcast Curhat Bang",
+        queries=["Saiful marah Denny Sumargo"],
+    )
+    media = Media(tmp_path)
+    await _builder(store, card=Cards(saiful), library_media=media, context_enabled=True).build(
+        _inputs_b(tmp_path)
+    )
+    assert [c.source for c in store.admitted("wf_b")] == ["library"]
+
+
+def test_one_person_under_several_names_counts_once() -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard, same_event
+
+    densu = ContextCard(people=[CardPerson(name="Denny Sumargo", aliases=["Densu", "Bang Densu"])])
+    assert not same_event(densu, "Vior curhat", ["denny sumargo", "densu", "bang densu", "vior"])
+
+
+async def test_a_section_keeps_what_is_said_around_it(  # spec 2026-11-15, 9.3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert sections and all(c.said for c in sections)
+    assert any("pedang" in " ".join(str(s["text"]) for s in c.said).lower() for c in sections)
+
+
+async def test_a_long_video_naming_only_people_gives_no_section(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    from thoth_control_plane.footage.context import CardPerson, ContextCard
+
+    names_only = ContextCard(
+        people=[
+            CardPerson(name="Mutant", aliases=["Mutan"]),
+            CardPerson(name="Denny Sumargo", aliases=["Densu"]),
+        ],
+        queries=["Mutant USS Denny Sumargo"],
+    )
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(names_only),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[PODCAST].status, rows[PODCAST].reason) == ("rejected", "duration")
+    assert not [c for c in rows.values() if c.source == "section"]
+
+
+async def test_a_library_clip_brings_its_said(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))  # a `related` run A
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    kept = store.library("ws1", ["mutant"], since, until)
+    assert kept and all(clip.said for clip in kept)
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store,
+        search=Search(),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+    ).build(_inputs_b(tmp_path))
+    reused = {c.url: c for c in store.admitted("wf_b") if c.source == "library"}
+    assert reused
+    for clip in kept:
+        if clip.url in reused:
+            assert reused[clip.url].said == clip.said
+
+
+# One copy of a recording (spec 2026-11-15, 9.4 and 9.9).
+
+
+class RecFrames:
+    """1 fps recording frames: files whose bytes start with a `tags` key show one recording, so
+    frame i of one copy is frame i of the other; others are their own recording."""
+
+    def __init__(self, tags: dict[str, str], cluttered: frozenset[str] = frozenset()) -> None:
+        self.tags, self.cluttered = tags, cluttered
+
+    async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
+        content = video.read_bytes() if video.exists() else b""
+        key = next((k for k in self.tags if content.startswith(k.encode())), None)
+        tag = self.tags[key] if key else hashlib.sha256(content).hexdigest()[:12]
+        marks = "clutter" if key in self.cluttered else "clean"
+        return [Frame(second=float(i), jpeg=f"{tag}:{i}:{marks}".encode()) for i in range(10)]
+
+
+class Matcher:
+    """OrbMatcher's contract over RecFrames frames: the same recording frame matches."""
+
+    async def prepare(self, frames: Sequence[Frame]) -> list[bytes]:
+        return [frame.jpeg.rsplit(b":", 1)[0] for frame in frames]
+
+    async def compare(self, a: list[bytes], b: list[bytes]) -> list[int]:
+        return [40 if x in set(b) else 0 for x in a]
+
+    async def matrix(self, a: list[bytes], b: list[bytes]) -> list[list[int]]:
+        return [[40 if x == y else 3 for y in b] for x in a]
+
+
+class Clutter(Text):
+    """A watermark band on every frame of a cluttered recording."""
+
+    async def read(self, frame: Frame) -> list[Any]:
+        from thoth_control_plane.attribution.matching import TextBox
+
+        if frame.jpeg.endswith(b"clutter"):
+            return [TextBox(text="JawaPos", top=0.0, bottom=0.3, left=0.0, right=1.0)]
+        return []
+
+
+def _url(n: int, owner: str = "kreator") -> str:
+    return str(_video(n, owner=owner).canonical_url)
+
+
+def _copies(cluttered: frozenset[str] = frozenset(), **extra: str) -> dict[str, Any]:
+    tags = {_url(1): "rec1", _url(2): "rec1", **extra}
+    return {"recording_frames": RecFrames(tags, cluttered), "matcher": Matcher(), "text": Clutter()}
+
+
+async def test_a_cleaner_copy_wins_whatever_the_order(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search, **_copies(frozenset({_url(1)}))).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2)]
+    assert (rows[_url(1)].status, rows[_url(1)].reason) == ("rejected", "duplicate")
+
+
+async def test_two_equal_copies_checked_together_leave_one(  # Review Focus 2
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search, **_copies()).build(_inputs(tmp_path))
+    assert len(store.admitted("wf_a")) == 1
+    assert [c.reason for c in store.candidates("wf_a") if c.status == "rejected"] == ["duplicate"]
+
+
+async def test_no_matcher_no_copy_check(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(store, search=search).build(_inputs(tmp_path))
+    assert len(store.admitted("wf_a")) == 2
+
+
+async def test_a_copy_of_the_main_is_rejected_duplicate(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    main = support_report(
+        url="https://www.tiktok.com/@akun/video/7499999999999999999",
+        owner="akun",
+        text="Banjir besar di Kemang pagi ini",
+        media="video",
+    )
+    video = tmp_path / "reports" / "wf_a" / "media" / "video.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"MAINREC" * 50)
+    search = Search(_hits(_video(3)))
+    ports = _copies(MAINREC="rec3", **{_url(3): "rec3"})
+    await _builder(store, search=search, **ports).build(_inputs(tmp_path, main))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[_url(3)].status, rows[_url(3)].reason) == ("rejected", "duplicate")
+
+
+async def test_a_photo_main_skips_the_main_comparison(  # Review Focus 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(3)))
+    await _builder(store, search=search, **_copies()).build(_inputs(tmp_path))
+    assert [c.url for c in store.admitted("wf_a")] == [_url(3)]
+
+
+async def test_an_original_stays_over_a_cleaner_repost(store: FootageStore, tmp_path: Path) -> None:
+    own, repost = _video(1, caption=SHOWN, owner="dennysumargo"), _video(2, caption=SHOWN)
+    search = Search(_hits(own, repost, query="Mutant USS Denny Sumargo"))
+    ports = _copies(frozenset({_url(1, "dennysumargo")}), **{_url(1, "dennysumargo"): "rec1"})
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True, **ports).build(
+        _inputs(tmp_path)
+    )
+    assert [c.url for c in store.admitted("wf_a")] == [_url(1, "dennysumargo")]
+
+
+async def test_the_losing_copy_leaves_the_library(store: FootageStore, tmp_path: Path) -> None:
+    _in_workspace(store, "ws1", "wf_a")
+    one, two = _video(1, caption=SHOWN), _video(2, caption=SHOWN)
+    search = Search(_hits(one, two, query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store,
+        search=search,
+        card=Cards(_card()),
+        context_enabled=True,
+        **_copies(frozenset({_url(1)})),
+    ).build(_inputs(tmp_path))
+    since, until = datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    assert [c.url for c in store.library("ws1", ["mutant"], since, until)] == [_url(2)]
+
+
+class WindowDownloader(Downloader):
+    """Each section's own bytes, so two sections of one video are two files."""
+
+    async def download(self, url: str, window: Any, target: Path) -> Path:
+        await super().download(url, window, target)
+        target.write_bytes(url.encode() * 50 + repr(window).encode())
+        return target
+
+
+async def test_sections_of_one_video_are_not_compared(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        downloader=WindowDownloader(),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+        **_copies(**{PODCAST: "studio"}),
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert len(sections) >= 2  # the fixture's captions hold two discussions
+    assert all(c.status == "admitted" for c in sections)
+
+
+async def test_copies_kept_in_the_library_come_back_once(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    one, two = _video(1, caption=SHOWN), _video(2, caption=SHOWN)
+    await _builder(
+        store,
+        search=Search(_hits(one, two, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        context_enabled=True,
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))  # no matcher: both kept
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store,
+        search=Search(),
+        card=Cards(card_b),
+        library_media=Media(tmp_path),
+        context_enabled=True,
+        **_copies(),
+    ).build(_inputs_b(tmp_path))
+    assert len([c for c in store.admitted("wf_b") if c.source == "library"]) == 1
+
+
+class SlowAdmit:
+    """The store, with one clip's admit stuck past the check's budget."""
+
+    def __init__(self, store: FootageStore, url: str) -> None:
+        self._store, self._url = store, url
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._store, name)
+
+    def admit(self, workflow_id: str, url: str, clip: Any) -> None:
+        if url == self._url:
+            time.sleep(1.0)
+        self._store.admit(workflow_id, url, clip)
+
+
+async def test_a_copy_cut_off_after_beating_a_kept_one_leaves_it(  # final review, Important 1
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(1), _video(2)))
+    builder = _builder(
+        SlowAdmit(store, _url(2)),  # type: ignore[arg-type]
+        search=search,
+        per_candidate_seconds=0.3,
+        **_copies(frozenset({_url(1)})),
+    )
+    builder._concurrency = 1  # clip 1 is kept before clip 2 is checked
+    await builder.build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[_url(1)].status == "admitted"
+
+
+async def test_a_copy_of_two_kept_clips_that_loses_to_one_displaces_neither(  # Important 2
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.recording import CopyFacts
+    from thoth_control_plane.footage.service import _Build, _Recording
+
+    builder = _builder(store, **_copies())
+    features = [f"rec1:{i}".encode() for i in range(10)]
+    state = _Build()
+    for url, share in (("a", 0.3), ("c", 0.05)):
+        state.recordings[url] = _Recording(
+            url, url, "q", features, CopyFacts(url, False, share, None), []
+        )
+    losers = await builder._losers(features, CopyFacts("b", False, 0.1, None), "b", state)
+    assert losers is None
+    assert set(state.recordings) == {"a", "c"}
+
+
+class CountingFrames(RecFrames):
+    """Records how many recording reads run at once."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.now = self.most = 0
+
+    async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
+        self.now += 1
+        self.most = max(self.most, self.now)
+        await asyncio.sleep(0.05)
+        self.now -= 1
+        return await super().frames(video, fps=fps, seconds=seconds)
+
+
+async def test_copy_evidence_is_read_outside_the_lock(  # final review, Important 3
+    store: FootageStore, tmp_path: Path
+) -> None:
+    frames = CountingFrames({_url(1): "rec1", _url(2): "rec2"})
+    search = Search(_hits(_video(1), _video(2)))
+    await _builder(
+        store, search=search, recording_frames=frames, matcher=Matcher(), text=Clutter()
+    ).build(_inputs(tmp_path))
+    assert frames.most >= 2
+
+
+async def test_sections_get_their_own_turn_when_their_query_is_full(  # live wf_a91d3f0f
+    store: FootageStore, tmp_path: Path
+) -> None:
+    query = "Mutant USS Denny Sumargo"
+    search = Search(
+        {
+            ("tiktok", query): [_video(1, caption=SHOWN), _video(2, caption=SHOWN)],
+            ("youtube", query): [_podcast()],
+        }
+    )
+    await _builder(
+        store,
+        search=search,
+        downloader=WindowDownloader(),
+        card=Cards(_card()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = store.candidates("wf_a")
+    recaps = [c for c in rows if c.platform == "tiktok" and c.status == "admitted"]
+    sections = [c for c in rows if c.source == "section"]
+    assert len(recaps) == 2  # the search clips fill their query
+    kept = [c for c in sections if c.status == "admitted"]
+    assert sections and len(kept) == min(len(sections), 2)
+    assert all(c.query == query for c in sections)  # the stored query stays the parent's
+
+
+async def test_refine_runs_even_when_round_one_filled_the_quota(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.4: round two always runs once
+    hits = _hits(*[_video(n, caption=SHOWN) for n in range(9)], query="Mutant USS Denny Sumargo")
+    cards = Cards(_card(), refined=_card())
+    await _builder(store, search=Search(hits), card=cards, context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    assert cards.calls == ["card", "refine"]
+
+
+async def test_older_subject_clips_pass_the_story_gate(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.5: a clip naming the subject may be two years old
+    old = _video(1, caption="Mutant diajarin acting Jefri nichol")
+    old = old.model_copy(update={"published_at": "2024-12-11T08:24:00Z"})
+    unnamed = _video(2, caption="Urban Sneaker Society USS 2024 recap")
+    unnamed = unnamed.model_copy(update={"published_at": "2024-12-11T08:24:00Z"})
+    other = _video(3, caption="Denny Sumargo podcast bareng artis")
+    search = Search(_hits(old, unnamed, other, query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    rows = {c.caption: c for c in store.candidates("wf_a")}
+    assert rows[old.caption].reason != "story"
+    assert rows[unnamed.caption].reason == "story"
+    assert rows[other.caption].reason == "story"  # names only another person (revision 1)
+
+
+async def test_no_card_asks_no_scene(store: FootageStore, tmp_path: Path) -> None:  # RF 1
+    judge = Judge()
+    await _builder(store, search=Search(_hits(_video(1))), judge=judge).build(_inputs(tmp_path))
+    assert judge.references == [None]
+
+
+async def test_no_names_reach_the_vision_prompt(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.12, revision 3
+    from thoth_control_plane.footage.context import card_names
+
+    card = _saiful()
+    query = "Mutant USS Denny Sumargo"
+    search = Search(
+        {
+            ("tiktok", query): [_video(1, caption=SHOWN)],
+            ("youtube", query): [_podcast()],
+        }
+    )
+    judge = Judge()
+    await _builder(
+        store,
+        search=search,
+        judge=judge,
+        downloader=WindowDownloader(),
+        card=Cards(card),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert judge.calls
+    for visual in judge.calls:
+        assert not any(name in visual.lower() for name in card_names(card)), visual
+
+
+async def test_a_section_talking_is_kept(store: FootageStore, tmp_path: Path) -> None:
+    from thoth_control_plane.footage.context import PERSON_VISUAL
+
+    talking = FootageAnswer(kind="commentary", shows_object="yes", description="A man talks.")
+    judge = Judge({PERSON_VISUAL: talking})
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", _podcast()),
+        judge=judge,
+        downloader=WindowDownloader(),
+        card=Cards(_saiful()),
+        captions_text=Captions(CAPTIONS),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    sections = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert sections and all(c.reason != "commentary" for c in sections)
+    assert all(c.visual == PERSON_VISUAL for c in sections)
+
+
+def _video_main(tmp_path: Path) -> SourceReport:
+    """A main with a stored video, so the vision call gets the main's frame (spec 10.5)."""
+    video = tmp_path / "reports" / "wf_a" / "media" / "video.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"MAINREC" * 50)
+    return support_report(
+        url="https://www.tiktok.com/@akun/video/7499999999999999999",
+        owner="akun",
+        text="Banjir besar di Kemang pagi ini",
+        media="video",
+    )
+
+
+def _same_event_judge() -> Judge:
+    from thoth_control_plane.footage.context import PERSON_VISUAL
+
+    shown = FootageAnswer(kind="footage", shows_object="yes", same_event="yes")
+    return Judge({PERSON_VISUAL: shown})
+
+
+async def test_only_one_clean_original_of_the_incident_is_kept(
+    store: FootageStore, tmp_path: Path
+) -> None:  # spec 10.6
+    own = _video(1, caption=SHOWN, owner="dennysumargo")
+    recaps = [_video(2, caption=SHOWN), _video(3, caption=SHOWN)]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): [own, recaps[0]],
+            ("tiktok", "Mutant minta diundang podcast Densu"): [recaps[1]],
+        }
+    )
+    await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(1, "dennysumargo")]
+    assert rows[_url(2)].reason == "same_event" and rows[_url(3)].reason == "same_event"
+
+
+async def test_a_same_event_repost_is_rejected_even_when_the_slot_is_free(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    search = Search(_hits(_video(2, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert store.admitted("wf_a") == []
+    assert rows[_url(2)].reason == "same_event"
+
+
+async def test_a_cleaner_same_event_original_takes_the_slot(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 2: the earlier of two clean originals keeps the one slot
+    late = _video(1, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-12T08:00:00Z"}
+    )
+    early = _video(2, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-09T08:00:00Z"}
+    )
+    search = Search(_hits(late, early, query="Mutant USS Denny Sumargo"))
+    result = await _builder(
+        store, search=search, judge=_same_event_judge(), card=Cards(_card()), context_enabled=True
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2, "dennysumargo")]
+    assert rows[_url(1, "dennysumargo")].reason == "same_event"
+    assert result.admitted == 1
+
+
+async def test_at_most_two_old_clips(store: FootageStore, tmp_path: Path) -> None:  # revision 5
+    old = [
+        _video(n, caption=f"Mutant episode {n}").model_copy(
+            update={"published_at": "2025-03-01T08:00:00Z"}
+        )
+        for n in (1, 2, 3)
+    ]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): old[:2],
+            ("tiktok", "Mutant minta diundang podcast Densu"): old[2:],
+        }
+    )
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path)
+    )
+    reasons = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert len(store.admitted("wf_a")) == 2
+    assert reasons == ["too_old"]
+
+
+async def test_an_admit_stores_its_relation(store: FootageStore, tmp_path: Path) -> None:
+    search = Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo"))
+    await _builder(store, search=search, card=Cards(_card()), context_enabled=True).build(
+        _inputs(tmp_path, _video_main(tmp_path))
+    )
+    assert [c.relation for c in store.admitted("wf_a")] == ["related"]
+
+
+async def test_no_card_stores_an_unknown_relation(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(store, search=Search(_hits(_video(1)))).build(_inputs(tmp_path))
+    assert [c.relation for c in store.admitted("wf_a")] == ["unknown"]
+
+
+async def test_library_reuses_only_related_clips(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 3: rows from before 0035 read `unknown` and stay out
+    from dataclasses import replace
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    (kept,) = store.library(
+        "ws1", ["mutant"], datetime(2026, 1, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    assert kept.relation == "related"
+    for n, relation in ((7, "same_event"), (8, "unknown")):
+        store.add_library("ws1", "wf_a", replace(kept, url=_url(n), relation=relation))
+    card_b = _card()
+    card_b.queries = ["Mutant podcast Densu terbaru"]
+    await _builder(
+        store, card=Cards(card_b), library_media=Media(tmp_path), context_enabled=True
+    ).build(_inputs_b(tmp_path))
+    reused = [c.url for c in store.admitted("wf_b") if c.source == "library"]
+    assert reused == [_url(1)]
+
+
+async def test_a_media_failure_logs_its_cause(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:  # spec 10.8
+    downloader = Downloader(fail={_url(1)})
+    with caplog.at_level("WARNING"):
+        await _builder(store, search=Search(_hits(_video(1))), downloader=downloader).build(
+            _inputs(tmp_path)
+        )
+    assert "footage media failed platform=tiktok cause=ClipError(network)" in caplog.text
+    assert "tiktok.com" not in caplog.text
+
+
+async def test_the_finished_line_counts_media_causes(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    downloader = Downloader(fail={_url(1), _url(2)})
+    with caplog.at_level("INFO"):
+        await _builder(
+            store, search=Search(_hits(_video(1), _video(2))), downloader=downloader
+        ).build(_inputs(tmp_path))
+    (finished,) = [r.getMessage() for r in caplog.records if "footage finished" in r.getMessage()]
+    assert "media_causes={'ClipError(network)': 2}" in finished
+
+
+# The story's subject by face (spec 2026-11-15, 10.12).
+def _saiful_vector() -> Any:
+    import numpy as np
+
+    vector = np.random.default_rng(7).standard_normal(512).astype(np.float32)
+    return vector / np.linalg.norm(vector)
+
+
+class Faces:
+    """FaceReader's contract: a downloaded clip holds its URL's bytes (`Downloader`), so the
+    faces are looked up by the URL inside the file."""
+
+    def __init__(self, shown: set[str]) -> None:
+        self.shown = shown
+        self.calls = 0
+
+    def faces(self, path: Path, start: float = 0.0, duration: float | None = None) -> list[Any]:
+        from thoth_control_plane.footage.faces import Face
+
+        self.calls += 1
+        data = path.read_bytes()
+        if any(url.encode() in data for url in self.shown):
+            return [Face(second=s, embedding=_saiful_vector()) for s in (1, 2, 3)]
+        return []
+
+
+def _face_inputs(tmp_path: Path, main: SourceReport | None = None) -> FootageInputs:
+    from dataclasses import replace
+
+    import numpy as np
+
+    subject = np.vstack([_saiful_vector()] * 4)
+    return replace(_inputs(tmp_path, main), subject=subject, face_check=True)
+
+
+def _relations(store: FootageStore) -> dict[str, str]:
+    return {c.url: c.relation for c in store.admitted("wf_a")}
+
+
+async def test_a_clip_without_the_subject_is_rejected_subject_absent(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    shown = _video(1, caption=SHOWN)
+    incident = _video(2, caption="Keributan di Urban Sneaker Society USS")  # no subject name
+    search = Search(_hits(shown, incident, query="Mutant USS Denny Sumargo"))
+    await _builder(
+        store, search=search, card=Cards(_card()), faces=Faces({_url(1)}), context_enabled=True
+    ).build(_face_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert _relations(store) == {_url(1): "unknown"}  # no main video: no scene asked
+    assert rows[_url(2)].reason == "subject_absent"
+
+
+async def test_a_clip_without_the_subject_spends_no_vision_call(
+    store: FootageStore, tmp_path: Path
+) -> None:  # the face check runs before the paid call
+    incident = _video(2, caption="Keributan di Urban Sneaker Society USS")
+    judge = Judge()
+    await _builder(
+        store,
+        search=Search(_hits(incident, query="Mutant USS Denny Sumargo")),
+        judge=judge,
+        card=Cards(_card()),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path))
+    assert judge.calls == []
+    assert store.candidates("wf_a")[0].reason == "subject_absent"
+
+
+async def test_one_clip_may_discuss_the_subject_without_showing_them(
+    store: FootageStore, tmp_path: Path
+) -> None:  # operator, 2026-11-16: "boleh 1 klip per run"
+    talks = [_video(1, caption=SHOWN), _video(2, caption="Tretan Muslim bahas Mutant")]
+    search = Search(
+        {
+            ("tiktok", "Mutant USS Denny Sumargo"): talks[:1],
+            ("tiktok", "Mutant minta diundang podcast Densu"): talks[1:],
+        }
+    )
+    await _builder(
+        store, search=search, card=Cards(_card()), faces=Faces(set()), context_enabled=True
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    reasons = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert list(_relations(store).values()) == ["discusses"]
+    assert reasons == ["subject_absent"]
+
+
+async def test_a_same_event_clip_needs_the_subject(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 9
+    own = _video(1, caption=SHOWN, owner="dennysumargo")
+    await _builder(
+        store,
+        search=Search(_hits(own, query="Mutant USS Denny Sumargo")),
+        judge=_same_event_judge(),
+        card=Cards(_card()),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    (row,) = store.candidates("wf_a")
+    assert (row.status, row.reason) == ("rejected", "subject_absent")
+
+
+async def test_the_subject_on_screen_is_related(store: FootageStore, tmp_path: Path) -> None:
+    await _builder(
+        store,
+        search=Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        faces=Faces({_url(1)}),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    assert _relations(store) == {_url(1): "related"}
+
+
+async def test_no_main_faces_turn_the_face_check_off(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 6: the workflow sends face_check false
+    talks = [_video(1, caption=SHOWN), _video(2, caption="Tretan Muslim bahas Mutant")]
+    faces = Faces(set())
+    await _builder(
+        store,
+        search=Search(_hits(*talks, query="Mutant USS Denny Sumargo")),
+        card=Cards(_card()),
+        faces=faces,
+        context_enabled=True,
+    ).build(_inputs(tmp_path, _video_main(tmp_path)))
+    assert sorted(_relations(store).values()) == ["related", "related"]
+    assert faces.calls == 0
+
+
+async def test_a_same_event_holder_beaten_as_a_copy_is_displaced_once(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Important 1: two clean originals that copy each other
+    late = _video(1, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-12T08:00:00Z"}
+    )
+    early = _video(2, caption=SHOWN, owner="dennysumargo").model_copy(
+        update={"published_at": "2026-10-09T08:00:00Z"}
+    )
+    ports = _copies(**{_url(1, "dennysumargo"): "rec9", _url(2, "dennysumargo"): "rec9"})
+    builder = _builder(
+        store,
+        search=Search(_hits(late, early, query="Mutant USS Denny Sumargo")),
+        judge=_same_event_judge(),
+        card=Cards(_card()),
+        context_enabled=True,
+        **ports,
+    )
+    builder._concurrency = 1  # the later original is kept before the earlier one is checked
+    result = await builder.build(_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert [c.url for c in store.admitted("wf_a")] == [_url(2, "dennysumargo")]
+    assert rows[_url(1, "dennysumargo")].reason == "duplicate"  # displaced once, as the copy
+    assert result.admitted == 1
+
+
+async def test_a_retry_rebuilds_the_caps_from_the_kept_clips(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Important 2
+    from thoth_control_plane.footage.models import AdmittedClip, NewCandidate
+    from thoth_control_plane.footage.service import _Build, _sha256
+
+    store.start_run("wf_a", [])
+    kept = {
+        "https://www.tiktok.com/@a/video/7700000000000000001": ("discusses", None),
+        "https://www.tiktok.com/@dennysumargo/video/7700000000000000002": ("same_event", None),
+        "https://www.tiktok.com/@a/video/7700000000000000003": ("related", "2025-01-01T00:00:00Z"),
+    }
+    for position, (url, (relation, published)) in enumerate(kept.items()):
+        clip = tmp_path / "reports" / "wf_a" / "footage" / f"{position}.mp4"
+        clip.parent.mkdir(parents=True, exist_ok=True)
+        clip.write_bytes(url.encode() * 50)
+        store.add_candidates(
+            "wf_a",
+            [
+                NewCandidate(
+                    url=url,
+                    platform="tiktok",
+                    source="search",
+                    query="q",
+                    visual="v",
+                    owner_handle="dennysumargo" if "denny" in url else "a",
+                    published_at=published,
+                )
+            ],
+        )
+        store.admit(
+            "wf_a",
+            url,
+            AdmittedClip(
+                kind="footage",
+                shows_object="yes",
+                description="d",
+                media_location=f"reports/wf_a/footage/{position}.mp4",
+                media_checksum=_sha256(clip),
+                media_bytes=clip.stat().st_size,
+                clip_duration=20.0,
+                clip_start=0.0,
+                ocr={},
+                position=position,
+                relation=relation,
+            ),
+        )
+    state = _Build(card=_card(), main_published="2026-10-10T08:00:00Z")
+    await _builder(store)._verify_admitted("wf_a", tmp_path, state)
+    urls = list(kept)
+    assert state.discussing == {urls[0]}
+    assert state.same_event is not None and state.same_event.url == urls[1]
+    assert state.old == {urls[2]}
+
+
+async def test_a_carousel_slide_skips_the_face_check(
+    store: FootageStore, tmp_path: Path
+) -> None:  # final review, Minor 6 re-graded: the main's own slides are its own footage
+    _slides(tmp_path, 2)
+    faces = Faces(set())
+    result = await _builder(store, faces=faces).build(_face_inputs(tmp_path, _report(slides=2)))
+    assert result.admitted == 1 and faces.calls == 0
+
+
+async def test_a_failed_library_copy_counts_as_a_media_cause(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:  # final review, minor 13
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    await _run_a(store, tmp_path)
+    with caplog.at_level("INFO"):
+        await _builder(
+            store,
+            card=Cards(_card()),
+            library_media=Media(tmp_path, fail=True),
+            context_enabled=True,
+        ).build(_inputs_b(tmp_path))
+    finished = [r.getMessage() for r in caplog.records if "footage finished" in r.getMessage()]
+    assert "media_causes={'library_copy': 1}" in finished[-1]
+
+
+async def test_a_failed_refine_keeps_round_ones_card(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 5
+    cards = Cards(_card(), refined=None)
+    await _builder(
+        store,
+        search=Search(_hits(_video(1, caption=SHOWN), query="Mutant USS Denny Sumargo")),
+        card=cards,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    run = store.run("wf_a")
+    assert cards.calls == ["card", "refine"]
+    assert run is not None and run.context is not None and run.context["refined"] is True
+    assert [p["name"] for p in run.context["people"]] == ["Mutant", "Denny Sumargo"]
+    assert len(store.admitted("wf_a")) == 1
+
+
+async def test_the_object_path_has_no_old_clip_cap(
+    store: FootageStore, tmp_path: Path
+) -> None:  # Review Focus 1: no card, nothing capped
+    old = [_video(n).model_copy(update={"published_at": "2025-03-01T08:00:00Z"}) for n in (1, 2, 3)]
+    search = Search(
+        {("tiktok", "banjir kemang"): old[:2], ("tiktok", "mobil terendam kemang"): old[2:]}
+    )
+    await _builder(store, search=search).build(_inputs(tmp_path))
+    rejected = [c.reason for c in store.candidates("wf_a") if c.status == "rejected"]
+    assert "too_old" not in rejected
+
+
+async def test_every_long_video_gets_its_captions(
+    store: FootageStore, tmp_path: Path
+) -> None:  # live wf_4ac021d9: the podcast was 5th of 6 long videos and never cut
+    def long(n: int) -> DiscoveredVideo:
+        return DiscoveredVideo(
+            post_id=f"AAAAAAAAAA{n}",
+            owner_handle=f"channel{n}",
+            canonical_url=f"https://www.youtube.com/watch?v=AAAAAAAAAA{n}",
+            caption="Mutant ngamuk di depan Denny Sumargo",
+            duration_seconds=3000.0,
+        )
+
+    captions = Captions(CAPTIONS)
+    await _builder(
+        store,
+        search=_yt("Mutant USS Denny Sumargo", *[long(n) for n in range(6)]),
+        card=Cards(_card()),
+        captions_text=captions,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert len(captions.calls) == 6

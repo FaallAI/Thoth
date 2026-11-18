@@ -140,6 +140,52 @@ test("a run waiting for review shows what was found and approves or stops", asyn
   expect(fake.approveWorkflow).toHaveBeenCalledWith("wf_1", { approval_id: "ap_1", decision: "reject" });
 });
 
+function doubtfulSubject() {
+  // Spec 2026-11-15, 10.12: the run stops only when the main's faces leave the subject unclear.
+  const face = "data:image/jpeg;base64,/9j/AA==";
+  return summary({
+    status: "awaiting_approval",
+    stages: [
+      { id: "source", label: "Fetch the source", status: "completed" },
+      { id: "footage", label: "Collect footage", status: "waiting", started_at: "2026-11-16T14:03:00Z", waiting_since: "2026-11-16T14:05:00Z" },
+    ],
+    approval: {
+      approval_id: "ap_2",
+      kind: "choose_subject",
+      prompt: "Who is this story about?",
+      allowed_decisions: ["approve", "reject"],
+      choices: [
+        { choice_id: "g0", image: face, seconds: 30 },
+        { choice_id: "g1", image: face, seconds: 25 },
+      ],
+    },
+    artifacts: [artifact("source_report")],
+  });
+}
+
+test("a doubtful subject asks which face the story is about", async () => {
+  const fake = client(doubtfulSubject());
+  page(fake);
+  const user = userEvent.setup();
+
+  const card = await screen.findByRole("region", { name: "Who is this story about?" });
+  expect(screen.getByText(/Waiting since/)).toBeDefined();  // from the footage stage's wait
+  expect(within(card).queryByRole("button", { name: "Approve and continue" })).toBeNull();
+  expect(within(card).getAllByRole("button").length).toBe(3);
+  await user.click(within(card).getByRole("button", { name: "25 s on screen" }));
+  expect(fake.approveWorkflow).toHaveBeenCalledWith("wf_1", { approval_id: "ap_2", decision: "approve", choice: "g1" });
+});
+
+test("none of the faces runs footage without the face check", async () => {
+  const fake = client(doubtfulSubject());
+  page(fake);
+  const user = userEvent.setup();
+
+  const card = await screen.findByRole("region", { name: "Who is this story about?" });
+  await user.click(within(card).getByRole("button", { name: "None of these" }));
+  expect(fake.approveWorkflow).toHaveBeenCalledWith("wf_1", { approval_id: "ap_2", decision: "reject" });
+});
+
 test("a failed run says where it failed and retries as a new run of the same link", async () => {
   const fake = client(
     summary({

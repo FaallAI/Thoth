@@ -34,6 +34,8 @@ class FootageRunRow(Base):
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # The TikTok profile page card the creator listing cropped (migration 0018, spec 5c-2).
     profile_page: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Migration 0033 (footage library): the run's context card, None on the object path.
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class FootageCandidateRow(Base):
@@ -67,5 +69,34 @@ class FootageCandidateRow(Base):
     clip_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     ocr: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # What the video says around a section (migration 0034), TranscriptSegment dumps.
+    said: Mapped[Any] = mapped_column(JSON, default=list)
+    relation: Mapped[str] = mapped_column(String, default="unknown")
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class FootageLibraryRow(Base):
+    """One kept clip in a workspace's footage library (migration 0033). The workspace foreign
+    key lives in the SQL only, like `projects.workspace_id`."""
+
+    __tablename__ = "footage_library"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String)
+    url: Mapped[str] = mapped_column(String)
+    platform: Mapped[str] = mapped_column(String)
+    owner_handle: Mapped[str] = mapped_column(String, default="")
+    published_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    section_start: Mapped[float] = mapped_column(Float, default=0.0)
+    section_end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    media_location: Mapped[str] = mapped_column(String)
+    media_checksum: Mapped[str] = mapped_column(String)
+    hashes: Mapped[list[int]] = mapped_column(JSON, default=list)
+    names: Mapped[list[str]] = mapped_column(JSON, default=list)
+    ocr: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    event: Mapped[str] = mapped_column(String, default="")
+    said: Mapped[Any] = mapped_column(JSON, default=list)
+    relation: Mapped[str] = mapped_column(String, default="unknown")
+    first_workflow_id: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)

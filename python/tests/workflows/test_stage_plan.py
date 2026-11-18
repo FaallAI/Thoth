@@ -347,3 +347,43 @@ def test_labels_follow_the_design_table() -> None:
         "footage": "Collect footage",
         "assembly": "Build the content set",
     }
+
+
+def test_a_waiting_stage_resumes_running() -> None:  # spec 2026-11-15, 10.12
+    from datetime import UTC, datetime
+
+    from thoth_control_plane.workflows.stage_plan import build_plan
+
+    plan = build_plan(
+        intent="identify_original",
+        attribute_source=False,
+        assemble_content=True,
+        build_footage=True,
+    )
+    at = datetime(2026, 11, 16, tzinfo=UTC)
+    plan.start("footage", at)
+    plan.wait("footage", at)
+    plan.resume("footage", at)
+    assert {s.id: s.status for s in plan.snapshot()}["footage"] == "running"
+
+
+def test_a_wait_inside_a_stage_stays_out_of_its_duration() -> None:  # spec 10.12
+    from datetime import UTC, datetime, timedelta
+
+    from thoth_control_plane.workflows.stage_plan import build_plan
+
+    plan = build_plan(
+        intent="identify_original",
+        attribute_source=False,
+        assemble_content=True,
+        build_footage=True,
+    )
+    t0 = datetime(2026, 11, 16, tzinfo=UTC)
+    plan.start("footage", t0)
+    plan.wait("footage", t0 + timedelta(seconds=10))
+    waiting = {s.id: s for s in plan.snapshot()}["footage"]
+    assert waiting.waiting_since == t0 + timedelta(seconds=10)
+    plan.resume("footage", t0 + timedelta(seconds=70))
+    plan.complete("footage", t0 + timedelta(seconds=100))
+    done = {s.id: s for s in plan.snapshot()}["footage"]
+    assert done.waited_seconds == 60.0 and done.waiting_since is None

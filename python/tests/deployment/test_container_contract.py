@@ -146,6 +146,7 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "          THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny\n"
         "          THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization\n"
         "          THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding\n"
+        "          THOTH_TEST_FACE_MODELS_DIR: ${{ runner.temp }}/models/faces\n"
         "          THOTH_TEST_EDITOR_DATABASE_URL: postgresql://postgres:thoth@127.0.0.1:5432/postgres\n"
         '          THOTH_REQUIRE_POSTGRES_TESTS: "1"\n'
         "          THOTH_TEST_MEDIA_S3_ENDPOINT: 127.0.0.1:9000\n"
@@ -739,6 +740,21 @@ def test_the_embedding_model_is_pinned_and_fetched_with_the_speech_models() -> N
     assert dockerfile.index("fetch_speech_models.py \\") < dockerfile.index(
         "COPY --chown=thoth:thoth python/src/"
     )
+
+
+def test_the_face_models_are_pinned_fetched_and_checked() -> None:  # spec 10.12
+    script = _repo_text("docker/fetch_speech_models.py")
+    assert "face_detection_yunet_2023mar.onnx" in script
+    assert "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4" in script
+    assert "immich-app/buffalo_l" in script
+    assert "381829d83a41c0d0e03d0c5b9a4f6ddcaf5d6855" in script
+    assert "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43" in script
+    assert "fetch_faces(arguments.out)" in script
+    dockerfile = _repo_text("Dockerfile")
+    assert "test -r /opt/thoth/models/faces/yunet.onnx" in dockerfile
+    assert "test -r /opt/thoth/models/faces/arcface.onnx" in dockerfile
+    update = _repo_text(".github/workflows/yt-dlp-update.yml")
+    assert 'THOTH_TEST_FACE_MODELS_DIR="$RUNNER_TEMP/models/faces"' in update
 
 
 def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:

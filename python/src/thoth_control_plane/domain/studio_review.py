@@ -133,8 +133,8 @@ def review_blocking_issues(document: EditDocument) -> tuple[ReviewIssueCode, ...
         for clip in clips:
             if track.kind == "main_video" and clip.from_frame > expected_start:
                 issues.append("main_track_gap")
-            if clip.from_frame < expected_start:
-                issues.append("clip_overlap")
+            # Overlapping clips stack as layers (spec 2026-11-17, goal 5): no issue. The code
+            # stays in the enum so stored reviews still decode.
             if clip.end_frame > document.canvas.duration_in_frames:
                 issues.append("clip_exceeds_canvas")
             expected_start = max(expected_start, clip.end_frame)

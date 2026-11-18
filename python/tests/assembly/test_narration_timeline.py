@@ -579,7 +579,9 @@ def test_a_styled_narration_cuts_on_real_sentence_ends() -> None:
 
     text = "satu dua tiga. empat lima enam."
     two = [voiced("hook", 2.0), voiced("main", 6.0, text), voiced("reactions", 4.0)]
-    styled = narrate_document(draft(), two, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_a"])
+    a = BUILT_IN_STYLES["style_a"]  # an unplanned style cuts on sentence ends (spec 2026-11-17)
+    unplanned = a.model_copy(update={"cuts": a.cuts.model_copy(update={"planned": False})})
+    styled = narrate_document(draft(), two, [], PRESET, ROLES, style=unplanned)
     main_voice = clip(styled, "clip_narration_main")
     ends = sentence_ends(words(text, 6.0), main_voice.from_frame, FPS)
     starts = {

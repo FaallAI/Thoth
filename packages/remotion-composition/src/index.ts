@@ -24,6 +24,7 @@ export { playerConfig, timelineComposition, type PlayerProjection } from "./prev
 export { COMPOSITION_FONT_FAMILY, loadCompositionFonts, useCompositionFonts } from "./fonts";
 export {
   hasAudibleContent,
+  clipLayers,
   visibleLanes,
   type AssetKind,
   type EditDocumentV2,

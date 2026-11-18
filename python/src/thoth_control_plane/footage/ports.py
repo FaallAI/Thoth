@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -13,6 +14,7 @@ from thoth_control_plane.footage.models import (
     AdmittedClip,
     CandidateView,
     FootageObject,
+    LibraryClip,
     NewCandidate,
     RunView,
     SearchBatch,
@@ -53,7 +55,12 @@ class PhotoFetcher(Protocol):
 
 class FootageJudge(Protocol):
     async def judge(
-        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        self,
+        frames: Sequence[Frame],
+        visual: str,
+        *,
+        person: bool = False,
+        reference: Frame | None = None,
     ) -> FootageAnswer: ...
 
 
@@ -73,3 +80,11 @@ class FootageState(Protocol):
     def reopen(self, workflow_id: str, url: str) -> None: ...
     def admitted(self, workflow_id: str, media_kind: str = "video") -> list[CandidateView]: ...
     def set_profile_page(self, workflow_id: str, card: dict[str, object] | None) -> None: ...
+    def set_context(self, workflow_id: str, context: dict[str, object] | None) -> None: ...
+    def add_objects(self, workflow_id: str, objects: Sequence[FootageObject]) -> None: ...
+    def workspace_of(self, workflow_id: str) -> str | None: ...
+    def add_library(self, workspace_id: str, workflow_id: str, clip: LibraryClip) -> None: ...
+    def drop_library(self, workspace_id: str, workflow_id: str, url: str) -> None: ...
+    def library(
+        self, workspace_id: str, names: Sequence[str], since: datetime, until: datetime
+    ) -> list[LibraryClip]: ...

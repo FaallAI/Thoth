@@ -278,3 +278,18 @@ def test_an_age_gate_with_a_session_leaves_the_account_alone() -> None:
     age = RuntimeError("ERROR: Sign in to confirm your age. This video may be inappropriate")
     assert classify(age) is AcquisitionReason.REQUEST_BLOCKED
     assert classify(age, signed_in=True) is AcquisitionReason.REQUEST_INCOMPLETE
+
+
+@pytest.mark.asyncio
+async def test_client_options_reach_every_call() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def factory(options: dict[str, Any]) -> FakeYdl:
+        seen.append(options)
+        return FakeYdl(options, {"id": "x"})
+
+    lang = {"youtube": {"lang": ["id"]}}
+    client = YtDlpClient(factory, options={"extractor_args": lang})
+    await client.extract(URL, comments=False)
+    assert seen[-1]["extractor_args"] == lang
+    assert seen[-1]["skip_download"] is True

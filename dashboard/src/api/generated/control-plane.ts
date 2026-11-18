@@ -741,6 +741,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Editor Asset Preview Proxy
+         * @description A video's preview proxy under the same cookie (spec 2026-11-18); the original if it is
+         *     gone.
+         */
+        get: operations["stream_editor_asset_preview_proxy_api_v1_projects__project_id__editor_assets__asset_id__preview_proxy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/library/{asset_id}/asset": {
         parameters: {
             query?: never;
@@ -2054,12 +2075,26 @@ export interface components {
             /** Template Id */
             template_id: string;
         };
+        /**
+         * ApprovalChoice
+         * @description One answer an approval offers (spec 2026-11-15, 10.12): a face of the main video.
+         */
+        ApprovalChoice: {
+            /** Choice Id */
+            choice_id: string;
+            /** Image */
+            image: string;
+            /** Seconds */
+            seconds: number;
+        };
         /** ApprovalRequest */
         ApprovalRequest: {
             /** Allowed Decisions */
             allowed_decisions: ("approve" | "reject")[];
             /** Approval Id */
             approval_id: string;
+            /** Choices */
+            choices?: components["schemas"]["ApprovalChoice"][];
             /** Kind */
             kind: string;
             /** Prompt */
@@ -2072,6 +2107,8 @@ export interface components {
         ApprovalSubmission: {
             /** Approval Id */
             approval_id: string;
+            /** Choice */
+            choice?: string | null;
             /**
              * Decision
              * @enum {string}
@@ -4590,6 +4627,19 @@ export interface components {
             /** Split Frame */
             split_frame: number;
         };
+        /**
+         * SpokenLine
+         * @description One caption line a footage source says, in its own seconds (a TranscriptSegment's
+         *     fields; `domain.narration` cannot be imported here without a cycle).
+         */
+        SpokenLine: {
+            /** End Seconds */
+            end_seconds: number;
+            /** Start Seconds */
+            start_seconds: number;
+            /** Text */
+            text: string;
+        };
         /** StageProgress */
         StageProgress: {
             /** Name */
@@ -4617,6 +4667,10 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled" | "skipped";
+            /** Waited Seconds */
+            waited_seconds?: number | null;
+            /** Waiting Since */
+            waiting_since?: string | null;
         };
         /** StatusCounts */
         StatusCounts: {
@@ -4769,6 +4823,8 @@ export interface components {
             asset_id?: string | null;
             /** Author */
             author?: string | null;
+            /** Clip Start */
+            clip_start?: number | null;
             /**
              * Disposition
              * @enum {string}
@@ -4803,6 +4859,8 @@ export interface components {
             query?: string | null;
             /** Role */
             role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            /** Said */
+            said?: components["schemas"]["SpokenLine"][];
             /** Shows Object */
             shows_object?: ("yes" | "partly") | null;
             /** Story Score */
@@ -7587,6 +7645,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreviewCapabilityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_editor_asset_preview_proxy_api_v1_projects__project_id__editor_assets__asset_id__preview_proxy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                asset_id: string;
+            };
+            cookie?: {
+                thoth_editor_preview?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
                 };
             };
             /** @description Validation Error */

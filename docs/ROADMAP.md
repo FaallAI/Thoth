@@ -143,6 +143,8 @@ The operator agreed this order:
 | 3. Footage library | Per event and searched by moment. Fed by trusted accounts on every platform, keyword search, reverse visual search from the main video's frames, OCR of source credits, and earlier runs' downloads. Copies are merged by perceptual hash, and the most original copy is kept. Each main post is read into a "context card" by a model; relevance is judged from a candidate's content, not its metadata. | Not started; needs a written design, after the research report's seven validation tests and a context-card test on three earlier random posts |
 | 4. Stressed narration delivery | The script marks stressed words, and the voice settings are tuned to be more expressive | Not started; first one short paid voice sample, with the operator's approval |
 
+Step 3 status (2026-11-15): the footage library was designed and approved (`docs/superpowers/specs/2026-11-15-footage-library-design.md`) and built on `feat/footage-library`: the context card, two-round people queries, the context gate, caption moments in long videos, originals before reposts, and a per-workspace library (migration 0033). It is not pushed yet; continuous following of accounts is out of scope (operator, 2026-11-15).
+
 ## Studio Timeline track (added 2026-11-05)
 
 The operator's audit request of 2026-11-05: every Timeline function must work, and a right click in

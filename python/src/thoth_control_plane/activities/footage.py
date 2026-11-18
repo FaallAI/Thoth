@@ -9,12 +9,13 @@ Temporal history.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Literal, Protocol
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
 from pydantic import Field
 from temporalio import activity
@@ -35,13 +36,16 @@ from thoth_control_plane.activities.media_scratch import (
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
-from thoth_control_plane.footage.service import FootageBuilder, FootageInputs
+from thoth_control_plane.footage.service import FootageBuilder, FootageInputs, main_report
 from thoth_control_plane.infrastructure.media_store import (
     LocalMediaStore,
     MediaStore,
     build_media_store,
 )
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
+
+if TYPE_CHECKING:
+    from thoth_control_plane.footage.faces import Face
 
 logger = logging.getLogger(__name__)
 _CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -51,6 +55,28 @@ class FootageActivityInput(StrictModel):
     workflow_id: OpaqueId
     attribution: str | None = None
     original_report: str | None = None
+    # Spec 2026-11-15, 10.12: the chosen subject's face template (`encode_template`), and
+    # whether clips must show it.
+    subject: str | None = None
+    face_check: bool = False
+
+
+class SubjectChoice(StrictModel):
+    """One face group of the main the operator may pick when the subject is doubtful."""
+
+    choice_id: str
+    image: str  # a JPEG data URI of one of the group's faces
+    seconds: int
+    template: str
+
+
+class SubjectResult(StrictModel):
+    """The main's subject by face: `clear` carries the template, `doubtful` the choices, and
+    `none` turns the face check off (no faces, no main video, or no reader)."""
+
+    status: Literal["clear", "doubtful", "none"]
+    subject: str | None = None
+    choices: list[SubjectChoice] = Field(default_factory=list)
 
 
 class FootageActivityResult(StrictModel):
@@ -63,7 +89,7 @@ class Builder(Protocol):
     async def build(self, inputs: FootageInputs) -> FootageResult: ...
 
 
-MAX_FOOTAGE = 6
+MAX_FOOTAGE = 8  # spec 2026-11-15, 10.6
 
 
 def _done(status: str, count: int, started: float) -> FootageActivityResult:
@@ -129,6 +155,9 @@ async def _run(
                 location for location in admitted if location.startswith(clips) or location == page
             )
 
+        # numpy stays out of the API's imports: the face helpers load in the worker only.
+        from thoth_control_plane.footage.faces import decode_template
+
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,
             report=report,
@@ -136,6 +165,12 @@ async def _run(
             original=original,
             artifact_root=scratch.root,
             publish=publish,
+            subject=(
+                decode_template(input_.subject)
+                if input_.face_check and input_.subject is not None
+                else None
+            ),
+            face_check=input_.face_check and input_.subject is not None,
         )
         try:
             result = await builder.build(inputs)
@@ -152,6 +187,111 @@ async def _run(
     return _done(result.status, result.admitted, started)
 
 
+class FaceFinder(Protocol):
+    def faces(
+        self, path: Path, start: float = 0.0, duration: float | None = None
+    ) -> list[Face]: ...
+
+
+def _choice(index: int, group: Any) -> SubjectChoice:
+    from thoth_control_plane.footage.faces import encode_template, template
+
+    middle = sorted(group.members, key=lambda face: face.second)[len(group.members) // 2]
+    image = "data:image/jpeg;base64," + base64.b64encode(middle.crop).decode("ascii")
+    return SubjectChoice(
+        choice_id=f"g{index}",
+        image=image,
+        seconds=group.seconds,
+        template=encode_template(template(group)),
+    )
+
+
+async def _find(
+    input_: FootageActivityInput,
+    faces: FaceFinder | None,
+    reports: Reports,
+    media: MediaStore,
+    scratch_dir: Path | None,
+) -> SubjectResult:
+    """The subject by face (spec 2026-11-15, 10.12): the main's face groups by screen time."""
+    from thoth_control_plane.footage.faces import (
+        MAIN_SECONDS,
+        MAX_CHOICES,
+        clear_subject,
+        encode_template,
+        group_faces,
+        template,
+    )
+
+    if faces is None:
+        return SubjectResult(status="none")
+    folder = PurePosixPath("reports") / input_.workflow_id
+    report = await read_report(reports, (folder / REPORT_FILE).as_posix(), SourceReport)
+    if report is None:
+        return SubjectResult(status="none")
+    attribution = await _attribution(reports, input_.attribution)
+    original = await _original(reports, input_.original_report)
+    main = main_report(
+        FootageInputs(
+            workflow_id=input_.workflow_id,
+            report=report,
+            attribution=attribution,
+            original=original,
+            artifact_root=Path("."),
+        )
+    )
+    videos = [str(item.location) for item in main.media if item.kind == "video"]
+    if not videos:
+        return SubjectResult(status="none")
+    async with heartbeating(_heartbeat), MediaScratch(media, scratch_dir) as scratch:
+        await scratch.pull(videos[:1])
+        found = await asyncio.to_thread(faces.faces, scratch.root / videos[0], 0.0, MAIN_SECONDS)
+        # Off the event loop: the grouping is O(n^2) (final review, 3).
+        groups = await asyncio.to_thread(group_faces, found)
+    logger.info(
+        "footage subject faces=%d groups=%s", len(found), [group.seconds for group in groups[:4]]
+    )
+    if not groups:
+        return SubjectResult(status="none")
+    clear = clear_subject(groups)
+    if clear is not None:
+        return SubjectResult(status="clear", subject=encode_template(template(clear)))
+    return SubjectResult(
+        status="doubtful",
+        choices=[_choice(index, group) for index, group in enumerate(groups[:MAX_CHOICES])],
+    )
+
+
+@activity.defn(name="find_subject")
+async def find_subject(input_: FootageActivityInput) -> SubjectResult:
+    """Activity-name reference for workflow definitions."""
+    configured = build_subject_activity(Settings())  # type: ignore[call-arg]
+    return await configured(input_)
+
+
+def build_subject_activity(
+    settings: Settings,
+    *,
+    faces: FaceFinder | None = None,
+    reports: Reports | None = None,
+    media: MediaStore | None = None,
+) -> Callable[[FootageActivityInput], Awaitable[SubjectResult]]:
+    selected = faces
+    if selected is None and settings.THOTH_FOOTAGE_ENABLED:
+        from thoth_control_plane.footage.adapters.faces import shared_reader
+
+        selected = shared_reader(settings.THOTH_FACE_MODELS_DIR)  # missing models raise here
+    selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
+
+    @activity.defn(name="find_subject")
+    async def configured_subject_activity(input_: FootageActivityInput) -> SubjectResult:
+        return await _find(input_, selected, selected_reports, selected_media, scratch_dir)
+
+    return configured_subject_activity
+
+
 async def _tiktok_direct_url(url: str) -> str:
     import httpx
 
@@ -159,6 +299,26 @@ async def _tiktok_direct_url(url: str) -> str:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         return (await TikWmResolver(client).resolve(url)).media.ephemeral_url.get_secret_value()
+
+
+def context_ports(settings: Settings, key: str, media: MediaStore) -> dict[str, object]:
+    """The footage library's ports (spec 2026-11-15): the card model with the query model as its
+    fallback, long videos' captions, and a copy of a library clip's stored media."""
+    from thoth_control_plane.acquisition.youtube_service import YtDlpClient
+    from thoth_control_plane.footage.adapters.captions import YtDlpCaptionFetcher
+    from thoth_control_plane.footage.adapters.context_model import OpenRouterCardModel
+
+    async def library_media(location: str, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(media.fetch, location, target)
+
+    return {
+        "card": OpenRouterCardModel(
+            key, [settings.THOTH_FOOTAGE_CARD_MODEL, settings.THOTH_FOOTAGE_QUERY_MODEL]
+        ),
+        "captions_text": YtDlpCaptionFetcher(YtDlpClient()),
+        "library_media": library_media,
+    }
 
 
 def build_production_footage(settings: Settings) -> FootageBuilder:
@@ -175,13 +335,16 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     )
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
     from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
+    from thoth_control_plane.footage.adapters.faces import shared_reader
     from thoth_control_plane.footage.adapters.photos import HttpPhotoFetcher
     from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
     from thoth_control_plane.footage.adapters.search import build_platform_search
     from thoth_control_plane.footage.adapters.vision import AgnoFootageJudge
+    from thoth_control_plane.footage.recording import RECORDING_WIDTH
     from thoth_control_plane.footage.service import FootagePorts
     from thoth_control_plane.infrastructure.footage_store import FootageStore
 
@@ -210,11 +373,18 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             # account access policy as every other listing.
             creator=CreatorListings(ProfileDiscoverer(DEFAULT_FACTORIES, leases=leases)),
             photos=HttpPhotoFetcher(),
+            # One copy of a recording (spec 2026-11-15, 9.9): 1 fps at 480 px, ORB in time.
+            recording_frames=FfmpegFrameSource(settings.THOTH_FFMPEG, width=RECORDING_WIDTH),
+            matcher=OrbMatcher(step=1),
+            # The story's subject by face (spec 2026-11-15, 10.12).
+            faces=shared_reader(settings.THOTH_FACE_MODELS_DIR),
+            **context_ports(settings, key, build_media_store(settings)),  # type: ignore[arg-type]
         ),
         # The curated JSON list is not a filter (operator, 2026-10-31).
         aggregators=frozenset(),
         story_min=settings.THOTH_FOOTAGE_STORY_MIN,
         max_frames=settings.THOTH_SUBTITLE_OCR_MAX_FRAMES,
+        context_enabled=settings.THOTH_FOOTAGE_CONTEXT_ENABLED,
     )
 
 

@@ -2,6 +2,549 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-18 - Studio plays videos from light preview proxies
+
+The operator reported that Studio playback stuttered on draft edoc_afd07b23, although the rendered video was fine.
+
+**Cause.** Every source is stored as downloaded, with long keyframe gaps: the main at 8.3 s, and footage at 4.2 s (60 fps), 7.0 s (HEVC) and 10.4 s. At about 2 s per cut, 23 of 32 cuts had to decode more than 1 s before their first frame, and up to 7.7 s. The Player premounted only 1 s ahead, so it paused to buffer.
+
+**Fix** (spec `docs/superpowers/specs/2026-11-18-preview-proxies-design.md`; commits a800a6af, ff2399e9, 3a3d1620):
+- **The proxy.** A video asset gets a preview proxy: H.264, 30 fps, a keyframe every second, the long side at most 960 px, AAC audio, faststart.
+- **When and where.** The API builds it in the background, one at a time, when a video's preview capability is issued and no proxy is kept yet. It is kept at `previews/<project>/<asset>.v1.mp4`. This is the glance's pattern, and it is billed to nobody.
+- **How it is served.**
+  - Once a proxy is kept, the capability points the Player at `.../preview/proxy`, under the same cookie.
+  - The render and every original are untouched.
+  - Without ffmpeg, or after a failed build, the original plays as before.
+- **Premount.** While playing, a video premounts 2 s ahead instead of 1 s.
+
+**Verification:**
+- `make test` 5182 passed, 250 skipped; `make lint` clean;
+- dashboard 2029 pass; `tsc -b` and build clean; composition 47 pass;
+- on the draft's six real sources, built in the worker's /tmp, every proxy had a keyframe gap of 1.00 s, took 0.6-4.8 s to build, and came to 27 MB in all.
+- Golden parity (`f1_verify3.sh`, rerun after Claude Code stopped the first run for low memory): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19, every frame 0 changed pixels.
+
+**Next steps:**
+- push to PR #133 and CI;
+- deploy to stage1;
+- open edoc_afd07b23 once so its proxies build, reopen it and play;
+- merge PR #133.
+
+## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
+
+The operator checked draft edoc_3ee4719b and found:
+- the phrase "podcast Denny Sumargo" showed Tretan Muslim;
+- the reactions narration was silent;
+- Style A's b-roll still fell short of Style B's.
+
+**Fixes:**
+- **68b4b2e6, a voice under 3 s keeps its level.**
+  - ffmpeg 5.1.9 in the worker measures loudnorm wrongly under 3 s: a 2.8 s voice went from -14 dB to -41 dB.
+  - The measurement now pads to 3 s and cuts the voice back to its length.
+  - Proven in the worker: 2.8 s gives -13.6 dB, and 3.5 s and 6 s are unchanged.
+- **cb316210, a script far below its length is asked for once more.**
+  - Under 80% of its target words, the model is asked again with the length.
+  - The longer of the two is kept; this never fails the narration.
+  - The Mutant script had 52 words for a 135-word target.
+- **5482fc99, Style A takes Style B's b-roll rhythm.**
+  - 0.9-2.4 s, revision 3, no pick cap (operator item 88). Its look is unchanged.
+- **899d4a6c and bb4f6165, the planner is told who is on screen in each shot** (spec `2026-11-17-planner-default-design.md` §6).
+  - The main's two longest ArcFace face groups (first 180 s) are named by the source run's footage card people. On the Mutant draft these are Saiful and Denny Sumargo.
+  - Each shot is listed with the names whose template matches at 0.42, or "other people".
+  - Prompt rule 12 keeps a named person to their own shots.
+  - With no card, faces or models, the block is left out.
+
+**Voice audit (read-only):** since 2026-11-12, 11 drafts hold 39 voices. Only the Mutant reactions voice (2.83 s) is under 3 s; every other voice is at least 3.5 s. The operator left that voice as it is.
+
+**Verification:** `make test` 5172 passed, 250 skipped; `make lint` clean.
+
+**Deploy (operator "ya lanjut"):** 4a207742 was pushed to PR #133, CI went green, and the branch image was deployed to stage1.
+- **Images:** thoth `de3e4f079682`, renderer `b57c3fef4c56`, web `8b9cc515e7c7`. The pins match the running images.
+- **Checks:** web 200, 0 worker errors, 0 API 5xx, face models present.
+- **Rollback:** `rollback-to-5eaa22d3.sh` (pins only; no new migration).
+
+**Next steps:**
+- one paid Style A narration on the Mutant draft, to prove the podcast picture, the length and the rhythm live;
+- merge PR #133.
+
+Open items carried forward: the footage downloader's JS runtime and yt-dlp-ejs, YouTube PO tokens, the exhausted DataImpulse plan (new proxy unassigned), the ArcFace start stall, and the 7 deferred minors.
+
+## 2026-11-17 - The planner places every style's b-roll; clips stack as layers
+
+On draft `edoc_3ee4719b`, the Denny Sumargo podcast sections were admitted but never shown. Style A had one footage beat, 6.5 s long, filled in material order, and only 2 of 5 clips fit. The operator asked that Style B's placement become the default ("tapi bukan berarti akan menjadi hardcode"). They also asked why the timeline cannot stack clips the way CapCut does ("ya itu yang ku maksud"). The same draft in Style B showed 7 `clip_overlap` warnings.
+
+- **Spec:** `docs/superpowers/specs/2026-11-17-planner-default-design.md`.
+- **Plan:** `docs/superpowers/plans/2026-11-17-planner-default.md` (Tasks 1-4), executed natively.
+- **Brainstorm record:** items 80-85.
+
+**What the 7 warnings were.**
+- **Three were a real bug.** The import's profile card stayed under the planner's shots on the b-roll, so two pictures showed at once.
+- **Four were not conflicts.** A top title, a card and a credit shared the overlay lane at the same time, but they sit in different places on screen.
+- **Remotion already stacks.** The lower in the tree, the higher on screen (remotion.dev/docs/layers, via Context7). Only the editor's rule flagged these.
+
+**What changed.**
+- **Planner on by default** (b313d5f). `CutRules.planned` defaults to on, and a style can still turn it off.
+  - The phrase split reads each style's band: Style B keeps 0.9-2.4 s; Style A (revision 2) is planned at 1.5-4.0 s.
+  - The band reaches the planner (`plan(..., band)`).
+- **A planned beat owns its b-roll** (ec9882d). The import's positioned cards on the b-roll are removed when the plan placed pictures there.
+  - **Kept:** a beat the style hides, and locked cards.
+  - **The overlap guard stays** (operator, item 85). `b_roll_overlaps` names two b-roll pictures at once, and the narration write logs them with the document id. The planner's own card over its own shot is not flagged.
+- **Computed layers** (cf48bc3). In the shared composition, clips that play at once go on the lowest free layer.
+  - `lane.layered` is the draw order, so the render matches Studio.
+  - `lane.clips` stays in time order for the editor's rules and gestures.
+- **Studio** (ca563fe, e3e13fb1). A lane draws one 44 px row per layer, with the top layer highest, and rows hold still during a drag.
+  - `clip_overlap` is gone from Studio and from the server review. `main_track_gap` and `clip_exceeds_canvas` stay.
+
+**One consequence, accepted by the spec.** A clip already stacked over another stays above a clip that later joins the lower layer. A draft with that shape re-stacks. The three template-release goldens have the shape on their badge lane and still pass pixel parity.
+
+**Verification.**
+- `make test`: 5161 passed, 250 skipped.
+- `make lint`: clean.
+- Dashboard: 2028 pass, `tsc` and build clean.
+- Composition package: 47 pass.
+- Golden parity (`f1_verify3.sh`): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19.
+
+**Final review** (fresh reviewer): "With fixes", with 0 Critical, 2 Important and 8 Minor; one Minor was re-graded Important. All three were fixed test first in e3e13fb1:
+- **The b-roll guard flagged the planner's own card over its own shot.** It no longer does.
+- **Studio lanes re-layered during a drag.** Rows now hold still until the drag ends.
+- **A wrong ruling:** the draw order does re-stack one shape. That is now pinned by a test and written in the spec.
+
+**Style A's short footage shots** (operator item 86, "pilihan 1 setuju").
+- **The risk** (raised by a side agent, measured on edoc_3ee4719b's stored shots): the half-phrase rule kept only 2 of the podcast's 9 real cuts (0.9-4.04 s) on a 4 s Style A phrase.
+- **The fix:** `CutRules.pick_cap_seconds` caps the rule. Style A sets 1.5 s, so 5 of 9 stay usable at any phrase length. Style B has no cap and is unchanged.
+- **Verification:** `make test` 5163 passed.
+
+**Deferred minors.**
+- A hidden clip draws on the bottom row and can cover a visible one.
+- The marquee selects across rows.
+- `clip_overlap` leftovers remain in the issue type and i18n.
+- One test swaps a global without monkeypatch.
+- A test helper duplicates the guard.
+- Two `band` defaults are unused.
+- The plan's "import material" wording is imprecise.
+
+**Deploy (2026-11-17, operator "pilihan 1 setuju").**
+- 5eaa22d3 is in PR #133, CI green (44019999116, 44020005692), including template release parity.
+- Stage1 runs thoth `a0ddbacba65b`, renderer `47d8fc2acbd4`, web `1ac7c2df7629`.
+- Health: web 200, 0 worker errors, 0 API 5xx.
+- There is no migration. Rollback: `D:/thoth-tmp/bu/pins/rollback-to-5234c4f2.sh` (pins only).
+- Production runs code not yet in `master`.
+
+**Next steps.**
+1. ~~Push and CI; deploy~~ (done 2026-11-17).
+3. One paid Style A narration on the Mutant draft (own gate). Expected: the podcast section that shows Saiful appears where the voice talks about it, and stacked titles, cards and credits show as layers with no warning.
+4. Merge PR #133 (own gate).
+
+Carried forward:
+- the deferred minors above;
+- the Style A explainer collage;
+- memes, SFX and effects picked by the planner;
+- moving clips between layers by hand.
+
+## 2026-11-17 - No footage after the face check deploy, then no Denny Sumargo podcast
+
+**Run `wf_e8cfba2b`** ("kenapa ... tidak dapat footage"). Every clip that passed the text gate failed its download (24 TikTok, 5 YouTube), so nothing was admitted.
+- **TikTok.** TikWm answered in 27-28 s while the resolver gave up at 15 s, so every clip read `cdn_unavailable`. A direct yt-dlp download from the worker gets 403.
+- **YouTube.** That morning googlevideo answered 403 even with bun and the EJS solver: yt-dlp asked for a GVS PO token. It had lifted by the next run.
+- **Proxies.**
+  - The DataImpulse proxies on the accounts answered `407 TRAFFIC_EXHAUSTED`. That is also the likely cause of `ERR_PROXY_AUTH_UNSUPPORTED` in X search and the creator listing.
+  - The operator's first proxy import was refused as an invalid line (the format is `http://user:pass@host:port`). The second one was stored, unassigned. Through it, YouTube and TikTok still refused.
+
+**Run `wf_4ac021d9`** ("kenapa tidak ada podcast denny sumargo"). It admitted 2 clips. The curhatbang podcast was found, but never cut.
+- **The podcast was skipped.** The run found 6 long videos, all tied at score 0.5, and only the first 3 got captions. The podcast was 5th.
+- **The card's subject had no bare "Saiful" alias.**
+- **TikWm was still timing out,** which cost 31 TikTok clips, among them clips of the podcast.
+
+**Fixes** (each test first).
+- **1888d4c4: every long video is cut.** Up to 6 long videos get captions (`MAX_LONG_VIDEOS`), 3 s apart.
+- **1888d4c4: names without titles count.** "Master Saiful" also matches "saiful" (`TITLES`), and the card prompt asks for it.
+- **5234c4f2: TikWm gets 45 s** to answer, up from 15 s.
+
+**Podcast face spike** (worker, live card, the podcast's captions, the run's section rule). Of the moments that name the subject:
+- **0:39 (the intro's USS recap):** best 0.57 in one second only.
+- **4:44 (Tretan Muslim):** 0.16.
+- **6:16 (Saiful on screen):** 0.64. This one passes, so the podcast now yields a `related` section.
+
+**Verification.**
+- `make test`: 5153 passed, then acquisition and footage 1430 passed after the TikWm fix.
+- Lint is clean.
+
+**Deploy (2026-11-17, operator "ya lanjutkan").**
+- 5234c4f2 is in PR #133, CI green (43927700840, 43927719328).
+- Stage1 runs thoth `606e975f4cb1`, renderer `c0f39c80d22e`, web `7b4629770655`.
+- Health: web 200, 0 worker errors, 0 API 5xx.
+- There is no new migration. Rollback: `D:/thoth-tmp/bu/pins/rollback-to-e6dd785e.sh` (pins only).
+
+**Next steps.**
+1. A new Mutant run, judged by the operator (own gate).
+2. One paid narration (own gate).
+3. Merge PR #133 (own gate).
+
+Carried forward:
+- **Footage downloader:** it has no JS runtime (acquisition sets bun) and no yt-dlp-ejs.
+- **YouTube:** the PO-token enforcement may come back. A proxy fallback or a PO-token provider is its own decision.
+- **Proxies:** the old DataImpulse plan is exhausted, and the new proxy is not yet assigned to an account.
+- **Worker start:** loading ArcFace at start holds the loop for more than 1 s (a harmless faulthandler dump).
+
+## 2026-11-16 - Footage related events and the story's subject by face
+
+On run `wf_c7efa4c2` the operator found footage "di kejadian yang sama dengan main video". They wanted other events that relate to the story ("kejadian yang berbeda tapi masih satu context"), and then set the rule "harus tokoh yang di ceritakan saja dan berhubungan dengan tokoh tersebut".
+
+**Design.**
+- Spec 10 was approved 2026-11-16 ("ya sesuai").
+- Spec 10.12 records revisions 1-6, the face spikes and two operator choices:
+  - the run stops only when the face is doubtful ("tertahan hanya kalau ragu");
+  - one clip per run may discuss the subject without showing them ("boleh 1 klip per run").
+- The operator confirmed that fewer clips are fine if they fit the story ("jika sedikit tapi berkorelasi tepat dengan cerita tidak masalah").
+- Plan: `docs/superpowers/plans/2026-11-16-footage-related-events.md` (Tasks 1-10), executed natively. The brainstorm record is items 66-77.
+
+**Face spikes** (no paid call, public clips, no change on stage1).
+- **SFace** overlapped: the same person and different people both scored 0.33-0.53.
+- **ArcFace r50** (InsightFace buffalo_l) separated them: the same person scored 0.54-0.57, different people at most 0.30.
+- **Ground truth.** The operator confirmed it. The podcast "MASTER SAIFUL" and the Gofar clarification show Tretan Muslim, not Saiful, so the earlier podcast section was the wrong person.
+
+**What changed.**
+- **Card (Task 1).**
+  - `related` holds up to 6 other events.
+  - It keeps at most 2 incident queries.
+  - Round two always runs once.
+  - Vision visuals name nobody (`PERSON_VISUAL`, `strip_names`).
+- **Text gate (Task 2).**
+  - Names match in their hashtag and "nya" forms (`mentions`).
+  - A clip naming the subject may be up to 730 days old.
+  - A clip naming only other card people is off story.
+  - Name words are no event words.
+  - Long-video sections are cut only where the captions name the subject.
+- **Vision (Task 3).** One frame of the main goes first. The same call answers `same_event`, and sections are never rejected as commentary.
+- **Quota (Task 4).**
+  - 8 clips in total, also in the content set and the activity's count.
+  - At most 1 same-event clip, a clean original (text share ≤ 0.15).
+  - At most 2 clips older than 30 days (`too_old`).
+- **Storage (Task 5).**
+  - Editor migration 0035 adds `relation` (`related`, `same_event`, `discusses`, `unknown`) and the reasons `same_event`, `subject_absent` and `too_old`.
+  - The library reuses only `related` clips.
+- **Media failures (Task 6).** They log their cause, and never a URL. yt-dlp bot checks, 403 and 429 are named.
+- **Faces (Tasks 7-9).**
+  - YuNet and ArcFace are pinned by SHA-256 and baked into `/opt/thoth/models/faces`.
+  - The worker refuses to start without them while footage is on.
+  - `find_subject` groups the main's faces by screen time:
+    - a clear subject (1.5x the next group) runs on;
+    - a doubtful one stops the run on a `choose_subject` approval;
+    - no faces turns the check off.
+  - Screening checks the subject's face (0.42 in 2 distinct seconds) before the paid vision call. One `discusses` clip per run is allowed. Library clips are checked too.
+- **Dashboard (Task 10).** The run page shows the faces with their screen time, plus "None of these".
+
+**Verification.**
+- `make test`: 5141 passed, 250 skipped.
+- `make test-postgres`: 228 passed.
+- `make lint`: clean.
+- Dashboard: `bun test` 2026 pass; `tsc -b` and the build are clean.
+- actionlint is clean on the two edited workflows.
+- The face model fetch ran once, and both pins verified.
+- FaceReader on the spike clips: Saiful 0.50-0.55; every other person 0.284 or less; the main's subject was clear (54 s against 32 s). A 60 s main takes 14 s, with an event-loop lag of 1 ms.
+
+**Final review** (fresh reviewer): "With fixes", with 0 Critical, 3 Important and 13 Minor findings. Two Minors were re-graded Important by their effect. All five were fixed test first, in 27692c37:
+- **A same-event clip beaten as a copy was displaced twice.** The quota count dropped twice, so a ninth clip could be screened.
+- **A retry forgot the caps.** On a retry, the old-clip, `discusses` and same-event caps are now rebuilt from the clips already kept.
+- **A long main could stall the worker.** The main's faces are read from its first 180 s, and the grouping runs off the event loop.
+- **Each worker held two ArcFace sessions.** It now holds one (`shared_reader`), which matters given the WSL memory reaper.
+- **A carousel main's own slides were face-checked.** They no longer are.
+
+**The 11 minors, fixed on the operator's request** ("tolong perbaiki minor dulu"; daa644d7, 3c639548), each test first:
+- **Face reads.** Each read has its own detector, with no lock, so concurrent face steps no longer wait on each other. Skipped frames are grabbed, not decoded.
+- **Object path.** It has no old-clip cap; `too_old` applies only to runs with a card.
+- **The subject stop's wait.**
+  - The waiting text names the stage that waits, which is footage during the subject stop.
+  - The stage records `waiting_since` and `waited_seconds`.
+  - Estimates keep the wait out of footage's duration.
+- **Library rows** learn `related` from a later run, and never lose it.
+- **numpy.** A test guards that the API never imports it.
+- **A failed refine.** A test pins that round one's card is kept, marked refined.
+- **`same_event`.** A vision answer that skips the asked question is unusable (`vision_unavailable`), instead of passing as another event.
+- **Library copies.** A failed copy counts in `media_causes` (`library_copy`).
+- **`main_report`** is now public, and the activity no longer imports a private helper.
+- **YuNet** is pinned to opencv_zoo commit `f12e1279`; its SHA-256 was rechecked.
+- **Workflow tests** check the footage stage through the subject stop: waiting, completed after the choice, cancelled on a cancel.
+
+After the minors: `make test` 5150 passed, 250 skipped; lint clean; dashboard 2026 pass, `tsc` and build clean.
+
+**Deploy (2026-11-16, operator "lakukan seperti biasa").**
+- e6dd785e was pushed to PR #133. Both CI runs were green (43885517692 and 43885532620).
+- Stage1 runs the branch image, matching the CI publish log: thoth `3f5a6fd6e01c`, renderer `a696b873ae07`, web `af9e1ee6b704`. `make deploy` applied editor migration 0035; `relation` exists on `footage_candidates` and `footage_library`.
+- The face models are present in the worker.
+- Health: web 200, 0 worker errors, 0 API 5xx, 0 running workflows.
+- Production runs code not yet in `master`.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-c906c16d.sh`. It restores the pins only, never `make deploy`; 0035 stays, since older images never read its column.
+
+**Next steps.**
+1. ~~Push and CI; deploy~~ (done 2026-11-16).
+3. A new Mutant run, judged by the operator (own gate). Expected: no stop, since Saiful is clear; no clip showing only Tretan Muslim; at most 1 same-event clip.
+4. One narration write, a paid call shown with its cost first (own gate).
+5. Merge PR #133 (own gate).
+
+Carried forward:
+- A YouTube proxy fallback on a bot check is its own decision, and the logged causes show when it recurs.
+- Left out of 10.12, each waiting on the operator's request:
+  - a correction after the run;
+  - showing the chosen face when there was no stop;
+  - the face check on photos.
+- The deferred minors of earlier entries.
+
+## 2026-11-16 - Podcast sections lost to the per-query quota
+
+The operator ran a new Mutant run, `wf_a91d3f0fe308b128583f4f5c`, on the revision (2416f83a): "ketika aku coba buat new run sekarang malah tidak mendapatkan footage podcast sama sekali".
+
+**What the run shows** (read-only on stage1).
+- The podcast `Sy_S4TgvKbY` (`curhatbang`) was found and cut into 3 discussion sections (284.6, 598.0, 2587.2). All 3 stayed `pending` and were never screened.
+- **Cause:** a section inherited its parent's query, "mutant USS viral". Two search clips of that query were admitted first (`@vivanewsofficial`, `bukamata-id`), which filled its quota of 2 (`PER_QUERY`). The run ended with 3 of 6 admitted, because every other queue was empty.
+- **A second loss:** the caption track of the other long video, `PdloEngEZiM` (`Yusrilkim`, a 20-minute recap), answered 429. It gave 0 sections, and the run logged only a warning. The podcast's own captions were fetched 2 s later.
+
+**Fixes** (each test first, RED then GREEN).
+- **Sections have their own quota** (86386b0a). `quota_key()` counts them under `SECTIONS`, a queue of their own that holds up to 2 next to the search queries. The stored query stays the parent's. The total cap of 6 is unchanged.
+  - Test: `test_sections_get_their_own_turn_when_their_query_is_full`.
+- **One paced caption retry** (ab017452). On a 429, the caption track is fetched once more after 8 s (`RETRY_SECONDS`).
+  - Test: `test_the_fetcher_retries_a_rate_limited_track_once`.
+
+**Verification.**
+- `make test`: 5079 passed, 249 skipped.
+- `make test T=tests/footage`: 231 passed.
+- `make lint`: clean.
+
+**Deploy (2026-11-16, operator "ya boleh").**
+- c906c16d was pushed to PR #133, and CI was green (runs 43810692676 and 43810698308).
+- Stage1 runs the branch image, matching the CI publish log: thoth `a807bd633518`, renderer `6982548ca94b`, web `b81e8c918d32`.
+- Health: web 200, 0 worker errors, 0 API 5xx. There is no migration.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-2416f83a.sh` (pins only).
+
+**Next steps.**
+1. A new Mutant run, with the operator judging the clips (own gate).
+2. One narration write on that draft. It is a paid call, and its cost is shown first (own gate).
+3. Merge PR #133 (own gate).
+
+Carried forward:
+- the deferred minors of 2026-11-16 and 2026-11-15;
+- a run that loses sections to refused captions still ends "ok" with only a warning.
+
+## 2026-11-16 - Footage revision after the first live look
+
+The operator looked at draft `edoc_6979cd46` (run `wf_c345c5a04ebd9290781b2fdf`, Mutant at USS). They found two problems: "masih menampilkan footage footage yang dari main", and "tidak ada pembahasan di podcast nya denny sumargo". They also asked for narration that draws on what the podcast says ("narasi nya jadi luas dan tidak terfokus ke main saja").
+
+The design revision is spec section 9 plus 9.9, approved 2026-11-16 ("ya sesuai"). Plan: `docs/superpowers/plans/2026-11-16-footage-revision.md`, executed natively. The brainstorm record is items 59-65.
+
+**What the look showed.**
+- **The 3 TikTok news recaps** (`@jawaposofficial`, `@koranjakarta`, `@bontangpost.id`) were one second-phone recording of the incident, copied 3 times with their own watermark, captions or header bar. dHash missed the copies.
+- **The podcast sections** sat at passing name mentions (12:50, 46:47), not at the discussion (pedang 4:51-6:47, marah 3:36-8:28). The card had left Mutant out of its people, and listed Aldi Taher, who is named only in comments.
+
+**Spikes** (read-only on stage1, no paid call).
+- **ORB keypoints and the recaps.** The recaps matched each other on 12-20 of 20 frames. They matched the main and the podcast on 0.
+- **Time alignment.** Two podcast moments matched on 9 of 9 frames (same set, same camera). Only 3 of those lined up in time, with a peak of 1.2x over the row median. The copies lined up on 17-20 frames, with peaks of 11-28x. Time alignment is therefore the copy test.
+
+**What changed.**
+- **Context card.**
+  - `people[0]` is the subject, even under a nickname.
+  - People named only in comments are left out.
+  - The card has a new `spoken` list: up to 12 Indonesian words said when the event is discussed.
+- **Moments by discussion density** (`pick_discussions`).
+  - A 60 s window scores 2 per subject line, 1 per other person, and 1 per distinct spoken or event word. Name words are never discussion words.
+  - It needs a score of 4 and 2 distinct words, so a name alone makes no moment.
+  - Windows and their chosen moments stay a minute apart.
+  - Each section keeps its window's caption lines as `said`. They are stored on `footage_candidates` and `footage_library` (editor migration 0034, `said JSONB NOT NULL DEFAULT '[]'`).
+- **One copy of a recording** (`footage/recording.py`, the attribution `OrbMatcher` on 480 px frames at 1 fps).
+  - **Stage 1:** 3 frames are compared against every second frame of the other clip.
+  - **Stage 2:** at least 3 matched frames are needed, 60% of them on one offset within 1 s, with a median peak of 3x or more.
+  - **Choosing among copies:** an original (creator, traced, or an own account) wins. After that, the copy with the lower on-screen text share wins, then the earlier one.
+  - **The losing copy** is rejected `duplicate`, and its library row from this run is dropped. A loser is only dropped after the winner's admit has landed.
+  - **Library clips** go through the same check.
+  - **Sections of one video** are never compared with each other.
+- **Studio and narration.**
+  - `said` travels in the Content Set's `Footage` and in Studio materials (`StudioMaterial.said`, `clip_start`).
+  - The narration request lists "What people say in other videos", labelled only "YouTube video 1" and so on, with no account.
+  - A new source rule says who said it and where, never as the main video's speech and never as fact.
+  - Footage talk counts as evidence.
+- **Planner.** Footage shots carry what their source says during the shot. The speech block is "WHAT EACH VIDEO SAYS DURING EACH SHOT", labelled by video. Two rules are added: retold footage speech takes that video's shots, and a second angle of the main's scene is only for phrases about that moment.
+- **Data on stage1.** The library rows of `wf_c345` (the 5 clips above) were backed up to `D:/thoth-tmp/bu/footage_library-wf_c345-2026-11-16.jsonl` and deleted (operator "ya tolong ini"). Their media stays, because the old draft uses it.
+
+**Cost:** no new paid call. The copy check costs CPU: one 1 fps decode, an ORB pass and 3 OCR reads per clip that reaches it, plus the main at 1 fps once per run. It runs outside the admit lock.
+
+**Verification.**
+- `make test`: 5077 passed, 249 skipped.
+- `make test-postgres`: 227 passed.
+- `make lint`: clean.
+- Dashboard: 2024 tests pass, `tsc -b` and the build pass.
+- `openapi.json` and the generated client were regenerated.
+
+**Final review** (a fresh reviewer): 0 Critical, 3 Important.
+- **Fixed, test first:**
+  - a kept copy was displaced before the winner's admit;
+  - a clip copying two kept clips could displace one and still lose;
+  - the heavy reads ran under the lock.
+- **Regraded to Important and fixed:**
+  - two sections a few seconds apart;
+  - an account handle in the footage-talk label.
+- **Deferred minors:**
+  - a library clip loses its "original" status on reuse (only an own account still counts);
+  - dHash removal misses a displaced library clip;
+  - a displaced clip's file stays in the run folder;
+  - ORB drops flat frames, so a fade can cost a copy match (missed copies only);
+  - a dHash-merged earlier-run library row is not dropped.
+
+**Rulings during the build** (ledger `.superpowers/sdd/2026-11-16-footage-revision/progress.md`):
+- the service switched to `pick_discussions` in Task 2, with the fixture card given `spoken`;
+- event terms that are name words are not discussion words;
+- a `recording_frames` port at 480 px (one ffmpeg run per clip);
+- the trigger and text share come from the clip's own 1 fps frames;
+- the share is computed for every clip that reaches the check;
+- `StudioMaterial.said` uses a local `SpokenLine` (an import cycle);
+- the planner speech lines are labelled by video;
+- library clips go through the copy decision.
+
+**Deploy (2026-11-16, operator "ya boleh").**
+- `2416f83a` was pushed to PR #133, and CI was green: offline quality gates, publish image, template release parity, validate image build.
+- The branch image was deployed to stage1, detached with setsid. The running digests match the CI publish log:
+  - thoth `e5f2d33c7186`;
+  - renderer `78125db8e846`;
+  - web `8c2e7ae07248`.
+- Health after the deploy: web 200, 0 worker error lines and 0 API 5xx.
+- Migration head 0034, with `said` on both tables.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-15ae81f5.sh`. It is pins only, and 0034 stays.
+
+**Next steps.**
+1. Push and deploy: done (above).
+2. Merge PR #133 (own gate), after the live checks below.
+3. One live footage run on the Mutant post, with the operator judging the clips (own gate).
+4. One narration write on that draft. It is a paid call, and its cost is shown first (own gate). The operator reads whether the podcast talk is used and attributed.
+5. Merge PR #133 (own gate).
+
+Carried forward:
+- the 5 deferred minors above, and the 9 from 2026-11-15;
+- stressed narration (track step 4).
+
+## 2026-11-15 - Footage library: footage found from the main post's context
+
+The reference-faithful editing track, step 3. The operator's case is draft `edoc_c570bd32`, on Mutant wanting to be invited to Denny Sumargo's podcast. It "harusnya bisa menambahkan beberapa potongan footage youtube dari channel denny sumargo … karena satu context". A person knows such a video exists from following social media every day; Thoth runs once, so it has to find it from the main post's own context (operator, 2026-11-15).
+
+Design: `docs/superpowers/specs/2026-11-15-footage-library-design.md`, approved 2026-11-15 ("ya sesuai dan setuju"). Plan: `docs/superpowers/plans/2026-11-15-footage-library.md`, executed natively. The brainstorm record is items 46-56.
+
+**Why the old stage missed it.** On run `wf_4c7961fc`, 70 candidates were checked and 0 kept:
+- **Object queries.** The queries named objects ("sneakers", "pedang excalibur urban sneaker society"), never "Mutant" or "Saiful".
+- **Caption similarity.** Relevance was judged by similarity to the main caption, so the clips of the same story that used another name for the man ("SAIFUL BUKAN MUTAN", "Detik-detik Pria Mengamuk di Depan Denny Sumargo") were rejected.
+- **Long videos.** Videos over 15 minutes were dropped outright.
+- **English titles.** YouTube titles came back auto-translated to English.
+
+**The spike** (read-only, USD 0.0042). A context card from the post's text, with people-plus-event queries, put the podcast `Sy_S4TgvKbY` first on YouTube, followed by 6 news recaps:
+- the Rocky Gerung post found the creator's own YouTube channel;
+- the Persib post showed that the card can be wrong ("timnas" instead of Persib);
+- the podcast's Indonesian auto-captions give its moments in under 1 s.
+
+**What it does** (`THOTH_FOOTAGE_CONTEXT_ENABLED`, default on):
+- **The context card.** The card model (`THOTH_FOOTAGE_CARD_MODEL`, default `google/gemini-3.1-flash-lite`, with the query model as fallback) reads the caption, the owner and the top 25 comments. It returns the people with every alias, the event, the place and the meme. The card is stored on `footage_runs.context`.
+- **Two rounds.**
+  - Round 1 searches TikTok, YouTube and X with the card's first 4 queries. YouTube is asked for the original Indonesian titles (`lang=id`).
+  - Round 2 runs when fewer than 6 candidates pass. It shows the card model the top 15 titles, so it learns the aliases and corrections they use ("Saiful"), searches up to 3 new queries, and re-judges round 1's rejects.
+- **The context gate.** A candidate passes when its caption or account names a card person or alias as whole words (aliases of 3+ characters), or names two event terms, and it falls from 30 days before the main post to the run. Own accounts are screened first. The creator's own listing goes through the same gate.
+- **Long videos.**
+  - A YouTube video over the cap is cut at up to 3 caption lines naming a card person, at least 60 s apart and past the first 30 s. Each line gives an 8 s section from 1 s before it.
+  - With no captions, or no line naming a card person, nothing is downloaded and the video is rejected as before.
+- **Originals before reposts.** A repost that credits another account is replaced by that account's original when its listing holds one on the story; the repost is rejected `repost`. Otherwise it is checked as before, so OCR still rejects burned-in text (operator: "jika bisa … langsung dari source video nya, bukan dari reposting").
+- **The library.**
+  - Every kept clip goes into `footage_library` per workspace (editor migration 0033), tagged with the card's names, together with its pictures' hashes and its OCR result.
+  - A copy of a kept clip merges into it, and the earlier-published copy stays the source.
+  - A later run on the same people takes those clips first, copied from storage with no search, download or check.
+- **Credits:** "YouTube/<channel>" on YouTube clips, "@handle" elsewhere.
+- **Falls back:** without a card answer, or with the flag off, today's object queries and story gate run unchanged.
+
+**Cost:** about USD 0.001-0.002 per run (1-2 card calls). Searches and captions are free.
+
+| Commit | What |
+|---|---|
+| `307a41e`, `a5ed76a8` | The context card and its model adapter |
+| `4748d92` | Context queries, the date window, the context gate |
+| `14e6e43` | Caption moments, the caption fetcher, Indonesian YouTube titles |
+| `68ceebc` | Credits, own accounts, credit labels, the `repost` reason |
+| `632bf2e` | Migration 0033 and the library store |
+| `f0f33bb` | The context path in the builder, two rounds |
+| `6160587` | Long-video sections, repost tracing |
+| `c0fd20d` | Library read and write |
+| `f204b6c0` | Production wiring |
+
+**Final whole-branch review** (one fresh reviewer on the most capable model) found 2 Critical and 6 Important issues. Two Minors were raised to Important because they could fail the stage. All were fixed test-first, each test failing before its fix:
+- **Postgres CHECKs** refused the new candidate sources (`section`, `trace`, `library`) and the `repost` reason. Migration 0033 widens both. A new Postgres store test was RED with CheckViolation.
+- **Assembly** silently dropped those clips from the content set (`Footage.source` literal).
+- **Event terms:**
+  - before: English filler words ("the", "while", "event") counted as event terms;
+  - after: event terms are the event's and place's proper nouns and acronyms.
+- **The main post** could come back from the library as its own footage; it is now rejected by address and by pictures.
+- **Trace:**
+  - it listed normalised handles, which lost the dots;
+  - it treated an own-account clip that tags someone as a repost;
+  - it was unbounded; it is now capped at 3 accounts.
+
+  A search outage also dropped already-reused library clips.
+- **The long-video caption cap** went in URL order; own accounts now come first.
+- **Untrusted inputs:** a non-object model body or a malformed caption event raised instead of degrading.
+
+**Library reuse matches the story, not only one name** (operator, 2026-11-15: "klip dari library harus cocok dengan kejadiannya juga", then "ya setuju" to the revised rule). A stored clip is reused when two of the new card's people are among its names, or when one is and they share two distinctive event words.
+- A person counts once, whatever their aliases.
+- People's own words are not event words.
+- So "Saiful marah di podcast Curhat Bang" reuses the Mutant clips, and a Densu story with another guest does not.
+- The tests `test_a_library_clip_from_another_story_of_the_same_person_is_not_reused` and `test_the_same_pair_of_people_reuses_the_library_without_event_words` were RED, then GREEN.
+- Accepted risk: the same pair meeting again in another event within 30 days reuses the old clips.
+
+Ruled out of the pass, with its cost: a hard deadline before the checks phase still reports `unavailable` even when library clips are admitted. Nine minors are deferred (see Next steps).
+
+**On stage1 (2026-11-15):**
+- PR #133 is open.
+- CI was green on `15ae81f5`.
+- The branch image was deployed with digests thoth `84cf9805d248`, renderer `d8b99e67c3db` and web `0b0d6dba5418`; they match the CI log.
+- Health after the deploy:
+  - web answers 200;
+  - the worker logged 0 error lines;
+  - the API returned 0 5xx;
+  - no workflow was running.
+- The migration head is `0033`: `footage_library` exists, `footage_runs.context` exists, and the source CHECK is widened.
+- Rollback: `D:/thoth-tmp/bu/pins/rollback-to-e53e9ffb.sh` (pins only; 0033 stays).
+- stage1 runs code that is not in master.
+
+**Verification:**
+- `make test`: 5036 passed, 245 skipped.
+- `make test-postgres`: 223 passed, with 0033 applied.
+- `make lint` is clean.
+- **Fixtures** from the spike (`python/tests/fixtures/footage/context/`):
+  - the 4 cards;
+  - the Mutant run's 70 candidates;
+  - the podcast's first 10 minutes of captions.
+- **Replay:** on the Mutant run, "SAIFUL BUKAN MUTAN", "Momen Saeful temui Denny Sumargo" and "Detik-detik Pria Mengamuk di Depan Denny Sumargo" pass, and none of the 13 "sneakers" posts or the creator's travel posts do.
+
+**Planner model check** (operator: "tolong pastikan ini juga"):
+- Both Style B plans stored on stage1 were answered by `qwen/qwen3.7-flash`.
+- The spike's qwen failures came from its own request (1500 tokens, no `reasoning`), not from the planner.
+- No change was made.
+
+### Next steps
+- One live run on the Mutant post, with its footage judged blind by the operator (its own gate); the accuracy target is agreed from that.
+- Merge (its own gate).
+- Deferred review minors:
+  - the card and the run start are not one transaction;
+  - library clips reopened on a retry are not re-checked;
+  - round 2, trace and captions still run after the library fills the quota;
+  - a NUL in the card is not stripped;
+  - the caption language is fixed to `id`;
+  - the Studio import titles YouTube footage `@handle`;
+  - `add_library` has no lock;
+  - the YouTube channel name is not gated;
+  - a missing ffprobe is swallowed in the library copy;
+  - the deadline-before-checks status with library clips.
+- Carried forward:
+  - small-creator stories (Erio Manan) stay out of scope (item 53);
+  - stressed narration (track step 4);
+  - the "Tobat, TG!" → "Tobat, EGE!" script typo;
+  - dropping the `sfx_library` table;
+  - automatic placement of clips and backsound;
+  - `/understand --full`;
+  - moving `reports/` and `research_notes/`;
+  - the pre-existing Studio e2e failures;
+  - the `wt-run-progress-fixtures` worktree with uncommitted files;
+  - the PR #132 merge record rides on this branch's PR.
+
 ## 2026-11-13 - Planner stage 1: Style B cut per phrase, picture chosen by content
 
 The reference-faithful editing track, step 2. Style B drafts sat on the main video for about 79% of their length, cut on sentence ends, and pushed in on every shot; the WinNews references cut on every phrase, show what each phrase says, keep the camera still and credit each clip. The operator accepted the rule-based rhythm and asked that each phrase's picture be chosen by content and checked against the picture itself ("gunakan opsi 2 yaitu mencocokan isi per frasa"; "kita juga perlu melihat gambar"). Design: `docs/superpowers/specs/2026-11-13-planner-stage-1-design.md`; plan: `docs/superpowers/plans/2026-11-13-planner-stage-1.md`; brainstorm record items 24-41.
@@ -110,8 +653,9 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
 - **The operator's verdict (2026-11-15):** "next step 1 - 3 ku cek sudah pas semua". The white cards on a new Style B draft, the planner's picture picks and the footage-beat play-on are all accepted as built.
 - **`scripts/dev/pytest-wsl.sh` pins `pytest==9.1.1`**, the `uv.lock` version. The three nested `approx` tests pass again, and `make test` gives 4978 passed, 243 skipped. Lint is clean.
 
+- **Merged on 2026-11-15:** PR #132 became merge commit `efe739d1`, after CI on `8a8f4738` was green. stage1 still runs the `e53e9ffb` branch image, which has the same code, so there was no redeploy. The PR also carried the PR #130 merge record.
+
 ### Next steps
-- The merge gate, authorized on 2026-11-15.
 - The live paid check on a new story, judged blind by the operator; the accuracy target is agreed from that.
 - Carried forward:
   - the narration script typo "Tobat, TG!" should read "Tobat, EGE!" (outside the planner);
@@ -122,7 +666,7 @@ After the fixes, `make test` gives 4966 passed and 243 skipped, and lint is clea
   - `/understand --full`;
   - the offer to move `reports/` and `research_notes/` to `docs/research`;
   - the pre-existing data-dependent Studio e2e failures.
-- The PR #130 merge record rides on this branch's PR.
+- This merge record rides on the next branch's PR (`feat/footage-library`).
 
 ## 2026-11-13 - Workspace asset library
 

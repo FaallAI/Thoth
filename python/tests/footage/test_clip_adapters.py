@@ -224,3 +224,66 @@ async def test_a_youtube_url_skips_the_tiktok_resolver(
         "https://youtu.be/x", None, tmp_path / "c.mp4"
     )
     assert seen["url"] == "https://youtu.be/x"
+
+
+async def test_the_scene_question_is_asked_only_with_a_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # spec 10.5 and 10.12
+    seen: list[tuple[str, list[Frame]]] = []
+
+    async def fake_run(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        seen.append((prompt, list(frames)))
+        return FootageAnswer(kind="footage", shows_object="yes", same_event="yes")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", fake_run)
+    frames = [Frame(second=float(n), jpeg=b"x") for n in range(5)]
+    main = Frame(second=0.0, jpeg=b"main")
+    judge = AgnoFootageJudge("k", "m")
+    await judge.judge(frames, "a street")
+    answer = await judge.judge(frames, "a street", reference=main)
+    assert "same_event" not in seen[0][0] and len(seen[0][1]) == 3
+    assert "same_event" in seen[1][0] and "first image" in seen[1][0]
+    assert seen[1][1][0] is main and len(seen[1][1]) == 4
+    assert answer.same_event == "yes"
+    assert FootageAnswer(kind="footage", shows_object="no").same_event is None  # not asked
+
+
+@pytest.mark.parametrize(
+    ("message", "cause"),
+    [
+        ("ERROR: [youtube] x: Sign in to confirm you're not a bot. Use --cookies", "bot_check"),
+        ("ERROR: unable to download video data: HTTP Error 403: Forbidden", "http_403"),
+        ("ERROR: HTTP Error 429: Too Many Requests", "http_429"),
+        ("ERROR: something else https://www.youtube.com/watch?v=x", "DownloadError"),
+    ],
+)
+async def test_a_download_error_names_its_cause_without_the_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str, cause: str
+) -> None:  # spec 10.8 and 10.12: a YouTube bot check shows in the causes
+    from yt_dlp.utils import DownloadError
+
+    def boom(url: str, options: dict[str, Any]) -> None:
+        raise DownloadError(message)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", boom)
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg").download(
+            "https://www.youtube.com/watch?v=x", (4.0, 24.0), tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == cause
+
+
+async def test_an_answer_without_the_asked_scene_is_unusable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # final review, minor 12: a missing answer never passes as "no"
+    from thoth_control_plane.attribution.ports import AttributionError
+
+    async def fake_run(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        return FootageAnswer(kind="footage", shows_object="yes")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", fake_run)
+    frames = [Frame(second=1.0, jpeg=b"x")]
+    judge = AgnoFootageJudge("k", "m")
+    assert (await judge.judge(frames, "a street")).same_event is None
+    with pytest.raises(AttributionError, match="vision_unavailable"):
+        await judge.judge(frames, "a street", reference=Frame(second=0.0, jpeg=b"m"))
