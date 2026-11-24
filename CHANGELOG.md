@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-24 - Stressed narration delivery with Eleven v4
+
+The operator found our narration flat next to the reference videos. Measured read-only on 11 reference breakdowns against 13 of our narrations:
+- human Style A narrators stretch contrast words (tapi, ternyata, wah), names and numbers;
+- our `eleven_multilingual_v2` voices stretched sentence ends instead.
+
+A paid listening spike (401 input characters) settled the choice: Eleven v4 with inline audio tags ("lebih enak versi 4"). Every style gets stressed delivery as the default.
+
+**What changed** (spec `docs/superpowers/specs/2026-11-24-stressed-narration-delivery-design.md`, plan `docs/superpowers/plans/2026-11-24-stressed-narration-delivery.md`):
+- **Audio tags in the script.** The script writer may put English ElevenLabs tags such as `[curious]` inside a beat's text, before the words they stress.
+  - Each style's `DeliveryRules` sets the allowed tags, a per-beat cap, a guide and the voice stability:
+    - Style A: expressive, stability 0.45, up to 3 tags;
+    - Style B: calm news, stability 0.50, up to 2 tags, no laughing or whispering;
+    - unstyled drafts: 0.48, up to 3 tags.
+  - Any other bracketed text the model writes is removed, and so is any tag in the headline or card line.
+- **Tags never reach what people read or what is timed.**
+  - Captions, planner phrases and SFX word positions come from the voice's word timings, which drop the tags. Punctuation right after a tag stays on the word before it.
+  - The cut preview, the length checks and the evidence check count spoken words only.
+- **The voice.**
+  - On `eleven_v4*` the adapter sends the tags, `language_code` and the style's stability, and never `speed`.
+  - Any other model gets the text with its tags stripped. `speed` still goes to every model except `eleven_v3*`.
+  - A beat of tags alone is refused before any call, so it is never billed.
+- **Default model.** `NarrationPreset.voice_model` defaults to `eleven_v4`. Editor migration `0036` moves saved project presets that hold the old default `eleven_multilingual_v2` to `eleven_v4` and steps their revision.
+  - A project that chose another model is untouched.
+  - So is every stored narration's own preset snapshot, so a re-voiced beat on an older draft keeps its old voice.
+- **Studio.** The approval view shows tags as small muted badges, never as unsupported words. The editable beat text keeps them, so the operator can change them before re-voicing.
+
+**Rollback:** images before this release send `voice_settings.speed`, which `eleven_v4` rejects. Before rolling back past `0036`, set `narration_presets.preset->>'voice_model'` back to `eleven_multilingual_v2`; the statement is in the migration header. Narrations started on `eleven_v4` cannot be re-voiced after such a rollback; restart them instead.
+
+**Verification:**
+- `make lint` exit 0;
+- `make test` 5206 passed, 251 skipped;
+- `make test-postgres` 229 passed, 0 skipped;
+- `make dashboard-test` 2030 pass, 0 fail;
+- `make dashboard-build` (`tsc -b` and Vite) exit 0;
+- `graphify update .` rebuilt the code graph.
+
+**Final review:** a fresh reviewer found no Critical issue. Fixed test-first:
+- a tag right before punctuation split the punctuation into its own caption word;
+- a beat of tags alone was billed on v4;
+- the billing fallback counted stripped tags;
+- `eleven_v3` was sent `speed`;
+- an unreadable draft logged only at debug;
+- the migration's rollback note was incomplete.
+
+The Postgres suite also caught stored style templates failing to decode their tag list; that was fixed test-first.
+
+**Deferred minors:**
+- `language_code` is sent as the preset language without checking it is a two-letter code;
+- the dashboard re-voice cost counts tag characters on an older v2 draft;
+- sanitizing removes any bracketed span, so words inside a stray bracket are lost;
+- a voice's length is the last word's end, so sound from a trailing tag is cut;
+- `voice say --speed` does nothing on v4 and does not say so;
+- `NarrationRules.delivery` shares one default instance.
+
+**Operator note:** Eleven v4 read the spike line about 15% slower (8.4 s against 7.3 s) and has no speed setting. The operator accepts this as part of the expressive delivery (item 100). The live check compares voice length with the target.
+
+**Next steps (each its own operator gate):**
+1. Push `feat/stressed-voice`, open the PR and wait for green CI.
+2. Deploy the branch CI image to stage1. This applies migration `0036`; rollback as above.
+3. Run a paid narration on stage1 on a Style A and a Style B draft, cost shown first. Check:
+   - the stressed delivery;
+   - no `[...]` in captions, cuts or SFX timing;
+   - re-voicing an edited tag;
+   - voice length against the target.
+4. Merge the PR.
+
 ## 2026-11-18 - Studio plays videos from light preview proxies
 
 The operator reported that Studio playback stuttered on draft edoc_afd07b23, although the rendered video was fine.
