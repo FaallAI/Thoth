@@ -30,13 +30,24 @@ const HEADER = "flex h-12 shrink-0 items-center justify-between border-b border-
 const BEATS = "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4";
 const FOOTER = "flex shrink-0 flex-col gap-3 border-t border-hairline p-4";
 
-/** The beat's text with every word the evidence lacks underlined. */
+// An Eleven v4 audio tag such as [curious]: delivery, not a spoken word (spec 2026-11-24).
+const AUDIO_TAG = /(\[[A-Za-z][A-Za-z ]{0,39}\])/;
+
+/** The beat's text with every word the evidence lacks underlined and its audio tags muted. */
 function Marked({ text, unsupported }: { text: string; unsupported: string[] }) {
   const { t } = useLocale();
   const missing = new Set(unsupported);
+  const parts = text.split(AUDIO_TAG).flatMap((segment) => (AUDIO_TAG.test(segment) ? [segment] : segment.split(/(\s+)/)));
   return (
     <>
-      {text.split(/(\s+)/).map((part, index) => {
+      {parts.map((part, index) => {
+        if (AUDIO_TAG.test(part)) {
+          return (
+            <span key={index} data-audio-tag="true" className="mx-0.5 rounded bg-well px-1 py-0.5 font-mono text-[11px] text-muted-ink">
+              {part}
+            </span>
+          );
+        }
         const bare = part.replace(/^[("'“‘]+|[)"'”’.,!?;:]+$/g, "");
         return bare && missing.has(bare) ? (
           <span key={index}>

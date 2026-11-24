@@ -3595,7 +3595,7 @@
             "type": "string"
           },
           "voice_model": {
-            "default": "eleven_multilingual_v2",
+            "default": "eleven_v4",
             "maxLength": 200,
             "minLength": 1,
             "title": "Voice Model",

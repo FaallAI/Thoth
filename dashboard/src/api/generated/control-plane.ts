@@ -3054,7 +3054,7 @@ export interface components {
             voice_id: string;
             /**
              * Voice Model
-             * @default eleven_multilingual_v2
+             * @default eleven_v4
              */
             voice_model: string;
             /**

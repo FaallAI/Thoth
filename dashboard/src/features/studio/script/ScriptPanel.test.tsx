@@ -225,3 +225,24 @@ test("a read that could not be answered is asked again, never taken as no narrat
   expect(result.current[2]).toBe(true);
   expect(seen).not.toContain(true);
 });
+
+test("audio tags render subtly in approval without unsupported underlines and stay editable when completed", () => {
+  const text = "[curious] Kata Andi, [clears throat] ikan diambil.";
+  const tagged: NarrationState = {
+    ...awaiting,
+    script: { ...awaiting.script!, beats: [awaiting.script!.beats[0]!, { beat: "main", text }] },
+  };
+  const { container } = render(
+    <ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={tagged} onChange={() => {}} />,
+  );
+  const tags = [...container.querySelectorAll('[data-audio-tag="true"]')].map((node) => node.textContent);
+  expect(tags).toEqual(["[curious]", "[clears throat]"]);
+  for (const mark of container.querySelectorAll("mark")) expect(mark.textContent).not.toContain("[");
+  expect(screen.getByTitle("Not found in the evidence").textContent).toBe("Andi");
+  cleanup();
+
+  render(
+    <ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={{ ...tagged, status: "completed" }} onChange={() => {}} />,
+  );
+  expect((screen.getByRole("textbox", { name: "Main" }) as HTMLTextAreaElement).value).toBe(text);
+});
