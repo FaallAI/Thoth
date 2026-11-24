@@ -10,6 +10,11 @@ import httpx
 
 from thoth_control_plane import metering
 from thoth_control_plane.voice.audio import probe_duration
+from thoth_control_plane.voice.audio_tags import (
+    AUDIO_TAG_RE,
+    strip_audio_tags,
+    supports_audio_tags,
+)
 from thoth_control_plane.voice.ports import (
     SynthesizedVoice,
     VoiceRejected,
@@ -18,29 +23,49 @@ from thoth_control_plane.voice.ports import (
     WordTiming,
 )
 
-#: The Rust engine's setting; `language_code` is ignored by the v2 multilingual models.
-DEFAULT_MODEL = "eleven_multilingual_v2"
+#: Reads inline audio tags (spec 2026-11-24); it takes no `speed`, and v2 ignores `language_code`.
+DEFAULT_MODEL = "eleven_v4"
 BASE_URL = "https://api.elevenlabs.io"
 
 
+def _tag_end(characters: list[str], index: int) -> int | None:
+    """The index of the `]` closing an audio tag that opens at `index`, if one does."""
+    for close in range(index + 1, min(len(characters), index + 42)):
+        if characters[close] == "[":
+            return None
+        if characters[close] == "]":
+            span = "".join(characters[index : close + 1])
+            return close if AUDIO_TAG_RE.fullmatch(span) else None
+    return None
+
+
 def words_from_alignment(alignment: dict[str, Any]) -> list[WordTiming]:
-    """A word is a maximal run of non-whitespace characters, timed by its first and last."""
+    """A word is a maximal run of non-whitespace characters, timed by its first and last.
+
+    Eleven v4 times its audio tags like words; a tag is skipped and ends the word before it,
+    so captions, phrases and SFX positions only ever see spoken words.
+    """
+    characters = list(alignment["characters"])
+    starts = alignment["character_start_times_seconds"]
+    ends = alignment["character_end_times_seconds"]
+    if not len(characters) == len(starts) == len(ends):
+        raise ValueError("alignment arrays differ in length")
     words: list[WordTiming] = []
     text, start, end = "", 0.0, 0.0
-    for char, char_start, char_end in zip(
-        alignment["characters"],
-        alignment["character_start_times_seconds"],
-        alignment["character_end_times_seconds"],
-        strict=True,
-    ):
-        if char.isspace():
+    index = 0
+    while index < len(characters):
+        char, char_start, char_end = characters[index], starts[index], ends[index]
+        close = _tag_end(characters, index) if char == "[" else None
+        if char.isspace() or close is not None:
             if text:
                 words.append(WordTiming(text=text, start_seconds=start, end_seconds=end))
                 text = ""
+            index = close + 1 if close is not None else index + 1
             continue
         if not text:
             start = char_start
         text, end = text + char, char_end
+        index += 1
     if text:
         words.append(WordTiming(text=text, start_seconds=start, end_seconds=end))
     return words
@@ -64,15 +89,28 @@ class ElevenLabsVoice:
         return "ElevenLabsVoice()"
 
     async def synthesize(self, request: VoiceRequest) -> SynthesizedVoice:
-        body = {
-            "text": request.text,
-            "model_id": request.model or DEFAULT_MODEL,
-            "voice_settings": {"speed": request.speed},
-        }
-        if request.previous_text:
-            body["previous_text"] = request.previous_text
-        if request.next_text:
-            body["next_text"] = request.next_text
+        model_id = request.model or DEFAULT_MODEL
+        body: dict[str, Any] = {"model_id": model_id}
+        settings: dict[str, Any] = {}
+        if supports_audio_tags(model_id):
+            # v4 speaks the tags as delivery, takes the language, and has no speed setting.
+            body["text"] = request.text
+            body["language_code"] = request.language
+        else:
+            # An older model would read a tag aloud, so it never sees one.
+            body["text"] = strip_audio_tags(request.text)
+            if not body["text"]:
+                raise VoiceRejected("empty_text_after_tag_strip")
+            settings["speed"] = request.speed
+        if request.stability is not None:
+            settings["stability"] = request.stability
+        if settings:
+            body["voice_settings"] = settings
+        # A neighbour's mood must not colour this beat; its words still stitch the intonation.
+        neighbours = {"previous_text": request.previous_text, "next_text": request.next_text}
+        for field, neighbour in neighbours.items():
+            if neighbour and (plain := strip_audio_tags(neighbour)):
+                body[field] = plain
         if request.previous_request_ids:
             body["previous_request_ids"] = request.previous_request_ids[-3:]
         try:

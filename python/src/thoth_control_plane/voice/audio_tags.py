@@ -30,9 +30,7 @@ def strip_audio_tags(text: str) -> str:
     return _tidy(AUDIO_TAG_RE.sub(_REMOVED, text))
 
 
-def sanitize_script_tags(
-    text: str, allowed: frozenset[str], *, max_tags: int | None = None
-) -> str:
+def sanitize_script_tags(text: str, allowed: frozenset[str], *, max_tags: int | None = None) -> str:
     """Keep the first ``max_tags`` allowed tags, lower-cased; drop every other bracketed span."""
     kept = 0
 

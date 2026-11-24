@@ -38,7 +38,9 @@ def test_strip_audio_tags_removes_single_multiword_and_adjacent_tags() -> None:
 def test_sanitize_script_tags_keeps_allowed_normalizes_and_caps() -> None:
     allowed = frozenset({"curious", "amused", "excited"})
     assert (
-        sanitize_script_tags("[CURIOUS] Halo [tertawa] [amused] dunia [excited]!", allowed, max_tags=2)
+        sanitize_script_tags(
+            "[CURIOUS] Halo [tertawa] [amused] dunia [excited]!", allowed, max_tags=2
+        )
         == "[curious] Halo [amused] dunia!"
     )
     assert (
