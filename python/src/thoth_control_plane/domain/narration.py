@@ -13,6 +13,7 @@ from pydantic import Field, model_validator
 
 from thoth_control_plane.domain.edit_document_v2 import AssetRef
 from thoth_control_plane.domain.models import StrictModel
+from thoth_control_plane.voice.audio_tags import strip_audio_tags, supports_audio_tags
 from thoth_control_plane.voice.ports import WordTiming
 
 BeatId: TypeAlias = Literal["hook", "main", "evidence", "reactions", "footage", "outro"]
@@ -45,7 +46,7 @@ class NarrationPreset(StrictModel):
     words_per_second: Annotated[float, Field(gt=0.5, le=6.0)] = 3.0
     voice_provider: Literal["elevenlabs"] = "elevenlabs"
     voice_id: Annotated[str, Field(min_length=1, max_length=200)] = "plgKUYgnlZ1DCNh54DwJ"
-    voice_model: Annotated[str, Field(min_length=1, max_length=200)] = "eleven_multilingual_v2"
+    voice_model: Annotated[str, Field(min_length=1, max_length=200)] = "eleven_v4"
     duck_volume: Level = 0.12
     leak_volume: Level = 0.45
     lead_in_seconds: Annotated[float, Field(ge=0.0, le=10.0)] = 1.6
@@ -133,7 +134,11 @@ def estimate_voice(
     prices: Mapping[tuple[str, str, str], float],
 ) -> VoiceEstimate:
     """The characters TTS will bill, priced the way `metering.estimate` prices a key."""
-    characters = sum(len(beat.text) for beat in script.beats)
+    # Eleven v4 is sent (and bills) the audio tags; an older model gets the spoken words only.
+    tagged = supports_audio_tags(preset.voice_model)
+    characters = sum(
+        len(beat.text if tagged else strip_audio_tags(beat.text)) for beat in script.beats
+    )
     # The adapter meters `<provider>/<model>` (voice/adapters/elevenlabs.py), so price that key.
     price = prices.get(
         ("provider_call", f"{preset.voice_provider}/{preset.voice_model}", "character")

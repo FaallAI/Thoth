@@ -6,7 +6,12 @@ import pytest
 from pydantic import ValidationError
 
 from thoth_control_plane.domain.narration import BEAT_ORDER
-from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
+from thoth_control_plane.domain.style_templates import (
+    BUILT_IN_STYLES,
+    DEFAULT_DELIVERY,
+    NarrationRules,
+    StyleTemplate,
+)
 
 
 def test_both_built_in_styles_cover_every_beat() -> None:
@@ -72,3 +77,21 @@ def test_no_built_in_style_caps_the_half_phrase_rule() -> None:
     # Item 86 capped Style A's slow phrases; at Style B's rhythm (item 88) half a phrase is at
     # most 1.2 s, so the cap stays available to a style but no built-in one sets it.
     assert all(s.cuts.pick_cap_seconds is None for s in BUILT_IN_STYLES.values())
+
+
+def test_built_in_styles_define_distinct_delivery_profiles() -> None:
+    """Stressed delivery (spec 2026-11-24, 5.2): Style A expressive, Style B calm."""
+    a = BUILT_IN_STYLES["style_a"].narration.delivery
+    assert (a.stability, a.max_tags_per_beat) == (0.45, 3)
+    assert a.tags == ("curious", "amused", "excited", "surprised", "emphatically", "whispers")
+    b = BUILT_IN_STYLES["style_b"].narration.delivery
+    assert (b.stability, b.max_tags_per_beat) == (0.50, 2)
+    assert b.tags == ("seriously", "intrigued", "emphatically", "thoughtful")
+    assert "amused" not in b.tags
+
+
+def test_narration_rules_decodes_without_delivery_field() -> None:
+    assert NarrationRules(starter="x").delivery == DEFAULT_DELIVERY
+    assert DEFAULT_DELIVERY.stability == 0.48
+    assert DEFAULT_DELIVERY.tags == ("curious", "emphatically", "intrigued", "seriously")
+    assert DEFAULT_DELIVERY.max_tags_per_beat == 3
