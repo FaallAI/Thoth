@@ -63,8 +63,14 @@ class DeliveryRules(StrictModel):
 
     #: Lower is more expressive; ElevenLabs' own default is 0.5.
     stability: Annotated[float, Field(ge=0.0, le=1.0)] = 0.48
-    #: The audio tags the script may use, written as `[tag]` before the words they stress.
-    tags: tuple[str, ...] = ("curious", "emphatically", "intrigued", "seriously")
+    #: The audio tags the script may use, written as `[tag]` before the words they stress. A
+    #: stored template is JSON, where the tuple comes back as a list.
+    tags: Annotated[tuple[str, ...], Field(strict=False)] = (
+        "curious",
+        "emphatically",
+        "intrigued",
+        "seriously",
+    )
     max_tags_per_beat: Annotated[int, Field(ge=1, le=6)] = 3
     guide: Annotated[str, Field(min_length=1, max_length=600)] = (
         "Use tags sparingly before contrast words, key names, numbers, or surprising turns."

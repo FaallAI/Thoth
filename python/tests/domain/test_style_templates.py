@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -95,3 +97,10 @@ def test_narration_rules_decodes_without_delivery_field() -> None:
     assert DEFAULT_DELIVERY.stability == 0.48
     assert DEFAULT_DELIVERY.tags == ("curious", "emphatically", "intrigued", "seriously")
     assert DEFAULT_DELIVERY.max_tags_per_beat == 3
+
+
+def test_a_stored_template_with_its_delivery_reads_back() -> None:
+    """A template is stored as JSON, where the delivery tags come back as a list."""
+    for style in BUILT_IN_STYLES.values():
+        stored = json.loads(style.model_dump_json())
+        assert StyleTemplate.model_validate(stored) == style
