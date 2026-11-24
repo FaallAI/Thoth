@@ -56,6 +56,8 @@ The Postgres suite also caught stored style templates failing to decode their ta
 - `voice say --speed` says when the model ignores it;
 - every unstyled template gets its own default `DeliveryRules`.
 
+**CI fix:** PR #135's image build failed because `camoufox set` and `fetch` list releases through the GitHub API. Anonymously, the shared runner hit the rate limit (403), and both commands still exited 0, so the browser was never installed and the image's launch check failed. The build now passes the workflow's `GITHUB_TOKEN` as a BuildKit secret, which Camoufox reads. The token never lands in a layer, and a local build without it runs anonymously as before.
+
 **Kept as the spec says:** sanitizing still drops every bracketed span that is not an allowed tag, whole. A first fix that read spans of more than 3 words aloud was reverted after a side note showed a stage note such as `[musik dramatis mulai pelan-pelan]` would be spoken in a paid voice. `test_sanitize_never_lets_a_stage_note_be_spoken` pins the rule. The accepted cost: a word the model wraps in brackets by mistake is not spoken.
 
 **Operator note:** Eleven v4 read the spike line about 15% slower (8.4 s against 7.3 s) and has no speed setting. The operator accepts this as part of the expressive delivery (item 100). The live check compares voice length with the target.

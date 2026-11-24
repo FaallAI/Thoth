@@ -55,7 +55,13 @@ RUN /opt/thoth/python/.venv/bin/python /opt/thoth/bin/fetch_speech_models.py \
 # and `scrapling install` would add playwright's as a second copy (the 2026-10-23 refresh
 # shipped patchright without its browser and every card visit failed as headless_blocked).
 # The tld snapshot keeps the one other thing `scrapling install` used to bake in.
-RUN /opt/thoth/python/.venv/bin/patchright install --with-deps chromium \
+# `camoufox set`/`fetch` list releases through the GitHub API: anonymously a shared CI runner
+# hits its rate limit (PR #135, 2026-11-24), and both commands still exit 0. CI passes its
+# token as a build secret, which Camoufox reads from GITHUB_TOKEN; it never lands in a layer,
+# and a local build without the secret runs anonymously as before.
+RUN --mount=type=secret,id=github_token,required=false \
+    export GITHUB_TOKEN="$(cat /run/secrets/github_token 2>/dev/null || true)" \
+    && /opt/thoth/python/.venv/bin/patchright install --with-deps chromium \
     && /opt/thoth/python/.venv/bin/python -m playwright install-deps firefox \
     && /opt/thoth/python/.venv/bin/python -c "from tld.utils import update_tld_names; update_tld_names(fail_silently=True)" \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox set official/stable/156.0.1-beta.36 \
