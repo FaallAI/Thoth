@@ -49,13 +49,14 @@ A paid listening spike (401 input characters) settled the choice: Eleven v4 with
 
 The Postgres suite also caught stored style templates failing to decode their tag list; that was fixed test-first.
 
-**Deferred minors:**
-- `language_code` is sent as the preset language without checking it is a two-letter code;
-- the dashboard re-voice cost counts tag characters on an older v2 draft;
-- sanitizing removes any bracketed span, so words inside a stray bracket are lost;
-- a voice's length is the last word's end, so sound from a trailing tag is cut;
-- `voice say --speed` does nothing on v4 and does not say so;
-- `NarrationRules.delivery` shares one default instance.
+**Review minors, fixed test-first on the operator's word ("tolong perbaiki minor sekalian"):**
+- `language_code` is the preset language's primary subtag: `id-ID` is sent as `id`;
+- each estimate names the model it counted for (`VoiceEstimate.voice_model`, default None), and the dashboard prices a re-voiced beat without tags unless the draft is on `eleven_v4`;
+- a voice's length runs to the end of its alignment, so the sound of a trailing tag such as `[laughs]` is not cut;
+- `voice say --speed` says when the model ignores it;
+- every unstyled template gets its own default `DeliveryRules`.
+
+**Kept as the spec says:** sanitizing still drops every bracketed span that is not an allowed tag, whole. A first fix that read spans of more than 3 words aloud was reverted after a side note showed a stage note such as `[musik dramatis mulai pelan-pelan]` would be spoken in a paid voice. `test_sanitize_never_lets_a_stage_note_be_spoken` pins the rule. The accepted cost: a word the model wraps in brackets by mistake is not spoken.
 
 **Operator note:** Eleven v4 read the spike line about 15% slower (8.4 s against 7.3 s) and has no speed setting. The operator accepts this as part of the expressive delivery (item 100). The live check compares voice length with the target.
 
