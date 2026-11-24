@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 35
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 36
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -92,7 +92,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 29  # 35 minus the 6 applied by hand
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 30  # 36 minus the 6 applied by hand
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -402,10 +402,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0034_footage_said.py").unlink()
     (before / "0035_footage_relation.sql").unlink()
     (before / "alembic" / "versions" / "0035_footage_relation.py").unlink()
+    (before / "0036_stressed_voice_model.sql").unlink()
+    (before / "alembic" / "versions" / "0036_stressed_voice_model.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 22
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 23
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -569,3 +571,53 @@ def test_every_prompt_stage_check_accepts_every_registered_stage() -> None:
     for table, definition in checks:
         for stage in get_args(PromptStageId):
             assert f"'{stage}'" in definition, (table, stage)
+
+
+def test_migration_0036_upgrades_default_v2_presets_only() -> None:
+    """Stressed delivery (spec 2026-11-24, 5.6): projects on the old default move to Eleven v4;
+    a chosen model and every stored narration's own snapshot stay as they were."""
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    v2 = {
+        "voice_id": "plgKUYgnlZ1DCNh54DwJ",
+        "voice_model": "eleven_multilingual_v2",
+        "language": "id",
+    }
+    with psycopg.connect(DATABASE_URL) as connection:
+        # Back to 0035, with a project on the old default, one on its own model, and a draft.
+        connection.execute("UPDATE alembic_version SET version_num = '0035'")
+        connection.execute(
+            "INSERT INTO narration_presets (project_id, preset, revision) VALUES (%s, %s, 13), "
+            "(%s, %s, 2)",
+            (
+                "proj_a",
+                psycopg.types.json.Jsonb(v2),
+                "proj_b",
+                psycopg.types.json.Jsonb({**v2, "voice_model": "custom_model"}),
+            ),
+        )
+        connection.execute(
+            "INSERT INTO narrations (document_id, project_id, workflow_id, status, preset) "
+            "VALUES ('edoc_old', 'proj_a', 'wf_old', 'completed', %s)",
+            (psycopg.types.json.Jsonb(v2),),
+        )
+
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 1
+
+    def rows() -> dict[str, tuple[dict, int]]:
+        with psycopg.connect(DATABASE_URL) as connection:
+            found = connection.execute(
+                "SELECT project_id, preset, revision FROM narration_presets"
+            ).fetchall()
+        return {project: (preset, revision) for project, preset, revision in found}
+
+    presets = rows()
+    assert presets["proj_a"] == ({**v2, "voice_model": "eleven_v4"}, 14)
+    assert presets["proj_b"] == ({**v2, "voice_model": "custom_model"}, 2)
+    with psycopg.connect(DATABASE_URL) as connection:
+        snapshot = connection.execute(
+            "SELECT preset->>'voice_model' FROM narrations WHERE document_id = 'edoc_old'"
+        ).fetchone()
+    assert snapshot == ("eleven_multilingual_v2",)
+
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
+    assert rows()["proj_a"][1] == 14
