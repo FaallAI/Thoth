@@ -7,6 +7,8 @@
 -- rejects, so first run
 --   UPDATE narration_presets SET preset = jsonb_set(preset, '{voice_model}',
 --     '"eleven_multilingual_v2"'::jsonb) WHERE preset->>'voice_model' = 'eleven_v4';
+-- A narration started on eleven_v4 keeps eleven_v4 in its own snapshot and tags in its script,
+-- so after such a rollback its beats cannot be re-voiced: restart that narration instead.
 UPDATE narration_presets
 SET preset = jsonb_set(preset, '{voice_model}', '"eleven_v4"'::jsonb),
     revision = revision + 1,

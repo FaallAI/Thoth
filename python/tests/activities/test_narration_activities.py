@@ -900,3 +900,20 @@ def test_voice_and_revoice_pass_style_stability() -> None:
     assert set(_stabilities(*styled_ports("style_a"))) == {0.45}
     assert set(_stabilities(*styled_ports("style_b"))) == {0.50}
     assert set(_stabilities(*ports())) == {0.48}
+
+
+def test_an_unreadable_draft_voices_with_the_default_stability_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    built, seen = styled_ports("style_a")
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    async def down(_p: str, _d: str) -> Any:
+        raise RuntimeError("database down")
+
+    seen["documents"].get_latest = down
+    with caplog.at_level("WARNING"):
+        run(activities.voice(STEP))
+    assert {request.stability for request in seen["voice"].requests} == {0.48}
+    assert any("default delivery" in record.message for record in caplog.records)

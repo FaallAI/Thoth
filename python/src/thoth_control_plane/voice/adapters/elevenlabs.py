@@ -26,6 +26,9 @@ from thoth_control_plane.voice.ports import (
 #: Reads inline audio tags (spec 2026-11-24); it takes no `speed`, and v2 ignores `language_code`.
 DEFAULT_MODEL = "eleven_v4"
 BASE_URL = "https://api.elevenlabs.io"
+_CLOSING_PUNCTUATION = frozenset(".,!?;:")
+#: Models with no speed setting (ElevenLabs docs): v3 reads no tags here, but takes no speed.
+_NO_SPEED = ("eleven_v3", "eleven_v4")
 
 
 def _tag_end(characters: list[str], index: int) -> int | None:
@@ -52,6 +55,7 @@ def words_from_alignment(alignment: dict[str, Any]) -> list[WordTiming]:
         raise ValueError("alignment arrays differ in length")
     words: list[WordTiming] = []
     text, start, end = "", 0.0, 0.0
+    after_tag = False  # punctuation right after a tag closes the word before it
     index = 0
     while index < len(characters):
         char, char_start, char_end = characters[index], starts[index], ends[index]
@@ -60,8 +64,16 @@ def words_from_alignment(alignment: dict[str, Any]) -> list[WordTiming]:
             if text:
                 words.append(WordTiming(text=text, start_seconds=start, end_seconds=end))
                 text = ""
+            after_tag = close is not None or (after_tag and not char.isspace())
             index = close + 1 if close is not None else index + 1
             continue
+        if after_tag and not text and words and char in _CLOSING_PUNCTUATION:
+            # "Halo [curious]." is spoken "Halo.", as strip_audio_tags writes it.
+            last = words[-1]
+            words[-1] = last.model_copy(update={"text": last.text + char, "end_seconds": char_end})
+            index += 1
+            continue
+        after_tag = False
         if not text:
             start = char_start
         text, end = text + char, char_end
@@ -92,15 +104,18 @@ class ElevenLabsVoice:
         model_id = request.model or DEFAULT_MODEL
         body: dict[str, Any] = {"model_id": model_id}
         settings: dict[str, Any] = {}
+        spoken = strip_audio_tags(request.text)
+        if not spoken:
+            # Tags alone are no speech: never paid for, on any model.
+            raise VoiceRejected("empty_text_after_tag_strip")
         if supports_audio_tags(model_id):
-            # v4 speaks the tags as delivery, takes the language, and has no speed setting.
+            # v4 speaks the tags as delivery and takes the language.
             body["text"] = request.text
             body["language_code"] = request.language
         else:
             # An older model would read a tag aloud, so it never sees one.
-            body["text"] = strip_audio_tags(request.text)
-            if not body["text"]:
-                raise VoiceRejected("empty_text_after_tag_strip")
+            body["text"] = spoken
+        if not model_id.startswith(_NO_SPEED):
             settings["speed"] = request.speed
         if request.stability is not None:
             settings["stability"] = request.stability
@@ -132,7 +147,7 @@ class ElevenLabsVoice:
         cost = response.headers.get("character-cost", "")
         await metering.record_call(
             f"elevenlabs/{body['model_id']}",
-            characters=int(cost) if cost.isdigit() else len(request.text),
+            characters=int(cost) if cost.isdigit() else len(body["text"]),
         )
         try:
             payload = response.json()

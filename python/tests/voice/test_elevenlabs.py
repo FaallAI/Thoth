@@ -290,3 +290,53 @@ def test_spike_shaped_v4_alignment_yields_only_spoken_words() -> None:
     assert [(w.start_seconds, w.end_seconds) for w in words] == pytest.approx(
         [(s, e) for _, s, e in spoken]
     )
+
+
+# Final review fixes (2026-11-24).
+def test_punctuation_right_after_a_tag_stays_on_the_word_before() -> None:
+    """`Halo [curious].` is spoken "Halo." : a lone "." would be a caption and shift word_index."""
+    text = "Halo [curious]. Lagi [amused]!? ya"
+    words = words_from_alignment(_alignment(text))
+    dot, marks = text.index("."), text.index("!?")
+    assert [(w.text, w.end_seconds) for w in words] == [
+        ("Halo.", round((dot + 1) * 0.1, 3)),
+        ("Lagi!?", round((marks + 2) * 0.1, 3)),
+        ("ya", round(len(text) * 0.1, 3)),
+    ]
+    assert words[0].start_seconds == 0.0
+
+
+async def test_v4_rejects_a_beat_of_tags_only_before_any_call() -> None:
+    seen: dict[str, object] = {}
+    with pytest.raises(VoiceRejected) as caught:
+        await ElevenLabsVoice("k", transport=_ok(seen)).synthesize(
+            VoiceRequest(text="[curious]", voice_id="v", model="eleven_v4")
+        )
+    assert str(caught.value) == "empty_text_after_tag_strip"
+    assert "calls" not in seen
+
+
+async def test_v3_never_gets_speed() -> None:
+    """Eleven v3 has no speed setting either (spec 2026-11-24, anti-goals); no tags reach it."""
+    seen: dict[str, object] = {}
+    await ElevenLabsVoice("k", transport=_ok(seen)).synthesize(
+        VoiceRequest(text="[curious] Halo.", voice_id="v", model="eleven_v3", speed=1.2)
+    )
+    body = seen["body"]
+    assert body["text"] == "Halo."  # type: ignore[index]
+    assert "voice_settings" not in body  # type: ignore[operator]
+
+
+async def test_without_the_cost_header_v2_is_billed_the_text_it_was_sent(monkeypatch) -> None:
+    from thoth_control_plane import metering
+
+    billed: list[tuple[str, int | None]] = []
+
+    async def record_call(key: str, *, characters: int | None = None, **_: object) -> None:
+        billed.append((key, characters))
+
+    monkeypatch.setattr(metering, "record_call", record_call)
+    await ElevenLabsVoice("k", transport=_ok({})).synthesize(
+        VoiceRequest(text="[curious] Halo.", voice_id="v", model="eleven_multilingual_v2")
+    )
+    assert billed == [("elevenlabs/eleven_multilingual_v2", len("Halo."))]

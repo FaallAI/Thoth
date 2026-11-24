@@ -345,7 +345,7 @@ class NarrationActivities:
             document = await self._ports.documents.get_latest(step.project_id, step.document_id)
         except Exception:
             # Unreadable draft: voice with the moderate default rather than not at all.
-            logger.debug("narration style unreadable; default delivery", exc_info=True)
+            logger.warning("narration style unreadable; voicing with the default delivery")
             return DEFAULT_DELIVERY.stability
         return _delivery_for(_style_of(document)).stability
 
