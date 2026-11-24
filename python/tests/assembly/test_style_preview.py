@@ -75,3 +75,16 @@ def test_the_preview_skips_the_title_card_like_the_first_voice() -> None:
 
     assert main_starts(preview_document(draft(), a, SCRIPT, PRESET, ROLES)) < 30
     assert main_starts(preview_document(draft(), a, SCRIPT, PRESET, ROLES, intro_frames=30)) >= 30
+
+
+def test_estimated_words_strips_audio_tags() -> None:
+    """A tag is not spoken, so it is no preview caption and takes no time (spec 2026-11-24)."""
+    script = NarrationScript.model_validate(
+        {
+            "beats": [{"beat": "hook", "text": "[curious] Kelihatannya sih [amused] Mutant suka."}],
+            "sfx_cues": [],
+        }
+    )
+    words = estimated_words(script, NarrationPreset(words_per_second=2.0))
+    assert [word.text for word in words["hook"]] == ["Kelihatannya", "sih", "Mutant", "suka."]
+    assert words["hook"][-1].end_seconds == 2.0

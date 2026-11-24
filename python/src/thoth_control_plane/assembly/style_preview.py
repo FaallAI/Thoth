@@ -15,6 +15,7 @@ from thoth_control_plane.assembly.narration_timeline import VoicedBeat, narrate_
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2, TimelineAudioClip
 from thoth_control_plane.domain.narration import BeatId, NarrationPreset, NarrationScript
 from thoth_control_plane.domain.style_templates import StyleTemplate
+from thoth_control_plane.voice.audio_tags import strip_audio_tags
 from thoth_control_plane.voice.ports import WordTiming
 
 PREVIEW_PREFIX = "asset_preview_voice_"
@@ -23,15 +24,16 @@ PREVIEW_PREFIX = "asset_preview_voice_"
 def estimated_words(
     script: NarrationScript, preset: NarrationPreset
 ) -> dict[BeatId, list[WordTiming]]:
-    """Each beat's words, one after another at the preset's words per second."""
+    """Each beat's spoken words (audio tags dropped), one after another at the preset's rate."""
     step = 1.0 / preset.words_per_second
+    spoken = {beat.beat: strip_audio_tags(beat.text).split() for beat in script.beats}
     return {
-        beat.beat: [
+        beat: [
             WordTiming(text=word, start_seconds=index * step, end_seconds=(index + 1) * step)
-            for index, word in enumerate(beat.text.split())
+            for index, word in enumerate(words)
         ]
-        for beat in script.beats
-        if beat.text.split()
+        for beat, words in spoken.items()
+        if words
     }
 
 

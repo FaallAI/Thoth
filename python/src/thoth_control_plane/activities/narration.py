@@ -60,7 +60,13 @@ from thoth_control_plane.domain.narration import (
 from thoth_control_plane.domain.prompts import PROMPT_STARTERS
 from thoth_control_plane.domain.story_beats import beat_spans
 from thoth_control_plane.domain.style_apply import edited_beats
-from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
+from thoth_control_plane.domain.style_templates import (
+    BUILT_IN_STYLES,
+    DEFAULT_DELIVERY,
+    DeliveryRules,
+    StyleTemplate,
+)
+from thoth_control_plane.voice.audio_tags import strip_audio_tags
 from thoth_control_plane.voice.loudness import normalize_loudness
 from thoth_control_plane.voice.ports import (
     VoiceNotConfigured,
@@ -148,6 +154,15 @@ def _style_of(document: Any) -> StyleTemplate | None:
     (spec 2026-11-10); an unknown one narrates as before."""
     applied = getattr(document, "style", None)
     return BUILT_IN_STYLES.get(applied.template_id) if applied is not None else None
+
+
+def _delivery_for(style: StyleTemplate | None) -> DeliveryRules:
+    """How the draft's narration is stressed: its style's delivery, else the moderate default."""
+    return style.narration.delivery if style is not None else DEFAULT_DELIVERY
+
+
+def _spoken_words(script: NarrationScript) -> int:
+    return sum(len(strip_audio_tags(beat.text).split()) for beat in script.beats)
 
 
 def _styled_preset(preset: NarrationPreset, style: StyleTemplate) -> NarrationPreset:
@@ -242,6 +257,7 @@ class NarrationActivities:
                     prompt = PROMPT_STARTERS[STAGE].body
             card_lines = style is not None and style.narration.card_lines
             card_words = style.narration.card_line_max_words if style is not None else 6
+            delivery = _delivery_for(style)
             system, user = build_script_request(
                 prompt=prompt,
                 beats=beats,  # type: ignore[arg-type]
@@ -252,6 +268,7 @@ class NarrationActivities:
                 note=step.note,
                 card_lines=card_lines,
                 card_line_max_words=card_words,
+                delivery=delivery,
             )
             script = None
             short = None  # a script far below its length, kept in case the retry is no better
@@ -270,8 +287,10 @@ class NarrationActivities:
                         preset=preset,
                         sfx_ids={entry.sfx_id for entry in sfx},  # type: ignore[arg-type]
                         card_line_max_words=card_words if card_lines else None,
+                        allowed_tags=frozenset(delivery.tags),
+                        max_tags_per_beat=delivery.max_tags_per_beat,
                     )
-                    words = sum(len(beat.text.split()) for beat in script.beats)
+                    words = _spoken_words(script)
                     # Draft edoc_3ee4719b (2026-11-17): 52 words for a 135-word target left the
                     # video half as long and its b-roll thin. Asked once more; never a failure.
                     if words < wanted * MIN_LENGTH_SHARE and attempt < SCRIPT_ATTEMPTS:
@@ -288,7 +307,7 @@ class NarrationActivities:
                         )
                         continue
                     if short is not None:
-                        longer = sum(len(beat.text.split()) for beat in short.beats)
+                        longer = _spoken_words(short)
                         script = script if words >= longer else short
                     break
                 except (ProviderInvalidOutput, ScriptInvalid) as error:
@@ -320,6 +339,16 @@ class NarrationActivities:
             )
         return NarrationStepResult()
 
+    async def _stability(self, step: NarrationStepInput) -> float:
+        """The draft style's stability, so a re-voiced beat keeps its style's delivery."""
+        try:
+            document = await self._ports.documents.get_latest(step.project_id, step.document_id)
+        except Exception:
+            # Unreadable draft: voice with the moderate default rather than not at all.
+            logger.debug("narration style unreadable; default delivery", exc_info=True)
+            return DEFAULT_DELIVERY.stability
+        return _delivery_for(_style_of(document)).stability
+
     async def _voice_beats(
         self,
         project_id: str,
@@ -327,6 +356,7 @@ class NarrationActivities:
         preset: NarrationPreset,
         beats: set[str],
         on_voice: Callable[[VoiceRef], Awaitable[None]],
+        stability: float | None = None,
     ) -> None:
         """Voice the named beats, handing each voice over as soon as it exists, so a retry
         after a failure never pays for a beat twice (ElevenLabs bills per call)."""
@@ -342,6 +372,7 @@ class NarrationActivities:
                     language=preset.language,
                     voice_id=preset.voice_id,
                     model=preset.voice_model,
+                    stability=stability,
                     previous_text=script.beats[index - 1].text if index > 0 else None,
                     next_text=script.beats[index + 1].text
                     if index + 1 < len(script.beats)
@@ -380,6 +411,7 @@ class NarrationActivities:
                 voices.sort(key=lambda item: BEAT_ORDER.index(item.beat))
                 await ports.store.set_voices(step.document_id, voices)
 
+            stability = await self._stability(step)
             try:
                 await self._voice_beats(
                     step.project_id,
@@ -387,6 +419,7 @@ class NarrationActivities:
                     preset,
                     {beat.beat for beat in script.beats} - done,
                     keep,
+                    stability,
                 )
             except VoiceNotConfigured:
                 return await self._fail(step.document_id, "voice_not_configured")
@@ -533,8 +566,11 @@ class NarrationActivities:
                 voices.sort(key=lambda item: BEAT_ORDER.index(item.beat))
                 await ports.store.set_voices(step.document_id, voices)
 
+            stability = await self._stability(step)
             try:
-                await self._voice_beats(step.project_id, script, preset, {step.beat}, keep)
+                await self._voice_beats(
+                    step.project_id, script, preset, {step.beat}, keep, stability
+                )
             except VoiceNotConfigured:
                 return NarrationStepResult(code="voice_not_configured")
             except VoiceRejected:
