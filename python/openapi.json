@@ -10581,6 +10581,17 @@
           "voice_id": {
             "title": "Voice Id",
             "type": "string"
+          },
+          "voice_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Model"
           }
         },
         "required": [

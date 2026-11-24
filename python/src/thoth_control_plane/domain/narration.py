@@ -111,6 +111,9 @@ class VoiceEstimate(StrictModel):
     voice_id: str
     #: None when no price is set (prices stay unset until billing go-live).
     usd: float | None = None
+    #: The model the characters were counted for (tags count on Eleven v4 only); None on
+    #: estimates stored before 2026-11-24, which were all counted without tags.
+    voice_model: str | None = None
 
 
 class NarrationState(StrictModel):
@@ -149,6 +152,7 @@ def estimate_voice(
         characters=characters,
         provider=preset.voice_provider,
         voice_id=preset.voice_id,
+        voice_model=preset.voice_model,
         usd=None if price is None else characters * price,
     )
 

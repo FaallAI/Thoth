@@ -5502,6 +5502,8 @@ export interface components {
             usd?: number | null;
             /** Voice Id */
             voice_id: string;
+            /** Voice Model */
+            voice_model?: string | null;
         };
         /**
          * VolumeKeyframe

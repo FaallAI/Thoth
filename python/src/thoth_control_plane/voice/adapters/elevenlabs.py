@@ -31,6 +31,11 @@ _CLOSING_PUNCTUATION = frozenset(".,!?;:")
 _NO_SPEED = ("eleven_v3", "eleven_v4")
 
 
+def takes_speed(model_id: str | None) -> bool:
+    """Whether the model honours `voice_settings.speed`; a missing model is the default."""
+    return not (model_id or DEFAULT_MODEL).startswith(_NO_SPEED)
+
+
 def _tag_end(characters: list[str], index: int) -> int | None:
     """The index of the `]` closing an audio tag that opens at `index`, if one does."""
     for close in range(index + 1, min(len(characters), index + 42)):
@@ -111,11 +116,12 @@ class ElevenLabsVoice:
         if supports_audio_tags(model_id):
             # v4 speaks the tags as delivery and takes the language.
             body["text"] = request.text
-            body["language_code"] = request.language
+            # ISO 639-1 is what ElevenLabs takes: "id-ID" is sent as "id".
+            body["language_code"] = request.language.replace("_", "-").split("-")[0].lower()
         else:
             # An older model would read a tag aloud, so it never sees one.
             body["text"] = spoken
-        if not model_id.startswith(_NO_SPEED):
+        if takes_speed(model_id):
             settings["speed"] = request.speed
         if request.stability is not None:
             settings["stability"] = request.stability
@@ -154,10 +160,12 @@ class ElevenLabsVoice:
             audio = base64.b64decode(payload["audio_base64"])
             alignment = payload.get("alignment")
             words = words_from_alignment(alignment) if alignment else None
+            # A trailing tag such as [laughs] is heard after the last word: keep its sound.
+            spoken_until = max(alignment["character_end_times_seconds"]) if words else 0.0
         except (ValueError, KeyError, TypeError):
             # A proxy error page or a changed body shape: retryable, and never echoed back.
             raise VoiceUnavailable("elevenlabs_bad_response") from None
-        duration = words[-1].end_seconds if words else probe_duration(audio)
+        duration = max(words[-1].end_seconds, spoken_until) if words else probe_duration(audio)
         return SynthesizedVoice(
             audio=audio,
             media_type="audio/mpeg",

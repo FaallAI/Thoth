@@ -31,7 +31,9 @@ def strip_audio_tags(text: str) -> str:
 
 
 def sanitize_script_tags(text: str, allowed: frozenset[str], *, max_tags: int | None = None) -> str:
-    """Keep the first ``max_tags`` allowed tags, lower-cased; drop every other bracketed span."""
+    """Keep the first ``max_tags`` allowed tags, lower-cased; drop every other bracketed span
+    whole. A model's stage note (``[tertawa]``, ``[musik dramatis mulai]``) must never be read
+    aloud in a paid voice, even at the cost of a word it wrapped by mistake (spec 5.1)."""
     kept = 0
 
     def keep_or_drop(match: re.Match[str]) -> str:

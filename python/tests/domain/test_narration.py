@@ -10,6 +10,7 @@ from thoth_control_plane.domain.narration import (
     NarrationPreset,
     NarrationScript,
     ScriptBeat,
+    VoiceEstimate,
     estimate_voice,
 )
 
@@ -75,3 +76,11 @@ def test_estimate_voice_counts_tags_on_v4_and_strips_on_v2() -> None:
     assert estimate_voice(script, NarrationPreset(voice_model="eleven_v4"), {}).characters == 21
     v2 = NarrationPreset(voice_model="eleven_multilingual_v2")
     assert estimate_voice(script, v2, {}).characters == 11
+
+
+def test_the_estimate_names_the_model_it_counted_for() -> None:
+    """The dashboard prices a re-voiced beat the way this estimate counted (tags or not)."""
+    script = NarrationScript(beats=[ScriptBeat(beat="hook", text="Halo")], sfx_cues=[])
+    v2 = NarrationPreset(voice_model="eleven_multilingual_v2")
+    assert estimate_voice(script, v2, {}).voice_model == "eleven_multilingual_v2"
+    assert VoiceEstimate(characters=1, provider="elevenlabs", voice_id="v").voice_model is None

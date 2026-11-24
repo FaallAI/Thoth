@@ -340,3 +340,27 @@ async def test_without_the_cost_header_v2_is_billed_the_text_it_was_sent(monkeyp
         VoiceRequest(text="[curious] Halo.", voice_id="v", model="eleven_multilingual_v2")
     )
     assert billed == [("elevenlabs/eleven_multilingual_v2", len("Halo."))]
+
+
+# Deferred minors, fixed 2026-11-24.
+async def test_v4_sends_the_primary_language_subtag() -> None:
+    seen: dict[str, object] = {}
+    await ElevenLabsVoice("k", transport=_ok(seen)).synthesize(
+        VoiceRequest(text="Halo.", voice_id="v", model="eleven_v4", language="id-ID")
+    )
+    assert seen["body"]["language_code"] == "id"  # type: ignore[index]
+
+
+async def test_a_trailing_tag_keeps_its_sound_in_the_duration() -> None:
+    """`[laughs]` at the end of a beat is heard after the last word: the clip must not cut it."""
+    text = "Halo [laughs]"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        audio = base64.b64encode(b"MP3").decode()
+        return httpx.Response(200, json={"audio_base64": audio, "alignment": _alignment(text)})
+
+    voice = await ElevenLabsVoice("k", transport=httpx.MockTransport(handler)).synthesize(
+        VoiceRequest(text=text, voice_id="v", model="eleven_v4")
+    )
+    assert [w.text for w in voice.word_timings or []] == ["Halo"]
+    assert voice.duration_seconds == pytest.approx(len(text) * 0.1)

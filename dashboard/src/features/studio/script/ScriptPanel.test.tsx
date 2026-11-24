@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import type { NarrationState } from "@/api/control-plane";
 import { render } from "@/test-render";
 
+import { revoiceCost } from "./RevoiceConfirm";
 import { ScriptPanel } from "./ScriptPanel";
 
 afterEach(cleanup);
@@ -245,4 +246,12 @@ test("audio tags render subtly in approval without unsupported underlines and st
     <ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={{ ...tagged, status: "completed" }} onChange={() => {}} />,
   );
   expect((screen.getByRole("textbox", { name: "Main" }) as HTMLTextAreaElement).value).toBe(text);
+});
+
+test("a re-voice on an older v2 draft is priced on the words the voice is sent, without tags", () => {
+  const beats = [{ beat: "main" as const, text: "[curious] Halo" }];
+  const base = { ...awaiting, script: { ...awaiting.script!, beats }, estimate: { characters: 10, provider: "elevenlabs", voice_id: "plgK", usd: 1 } };
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: "eleven_multilingual_v2" } }, ["main"])).toEqual({ characters: 4, usd: 0.4 });
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: null } }, ["main"]).characters).toBe(4);
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: "eleven_v4" } }, ["main"]).characters).toBe(14);
 });

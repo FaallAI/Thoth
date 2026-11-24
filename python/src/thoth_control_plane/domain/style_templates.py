@@ -88,7 +88,8 @@ class NarrationRules(StrictModel):
     card_line_max_words: Annotated[int, Field(ge=1, le=12)] = 6
     card_seconds: Annotated[float, Field(gt=0.0, le=10.0)] = 2.0
     max_sfx_cues: Annotated[int, Field(ge=0, le=10)] | None = None
-    delivery: DeliveryRules = Field(default_factory=lambda: DEFAULT_DELIVERY)
+    #: Its own copy of the default, so no two templates share one instance.
+    delivery: DeliveryRules = Field(default_factory=DeliveryRules)
 
 
 class StyleTemplate(StrictModel):

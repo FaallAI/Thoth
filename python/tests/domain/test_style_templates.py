@@ -104,3 +104,9 @@ def test_a_stored_template_with_its_delivery_reads_back() -> None:
     for style in BUILT_IN_STYLES.values():
         stored = json.loads(style.model_dump_json())
         assert StyleTemplate.model_validate(stored) == style
+
+
+def test_each_unstyled_rule_gets_its_own_delivery() -> None:
+    first, second = NarrationRules(starter="x"), NarrationRules(starter="y")
+    assert first.delivery == second.delivery == DEFAULT_DELIVERY
+    assert first.delivery is not second.delivery
