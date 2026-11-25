@@ -52,6 +52,12 @@ WORKDIR /opt/thoth/renderer
 COPY --chown=thoth:thoth renderer/package.json renderer/bun.lock /opt/thoth/renderer/
 RUN bun install --frozen-lockfile --production
 
+# Fetch the pinned browser now, before copying source files, so TSX/TS edits reuse this layer
+# and a render never reaches the network. The installs above ran as root against this HOME, so
+# hand its caches back or the service user cannot transpile a single file.
+RUN bun --eval "await import('@remotion/renderer').then((m) => m.ensureBrowser())" \
+    && chown -R thoth:thoth /opt/thoth/renderer/node_modules /home/thoth
+
 # Sources and typefaces only: the release capsule the parity harness compares
 # against is a repository fixture, and this image renders projects, not releases.
 COPY --chown=thoth:thoth packages/remotion-composition/src/ /opt/thoth/packages/remotion-composition/src/
@@ -59,12 +65,6 @@ COPY --chown=thoth:thoth packages/remotion-composition/src/ /opt/thoth/packages/
 # the layer keeps them out of the image rather than deleting them from it.
 COPY --chown=thoth:thoth --exclude=release-capture.tsx --exclude=release-preview-entry.tsx --exclude=release-capture.test.ts renderer/src/ /opt/thoth/renderer/src/
 COPY --chown=thoth:thoth renderer/tsconfig.json /opt/thoth/renderer/
-
-# Fetch the pinned browser now so a render never reaches the network.
-# The installs above ran as root against this HOME, so hand its caches back or
-# the service user cannot transpile a single file.
-RUN bun --eval "await import('@remotion/renderer').then((m) => m.ensureBrowser())" \
-    && chown -R thoth:thoth /opt/thoth/renderer/node_modules /home/thoth
 
 EXPOSE 8080
 

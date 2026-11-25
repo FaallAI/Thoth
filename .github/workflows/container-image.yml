@@ -6,7 +6,15 @@ on:
       - "**"
     tags:
       - "v*"
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".superpowers/**"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".superpowers/**"
   # The yt-dlp update workflow dispatches a build after it merges a bump.
   workflow_dispatch:
 
@@ -25,7 +33,12 @@ env:
 jobs:
   quality:
     name: Offline quality gates
+    # Internal branches already run this workflow on push; keep pull_request for forks only.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
+    outputs:
+      parity_needed: ${{ steps.changes.outputs.parity_needed }}
+      smoke_needed: ${{ steps.changes.outputs.smoke_needed }}
     services:
       postgres:
         image: postgres:16.4-bookworm@sha256:e62fbf9d3e2b49816a32c400ed2dba83e3b361e6833e624024309c35d334b412
@@ -44,13 +57,53 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      - name: Install media test dependencies
+      - name: Detect changed scopes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends ffmpeg
-          test -x "$THOTH_FFMPEG"
-          test -x "$THOTH_FFPROBE"
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ] || [ "$REF_NAME" = "refs/heads/master" ] || [[ "$REF_NAME" == refs/tags/* ]]; then
+            echo "parity_needed=true" >> "$GITHUB_OUTPUT"
+            echo "smoke_needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="$BEFORE_SHA"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            if git rev-parse --verify origin/master >/dev/null 2>&1; then
+              base="$(git merge-base origin/master "$HEAD_SHA")"
+            else
+              echo "parity_needed=true" >> "$GITHUB_OUTPUT"
+              echo "smoke_needed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          parity="false"
+          smoke="false"
+          if printf '%s\n' "$changed" | grep -Eq '^(packages/remotion-composition/|renderer/|Dockerfile\.renderer-f1|\.github/workflows/container-image\.yml)'; then
+            parity="true"
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^(Dockerfile|compose\.|docker/|deploy/|python/migrations/|renderer/|packages/remotion-composition/|\.github/workflows/container-image\.yml)'; then
+            smoke="true"
+          fi
+          echo "parity_needed=$parity" >> "$GITHUB_OUTPUT"
+          echo "smoke_needed=$smoke" >> "$GITHUB_OUTPUT"
+
+      # Rendering is opt-in, so both shapes are gated: the base stack has to parse
+      # with no renderer input at all, and the overlay has to parse with the pair.
+      - name: Validate local Stage 1 Compose
+        run: |
+          set -euo pipefail
+          THOTH_RENDERER_IMAGE= THOTH_RENDERER_INTERNAL_CREDENTIAL= docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml config --quiet
+          docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.renderer.yml config --quiet
+          docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.web.yml config --quiet
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -72,15 +125,41 @@ jobs:
       - name: Install locked Python dependencies
         run: uv sync --project python --frozen --all-groups --extra acquisition
 
+      - name: Run Ruff checks
+        run: |
+          uv run --project python ruff check python/src python/tests
+          uv run --project python ruff format --check python/src python/tests
+
+      - name: Install media test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+          test -x "$THOTH_FFMPEG"
+          test -x "$THOTH_FFPROBE"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('python/uv.lock') }}
+
       # The card crop tests check their selectors against recorded pages in Chromium (spec 5c-2);
       # THOTH_REQUIRE_BROWSER_TESTS below turns a missing browser into a failure, not a skip.
       - name: Install Chromium for the browser-backed tests
         working-directory: python
         run: uv run playwright install --with-deps chromium
 
+      - name: Cache speech test models
+        id: models-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: ${{ runner.os }}-speech-models-${{ hashFiles('docker/fetch_speech_models.py') }}
+
       # Run from python/ so pytest reads python/pyproject.toml (asyncio_mode, markers);
       # from the repository root it finds no config and unmarked async tests fail.
       - name: Fetch speech test models
+        if: steps.models-cache.outputs.cache-hit != 'true'
         working-directory: python
         run: uv run python ../docker/fetch_speech_models.py --whisper tiny --out "$RUNNER_TEMP/models"
 
@@ -110,25 +189,17 @@ jobs:
           THOTH_TEST_MEDIA_S3_SECRET_KEY: thoth-test-secret
           THOTH_REQUIRE_MINIO_TESTS: "1"
           THOTH_REQUIRE_BROWSER_TESTS: "1"
-        run: uv run pytest -m "not live" -q
-
-      - name: Run Ruff checks
-        run: |
-          uv run --project python ruff check python/src python/tests
-          uv run --project python ruff format --check python/src python/tests
-
-      # Rendering is opt-in, so both shapes are gated: the base stack has to parse
-      # with no renderer input at all, and the overlay has to parse with the pair.
-      - name: Validate local Stage 1 Compose
         run: |
           set -euo pipefail
-          THOTH_RENDERER_IMAGE= THOTH_RENDERER_INTERNAL_CREDENTIAL= docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml config --quiet
-          docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.renderer.yml config --quiet
-          docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.web.yml config --quiet
+          uv run --frozen --all-groups --extra acquisition --with 'pytest-xdist==3.8.0' \
+            pytest -m "not live" --ignore-glob="*_postgres.py" \
+            --ignore=tests/infrastructure/test_media_store.py -n auto --dist loadfile -q
+          uv run --frozen --all-groups --extra acquisition \
+            pytest -m "not live" tests/*/*_postgres.py tests/infrastructure/test_media_store.py -q
 
   validate-image:
     name: Validate image build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
     needs: quality
     runs-on: ubuntu-latest
     permissions:
@@ -144,7 +215,12 @@ jobs:
       - name: Free runner disk
         # The image carries Camoufox's browser; the hosted runner's preinstalled SDKs
         # otherwise leave too little disk to build or pull it.
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          wait
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -161,7 +237,9 @@ jobs:
           # the rate limit and the browser is never installed (PR #135, 2026-11-24).
           secrets: |
             github_token=${{ github.token }}
-          cache-from: type=gha,scope=thoth-container
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+            type=gha,scope=thoth-container
           cache-to: type=gha,mode=max,scope=thoth-container
 
       - name: Build the renderer without publishing
@@ -211,6 +289,7 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
       renderer_digest: ${{ steps.renderer-build.outputs.digest }}
       web_digest: ${{ steps.web-build.outputs.digest }}
+      smoke_needed: ${{ needs.quality.outputs.smoke_needed }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -218,7 +297,12 @@ jobs:
       - name: Free runner disk
         # The image carries Camoufox's browser; the hosted runner's preinstalled SDKs
         # otherwise leave too little disk to build or pull it.
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          wait
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -266,8 +350,8 @@ jobs:
             type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
             type=gha,scope=thoth-container
           cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
-          provenance: mode=max
-          sbom: true
+          provenance: ${{ (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && 'mode=max' || 'false' }}
+          sbom: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
 
       - name: Generate renderer image metadata
         id: renderer-meta
@@ -297,8 +381,8 @@ jobs:
           labels: ${{ steps.renderer-meta.outputs.labels }}
           cache-from: type=gha,scope=thoth-renderer
           cache-to: type=gha,mode=max,scope=thoth-renderer
-          provenance: mode=max
-          sbom: true
+          provenance: ${{ (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && 'mode=max' || 'false' }}
+          sbom: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
 
       - name: Generate web image metadata
         id: web-meta
@@ -328,8 +412,8 @@ jobs:
           labels: ${{ steps.web-meta.outputs.labels }}
           cache-from: type=gha,scope=thoth-web
           cache-to: type=gha,mode=max,scope=thoth-web
-          provenance: mode=max
-          sbom: true
+          provenance: ${{ (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && 'mode=max' || 'false' }}
+          sbom: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
 
       - name: Record immutable release identity
         env:
@@ -380,7 +464,7 @@ jobs:
 
   stack-smoke:
     name: Non-live stack smoke
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || needs.publish-image.outputs.smoke_needed == 'true')) || github.event_name == 'workflow_dispatch'
     needs: publish-image
     runs-on: ubuntu-latest
     permissions:
@@ -398,7 +482,12 @@ jobs:
       - name: Free runner disk
         # The image carries Camoufox's browser; the hosted runner's preinstalled SDKs
         # otherwise leave too little disk to build or pull it.
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        run: |
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          wait
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -484,6 +573,9 @@ jobs:
           # shellcheck disable=SC2086
           docker compose ${COMPOSE_FILE_ARGS} ${describe}             --namespace thoth-stage1 --address temporal:7233
 
+      - name: Verify the stealthy browser can launch
+        run: bash docker/test-browser-offline.sh "${THOTH_IMAGE_REF}"
+
       - name: Verify the isolated render stack on the published digests
         run: bash docker/test-renderer-offline.sh "${THOTH_IMAGE_REF}" "${THOTH_RENDERER_IMAGE_REF}" "${THOTH_WEB_IMAGE_REF}"
 
@@ -501,6 +593,7 @@ jobs:
 
   template-release-parity:
     name: Template release parity
+    if: needs.quality.outputs.parity_needed == 'true'
     needs: quality
     runs-on: ubuntu-latest
     permissions:
