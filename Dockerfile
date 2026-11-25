@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools
-FROM oven/bun:1.4.4 AS bun-tools
+FROM ghcr.io/astral-sh/uv:0.13.10 AS uv-tools
+FROM oven/bun:1.4.5 AS bun-tools
 
 FROM python:3.12-slim-bookworm AS runtime
 

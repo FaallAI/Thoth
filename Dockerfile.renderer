@@ -7,7 +7,7 @@
 # the only thing it can reach is the artifact root it shares with the control
 # plane and the private control-plane route it reports to.
 
-FROM oven/bun:1.4.4 AS runtime
+FROM oven/bun:1.4.5 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     THOTH_CONTROL_PLANE_ARTIFACT_ROOT=/var/lib/thoth/artifacts \
