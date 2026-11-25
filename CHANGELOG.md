@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this changelog.
 
 An audit of recent `Container image` runs (`45522323992` push at 25.0 m and `45522329568` PR at 24.6 m) showed ~53 runner-minutes burned per branch push — including docs-only commits — because every internal PR ran both `push` and `pull_request` workflows in full, `pytest` ran single-process, `Free runner disk` deleted SDKs serially, and `Dockerfile.renderer` invalidated its Remotion browser layer on every source edit.
 
-**What changed** (on `feat/stressed-voice`, operator: "saya ikuti rekomendasi mu"):
+**What changed** (made by Gemini locally on `feat/stressed-voice`, operator: "saya ikuti rekomendasi mu"):
 - **Eliminated internal PR duplication:** `quality` and `validate-image` now run on `pull_request` only for external forks (`head.repo.full_name != github.repository`); internal branches get full checks from `push`. Added `docker/test-browser-offline.sh` to `stack-smoke` so published images verify the stealthy browser launch too, and added the registry buildcache to `validate-image`.
 - **Skipped docs-only runs & gated heavy branch jobs:** Added `paths-ignore` (`docs/**`, `**/*.md`, `.superpowers/**`) on `push` and `pull_request` (never on `workflow_dispatch`). `quality` detects changed scopes via `git diff` so `template-release-parity` runs on feature branches only when renderer/composition/workflow files change, and `stack-smoke` runs on feature branches only when Docker/Compose/migrations/renderer/composition/workflow files change. Both always run on `master`, `v*` tags, and `workflow_dispatch`.
 - **Faster `Offline quality gates`:** Moved Compose validation and Ruff checks before browser/model setup and pytest (fail-fast). Cached `~/.cache/ms-playwright` and speech test models with pinned `actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9` (`v6.1.0`). Split pytest into parallel `pytest-xdist==3.8.0` (`-n auto --dist loadfile`) for all non-Postgres/non-MinIO tests followed by serial Postgres and MinIO tests, without modifying `python/pyproject.toml` or `python/uv.lock` (preserving the 10+ GB Docker runtime cache). Fixed a missing `ORDER.clear()` in `test_source_investigation.py` exposed by parallel execution.
@@ -18,11 +18,47 @@ An audit of recent `Container image` runs (`45522323992` push at 25.0 m and `455
 - `make test T="tests/deployment/test_container_contract.py tests/workflows/test_source_investigation.py"`: 140 passed;
 - Full non-Postgres/non-MinIO suite under `pytest-xdist==3.8.0 -n 4 --dist loadfile`: 5158 passed in 146.36 s (0 failed).
 
+**Moved and reviewed:** these two commits were made locally on `feat/stressed-voice` after its last push. PR #135 was merged without them (b44c40da, operator: "sekarang buat ci merge"), and they were cherry-picked onto `ci/appsec-scans` (06556d8b, 5045c0ef). The review found two Important issues, both fixed test first (cc35fdf5):
+- **Change detection used `github.event.before`,** so it saw only the latest push. A smoke that an earlier push needed, and that failed, could be skipped by a later push touching other files. A branch is now compared with master as a whole, through `git merge-base origin/master`.
+- **The smoke pattern missed `python/uv.lock` and `python/pyproject.toml`.** With `validate-image` gone for internal branches, the stealthy browser launch check runs only in the smoke. A dependency bump (patchright, camoufox) is exactly the 2026-10-23 failure, so both files now trigger the smoke.
+- **Accepted note:** a push of docs-only commits publishes no image for its head commit, so a deploy pins the last code commit's `sha-<commit>`.
+
+## 2026-11-26 - Application security scanning (SAST, SCA, DAST)
+
+The operator asked for the four kinds of application security testing in GitHub, each kept apart from the container CI (brainstorm item 102). Secret scanning push protection was enabled on 2026-11-25.
+
+- **SAST, `codeql.yml`:**
+  - CodeQL `security-extended` for Python, JavaScript/TypeScript and Actions;
+  - runs on pull requests and pushes to master, weekly, and by hand;
+  - findings go to the Security tab and do not block a merge.
+- **SCA:**
+  - `dependency-review.yml` fails a pull request that adds or upgrades a dependency with a known high or critical vulnerability.
+  - `.github/dependabot.yml` opens one grouped weekly pull request per ecosystem: uv, bun, npm (e2e and the composition package), Docker and Actions. It leaves yt-dlp to its daily update workflow.
+  - `image-scan.yml` runs weekly and by hand. Trivy scans the three master images straight from GHCR, so the 16 GB thoth image is never pulled whole, and uploads SARIF per image. Trivy runs from `aquasec/trivy:0.76.2` pinned by digest, not through `trivy-action`, whose tags were hijacked in early 2026.
+- **DAST, `dast.yml`:**
+  - a weekly and manual OWASP ZAP 2.17.0 baseline (pinned by digest);
+  - it scans the master images started on the runner with a throwaway environment and no provider;
+  - it is passive only, and its report goes to the job summary.
+  - A local run against stage1 gave 0 FAIL, 7 WARN and 61 PASS. The warnings are missing Permissions-Policy and Cross-Origin-Embedder-Policy headers, CSP `style-src unsafe-inline`, non-storable content, timestamps, a suspicious comment, and a modern web app notice.
+- **IAST:** skipped, and recorded in `docs/ROADMAP.md`: no free option fits Python and FastAPI.
+- **Pins:** every action is pinned to a commit SHA of a release more than two weeks old: CodeQL v4.39.2 and dependency-review v5.0.0. `test_appsec_workflows.py` checks three rules:
+  - each scan has its own workflow, outside `container-image.yml`;
+  - every workflow pins its actions and scanner images;
+  - no workflow reads a `secrets.` value.
+
+**Verification:**
+- `make test T=tests/deployment`: 182 passed.
+- `make test`: 5223 passed, 251 skipped.
+- `make lint`: clean.
+- actionlint 1.7.7 over every workflow: clean.
+- Every YAML file parses.
+
 **Next steps (each its own operator gate):**
-1. Push `feat/stressed-voice` to PR #135 and verify the faster CI run goes green.
-2. Paid live narration check on Style A and Style B (cost shown first).
-3. Merge PR #135.
-4. Start `ci/appsec-scans`.
+1. Push `ci/appsec-scans`, open its PR and watch the first run of the faster container CI, CodeQL and dependency review.
+2. Merge it. The weekly image scan and DAST can only be started by hand once they are on master.
+3. Run `Image scan` and `DAST` by hand once, and triage the first findings, including Dependabot alert #85.
+4. The paid live narration check on Style A and Style B, carried over from PR #135 (cost shown first).
+5. Answer the subject choice on `wf_31f14a60b44046a7f2bdd2ba`.
 
 ## 2026-11-25 - Env username and password sign-in for development
 
