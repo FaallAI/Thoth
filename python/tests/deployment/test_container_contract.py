@@ -855,3 +855,11 @@ def test_container_workflow_avoids_duplicate_runs_and_skips_docs() -> None:
     assert "needs.quality.outputs.parity_needed == 'true'" in jobs["template-release-parity"]
     assert "needs.publish-image.outputs.smoke_needed == 'true'" in jobs["stack-smoke"]
     assert "refs/heads/master" in jobs["stack-smoke"]
+    # A branch is compared with master as a whole, so a later push that touches other files
+    # cannot skip the smoke an earlier push still needed.
+    detect = jobs["quality"].split("Detect changed scopes", 1)[1].split("- name:", 1)[0]
+    assert "git merge-base origin/master" in detect
+    assert "github.event.before" not in detect
+    # A dependency bump (patchright, camoufox) changes the image's browsers: the smoke's
+    # launch check must run, as the 2026-10-23 refresh showed.
+    assert "python/uv\\.lock" in detect and "python/pyproject\\.toml" in detect

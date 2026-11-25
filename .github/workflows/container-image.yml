@@ -65,7 +65,6 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref }}
-          BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -74,15 +73,12 @@ jobs:
             echo "smoke_needed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          base="$BEFORE_SHA"
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            if git rev-parse --verify origin/master >/dev/null 2>&1; then
-              base="$(git merge-base origin/master "$HEAD_SHA")"
-            else
-              echo "parity_needed=true" >> "$GITHUB_OUTPUT"
-              echo "smoke_needed=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          # The whole branch against master, not only this push: a later push that touches
+          # other files must not skip a check an earlier push still needed.
+          if ! base="$(git merge-base origin/master "$HEAD_SHA" 2>/dev/null)"; then
+            echo "parity_needed=true" >> "$GITHUB_OUTPUT"
+            echo "smoke_needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           changed="$(git diff --name-only "$base" "$HEAD_SHA")"
           parity="false"
@@ -90,7 +86,9 @@ jobs:
           if printf '%s\n' "$changed" | grep -Eq '^(packages/remotion-composition/|renderer/|Dockerfile\.renderer-f1|\.github/workflows/container-image\.yml)'; then
             parity="true"
           fi
-          if printf '%s\n' "$changed" | grep -Eq '^(Dockerfile|compose\.|docker/|deploy/|python/migrations/|renderer/|packages/remotion-composition/|\.github/workflows/container-image\.yml)'; then
+          # A dependency bump changes the image's browsers (patchright, camoufox): the smoke's
+          # launch check must run (the 2026-10-23 refresh shipped a driver without its browser).
+          if printf '%s\n' "$changed" | grep -Eq '^(Dockerfile|compose\.|docker/|deploy/|python/migrations/|python/uv\.lock|python/pyproject\.toml|renderer/|packages/remotion-composition/|\.github/workflows/container-image\.yml)'; then
             smoke="true"
           fi
           echo "parity_needed=$parity" >> "$GITHUB_OUTPUT"
