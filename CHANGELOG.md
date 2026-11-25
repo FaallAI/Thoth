@@ -62,15 +62,21 @@ The Postgres suite also caught stored style templates failing to decode their ta
 
 **Operator note:** Eleven v4 read the spike line about 15% slower (8.4 s against 7.3 s) and has no speed setting. The operator accepts this as part of the expressive delivery (item 100). The live check compares voice length with the target.
 
+**CI fix, second round:** the first fix read the token as `secrets.GITHUB_TOKEN`, and the container contract test forbids any `secrets.` reference in the workflow. Both builds now pass `github.token`, the same job token the GHCR login already uses, and the contract test pins it (22630d3a). CI went green on every job.
+
+**Deploy:** 22630d3a was deployed to stage1 from the branch image on 2026-11-25 (operator "ya").
+- **Images:** thoth `8db32f6c803f`, renderer `d309d735f7b8`, web `a455bb4b92f0`. The pins match the running containers.
+- **Checks:** editor migration `0036` applied, and the one saved preset moved to `eleven_v4`. Web 200, 0 worker errors, 0 API 5xx, no workflow running.
+- **Rollback:** `D:/thoth-tmp/bu/pins/rollback-to-a0f97728.sh` moves the presets back to `eleven_multilingual_v2` first, then restores the pins without `make deploy`.
+
 **Next steps (each its own operator gate):**
-1. Push `feat/stressed-voice`, open the PR and wait for green CI.
-2. Deploy the branch CI image to stage1. This applies migration `0036`; rollback as above.
-3. Run a paid narration on stage1 on a Style A and a Style B draft, cost shown first. Check:
+1. Run a paid narration on stage1 on a Style A and a Style B draft, cost shown first. Check:
    - the stressed delivery;
    - no `[...]` in captions, cuts or SFX timing;
    - re-voicing an edited tag;
    - voice length against the target.
-4. Merge the PR.
+2. Merge PR #135.
+3. Build the application security scans on `ci/appsec-scans` (item 102).
 
 ## 2026-11-18 - Studio plays videos from light preview proxies
 
