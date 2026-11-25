@@ -7,7 +7,7 @@
 # the only thing it can reach is the artifact root it shares with the control
 # plane and the private control-plane route it reports to.
 
-FROM oven/bun:1.4.4 AS runtime
+FROM oven/bun:1.4.5 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     THOTH_CONTROL_PLANE_ARTIFACT_ROOT=/var/lib/thoth/artifacts \
@@ -18,6 +18,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Chrome Headless Shell's own shared libraries, the fonts a vertical text story
 # needs, and the ffprobe this service measures every finished render with.
 RUN apt-get update \
+    && apt-get upgrade --yes \
     && apt-get install --yes --no-install-recommends \
         ca-certificates \
         ffmpeg \
@@ -50,7 +51,9 @@ WORKDIR /opt/thoth/renderer
 # Remotion caches its browser beside the nearest package.json, so the install
 # and the download both have to happen from this directory.
 COPY --chown=thoth:thoth renderer/package.json renderer/bun.lock /opt/thoth/renderer/
-RUN bun install --frozen-lockfile --production
+# The download cache is a second copy of every package; node_modules holds what runs.
+RUN bun install --frozen-lockfile --production \
+    && rm -rf /home/thoth/.bun/install/cache
 
 # Fetch the pinned browser now, before copying source files, so TSX/TS edits reuse this layer
 # and a render never reaches the network. The installs above ran as root against this HOME, so

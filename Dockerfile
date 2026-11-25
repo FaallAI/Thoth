@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools
-FROM oven/bun:1.4.4 AS bun-tools
+FROM ghcr.io/astral-sh/uv:0.13.10 AS uv-tools
+FROM oven/bun:1.4.5 AS bun-tools
 
 FROM python:3.12-slim-bookworm AS runtime
 
@@ -38,7 +38,7 @@ WORKDIR /opt/thoth
 
 COPY --chown=thoth:thoth python/pyproject.toml python/uv.lock /opt/thoth/python/
 RUN cd /opt/thoth/python \
-    && uv sync --frozen --no-dev --extra acquisition --no-install-project
+    && uv sync --frozen --no-cache --no-dev --extra acquisition --no-install-project
 
 # Heavy, source-independent layers first: a code change reuses them from the build cache.
 # Speech models for Stage 4 reactions, pinned and checksummed; never fetched at run time.
@@ -74,7 +74,7 @@ COPY --chown=thoth:thoth python/migrations/ /opt/thoth/python/migrations/
 COPY --chown=thoth:thoth assets/sfx/ /opt/thoth/assets/sfx/
 COPY --chown=thoth:thoth assets/asset_catalog.json /opt/thoth/assets/asset_catalog.json
 RUN cd /opt/thoth/python \
-    && uv sync --frozen --no-dev --extra acquisition
+    && uv sync --frozen --no-cache --no-dev --extra acquisition
 
 RUN /opt/thoth/python/.venv/bin/python -c \
         "import scrapling, thoth_control_plane, cv2, rapidocr, openai, faster_whisper, sherpa_onnx, camoufox" \

@@ -59,10 +59,10 @@ def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
 
 def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     dockerfile = _repo_text("Dockerfile")
-    assert "FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools" in dockerfile
-    assert "FROM oven/bun:1.4.4 AS bun-tools" in dockerfile
+    assert "FROM ghcr.io/astral-sh/uv:0.13.10 AS uv-tools" in dockerfile
+    assert "FROM oven/bun:1.4.5 AS bun-tools" in dockerfile
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
-    assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
+    assert "uv sync --frozen --no-cache --no-dev --extra acquisition" in dockerfile
     assert "/opt/thoth/python/.venv/bin/patchright install --with-deps chromium" in dockerfile
     # The image carries exactly one Chromium and it is patchright's — the stealthy sessions
     # launch through patchright, which pins its own revision. The 2026-10-23 refresh shipped
@@ -415,10 +415,10 @@ def test_container_workflow_pins_every_action_to_full_commit_sha() -> None:
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "# v7.0.1",
         "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9": "# v6.1.0",
         "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0": "# v7.1.0",
-        "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e": "# v10.3.2",
+        "astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d": "# v10.4.0",
         "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6": "# v2.2.0",
         "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069": "# v4.4.1",
-        "docker/login-action@dbcb813823bdd20940b903addbd779551569679f": "# v4.6.0",
+        "docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550": "# v4.8.0",
         "docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302": "# v6.2.0",
         "docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc": "# v7.4.0",
     }
@@ -863,3 +863,27 @@ def test_container_workflow_avoids_duplicate_runs_and_skips_docs() -> None:
     # A dependency bump (patchright, camoufox) changes the image's browsers: the smoke's
     # launch check must run, as the 2026-10-23 refresh showed.
     assert "python/uv\\.lock" in detect and "python/pyproject\\.toml" in detect
+
+
+def test_the_images_leave_no_package_cache_and_take_the_os_fixes() -> None:
+    """Security triage (2026-11-26): Trivy found the uv and bun download caches baked into the
+    images, each a second copy of every library to patch, and fixed Debian/Alpine packages."""
+    dockerfile = _repo_text("Dockerfile")
+    syncs = [line for line in dockerfile.splitlines() if "uv sync --frozen" in line]
+    assert syncs and all("--no-cache" in line for line in syncs)
+    renderer = _repo_text("Dockerfile.renderer")
+    assert "apt-get upgrade --yes" in renderer
+    assert renderer.index("bun install --frozen-lockfile --production") < renderer.index(
+        "rm -rf /home/thoth/.bun/install/cache"
+    )
+    assert "apk upgrade --no-cache" in _repo_text("Dockerfile.web")
+
+
+def test_the_site_turns_off_browser_features_it_never_uses() -> None:
+    """DAST (ZAP 10063): no Permissions-Policy. The dashboard uses no camera, microphone,
+    location or payment; fullscreen stays allowed for the Player."""
+    caddyfile = _repo_text("deploy/web/Caddyfile")
+    policy = next(line for line in caddyfile.splitlines() if "Permissions-Policy" in line)
+    for feature in ("camera=()", "microphone=()", "geolocation=()", "payment=()"):
+        assert feature in policy
+    assert "fullscreen" not in policy
