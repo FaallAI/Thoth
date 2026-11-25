@@ -160,7 +160,7 @@ jobs:
           # Camoufox lists its releases through the GitHub API; anonymously the runner hits
           # the rate limit and the browser is never installed (PR #135, 2026-11-24).
           secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
+            github_token=${{ github.token }}
           cache-from: type=gha,scope=thoth-container
           cache-to: type=gha,mode=max,scope=thoth-container
 
@@ -258,7 +258,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           # Camoufox's release listing goes through the GitHub API (see the validate build).
           secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
+            github_token=${{ github.token }}
           # The Actions cache stopped holding the runtime's 5 GB of dependency layers, so each
           # publish rebuilt them under new digests and each deploy pulled the whole image.
           # The registry cache is not bound by the Actions cache limit and keeps them stable.

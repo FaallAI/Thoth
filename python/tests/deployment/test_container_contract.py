@@ -170,6 +170,9 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
     assert "sbom: true" in workflow
     assert "steps.build.outputs.digest" in workflow
     assert "secrets." not in workflow
+    # Camoufox lists its releases through the GitHub API; anonymous CI runners hit the rate
+    # limit, so both image builds hand it the job token as a build secret (PR #135).
+    assert workflow.count("github_token=${{ github.token }}") == 2
 
 
 #: The renderer is a second image from a second Dockerfile, so it gets a second
