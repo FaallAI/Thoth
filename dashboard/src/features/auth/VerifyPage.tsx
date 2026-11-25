@@ -20,7 +20,7 @@ const CODE_ERRORS: Record<string, MessageKey> = {
 const RESEND_SECONDS = 60;
 
 /** The server already refuses foreign targets; the page checks again before it navigates. */
-function sameSite(target: string): string {
+export function sameSite(target: string): string {
   try {
     const url = new URL(target, window.location.origin);
     return url.origin === window.location.origin ? url.pathname + url.search + url.hash : "/workflows";

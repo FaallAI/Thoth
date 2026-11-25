@@ -475,3 +475,22 @@ async def test_owners_list_and_revoke_the_workspace_tokens(service, mailer) -> N
     assert await service.revoke_workspace_token(owner, created.token.token_id) is True
     assert await service.authenticate_token(created.secret) is None
     assert await service.revoke_workspace_token(owner, created.token.token_id) is False
+
+
+async def test_the_env_password_sign_in_needs_no_code_and_replaces_the_old_session(
+    service, mailer
+) -> None:
+    first = await service.sign_in_password("dev@local.test", "dev")
+    second = await service.sign_in_password("dev@local.test", "dev", first.session_token)
+    assert mailer.sent == [] and second.device_token is None
+    assert await service.authenticate_session(first.session_token) is None
+    principal = await service.authenticate_session(second.session_token)
+    assert principal is not None and principal.email == "dev@local.test"
+
+
+async def test_a_disabled_user_cannot_use_the_env_password_sign_in(service, store) -> None:
+    await service.sign_in_password("dev@local.test", "dev")
+    with store._engine.begin() as connection:
+        connection.execute(text("UPDATE users SET disabled_at = CURRENT_TIMESTAMP"))
+    with pytest.raises(SignInRefused, match="not_allowed"):
+        await service.sign_in_password("dev@local.test", "dev")

@@ -1,10 +1,15 @@
 """Sign-in with Google or GitHub, then an emailed code (spec section 2). Not in OpenAPI.
 
+A development sign-in with one username and password from env skips both (operator 2026-11-25).
+
 Every refusal returns to /login with a fixed code; no provider or server text reaches the page.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
+from hmac import compare_digest
 from typing import Annotated
 from urllib.parse import quote
 
@@ -27,6 +32,7 @@ from thoth_control_plane.auth.service import (
 from thoth_control_plane.domain.models import StrictModel
 
 router = APIRouter(prefix="/auth", include_in_schema=False)
+logger = logging.getLogger(__name__)
 
 DEVICE_COOKIE = "thoth_device"
 CHALLENGE_COOKIE = "thoth_challenge"
@@ -38,6 +44,16 @@ class VerifyBody(StrictModel):
     code: Annotated[str, Field(min_length=6, max_length=12)]
     trust_device: bool = True
     next: Annotated[str, Field(max_length=2048)] | None = None
+
+
+class PasswordBody(StrictModel):
+    username: Annotated[str, Field(max_length=200)]
+    password: Annotated[str, Field(max_length=200)]
+    next: Annotated[str, Field(max_length=2048)] | None = None
+
+
+#: Slows guessing; ponytail: a per-request delay, not a lockout. Add one before exposing it.
+FAILED_PASSWORD_DELAY = 1.0
 
 
 class LogoutBody(StrictModel):
@@ -109,7 +125,44 @@ def _signed_in(response: Response, request: Request, done: SignedIn) -> None:
 
 @router.get("/providers")
 async def providers(request: Request) -> dict[str, list[str]]:
-    return {"providers": sorted(request.app.state.auth_providers)}
+    names = set(request.app.state.auth_providers)
+    if (
+        request.app.state.sign_in is not None
+        and request.app.state.settings.password_sign_in_enabled
+    ):
+        names.add("password")
+    return {"providers": sorted(names)}
+
+
+@router.post("/password")
+async def password(body: PasswordBody, request: Request) -> Response:
+    if not _same_site(request):
+        return _detail("cross_site_request", 403)
+    settings = request.app.state.settings
+    sign_in = request.app.state.sign_in
+    if sign_in is None or not settings.password_sign_in_enabled:
+        return _detail("not_configured", 404)
+    # Both compared every time, in constant time, so neither half leaks which one was wrong.
+    username_ok = compare_digest(body.username.encode(), settings.THOTH_AUTH_DEV_USERNAME.encode())
+    password_ok = compare_digest(
+        body.password.encode(), settings.THOTH_AUTH_DEV_PASSWORD.get_secret_value().encode()
+    )
+    if not (username_ok and password_ok):
+        logger.warning("password sign-in refused")
+        await asyncio.sleep(FAILED_PASSWORD_DELAY)
+        return _detail("bad_credentials", 401)
+    email = settings.THOTH_AUTH_DEV_EMAIL.strip().lower()
+    try:
+        done = await sign_in.sign_in_password(
+            email, settings.THOTH_AUTH_DEV_USERNAME, request.cookies.get(SESSION_COOKIE)
+        )
+    except SignInRefused as refused:
+        return _detail(refused.code, 403)
+    except AuthUnavailable:
+        return _detail("unavailable", 503)
+    response = JSONResponse({"next": safe_next(body.next)})
+    _signed_in(response, request, done)
+    return response
 
 
 @router.get("/login/{provider}")

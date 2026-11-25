@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import functools
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -535,6 +536,10 @@ def create_app(
     app.state.auth_providers = (
         identity_providers if identity_providers is not None else build_providers(settings)
     )
+    if app.state.sign_in is not None and settings.password_sign_in_enabled:
+        logging.getLogger(__name__).warning(
+            "the env username and password sign-in is on: for development only"
+        )
     if auth_secret is not None:
         # Authlib keeps the OAuth state and PKCE verifier here, only on /auth, for 10 minutes.
         app.add_middleware(

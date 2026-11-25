@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     THOTH_AUTH_GITHUB_CLIENT_ID: str | None = None
     THOTH_AUTH_GITHUB_CLIENT_SECRET: SecretStr | None = None
     THOTH_AUTH_GITHUB_ORG: str | None = None
+    # Development sign-in (operator 2026-11-25): one username and password from env sign into
+    # THOTH_AUTH_DEV_EMAIL's account with no provider and no emailed code. All three or none.
+    THOTH_AUTH_DEV_USERNAME: str | None = None
+    THOTH_AUTH_DEV_PASSWORD: SecretStr | None = None
+    THOTH_AUTH_DEV_EMAIL: str | None = None
     THOTH_SMTP_HOST: str | None = None
     THOTH_SMTP_PORT: Annotated[int, Field(ge=1, le=65535)] = 587
     THOTH_SMTP_USERNAME: str | None = None
@@ -179,6 +184,9 @@ class Settings(BaseSettings):
         "THOTH_AUTH_GITHUB_CLIENT_ID",
         "THOTH_AUTH_GITHUB_CLIENT_SECRET",
         "THOTH_AUTH_GITHUB_ORG",
+        "THOTH_AUTH_DEV_USERNAME",
+        "THOTH_AUTH_DEV_PASSWORD",
+        "THOTH_AUTH_DEV_EMAIL",
         "THOTH_SMTP_HOST",
         "THOTH_SMTP_USERNAME",
         "THOTH_SMTP_PASSWORD",
@@ -231,6 +239,16 @@ class Settings(BaseSettings):
             self.THOTH_AUTH_GITHUB_CLIENT_ID,
             self.THOTH_AUTH_GITHUB_CLIENT_SECRET,
             "public" if self.THOTH_AUTH_PUBLIC_SIGNUP else self.THOTH_AUTH_GITHUB_ORG,
+        )
+
+    @property
+    def password_sign_in_enabled(self) -> bool:
+        """The env username and password; no mail needed, since no code is sent."""
+        return None not in (
+            self.THOTH_AUTH_SECRET,
+            self.THOTH_AUTH_DEV_USERNAME,
+            self.THOTH_AUTH_DEV_PASSWORD,
+            self.THOTH_AUTH_DEV_EMAIL,
         )
 
     @property

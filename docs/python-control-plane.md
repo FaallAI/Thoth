@@ -358,6 +358,16 @@ The stack serves the dashboard from the `web` container (`compose.stage1.web.yml
 
 The rule is checked again on every sign-in.
 
+**Development sign-in** (operator, 2026-11-25): with `THOTH_AUTH_DEV_USERNAME`,
+`THOTH_AUTH_DEV_PASSWORD` and `THOTH_AUTH_DEV_EMAIL` set, the login page also shows a username
+and password form.
+- **Account:** it signs into the account with that email, creating it when missing. Like the
+  bootstrap CLI, a new account claims the bootstrap workspace while it has no owner.
+- **No code:** no provider, no SMTP and no emailed code are needed.
+- **Checks:** `POST /auth/password` accepts same-site requests only. It compares both values in
+  constant time and waits 1 s after a wrong pair. It has no lockout, so never expose it on a public
+  site. The API logs a warning at start while it is on.
+
 After the provider, a 6-digit code goes to that verified email.
 - **Code limits:** valid 10 minutes, 5 attempts, a resend no sooner than 60 s, and at most 10 codes
   a day.
@@ -381,6 +391,9 @@ to people you trust.
 | `THOTH_AUTH_GITHUB_CLIENT_ID` | FastAPI | GitHub OAuth App client ID. |
 | `THOTH_AUTH_GITHUB_CLIENT_SECRET` | FastAPI | Secret for that app. |
 | `THOTH_AUTH_GITHUB_ORG` | FastAPI | The organization GitHub sign-in requires. |
+| `THOTH_AUTH_DEV_USERNAME` | FastAPI | Development sign-in username. |
+| `THOTH_AUTH_DEV_PASSWORD` | FastAPI | Development sign-in password (secret). |
+| `THOTH_AUTH_DEV_EMAIL` | FastAPI | The account the development sign-in signs into. |
 | `THOTH_SMTP_HOST` | FastAPI | SMTP server host for sign-in codes. |
 | `THOTH_SMTP_PORT` | FastAPI | SMTP server port; default 587 (STARTTLS). 465 means implicit TLS. |
 | `THOTH_SMTP_USERNAME` | FastAPI | SMTP user. |

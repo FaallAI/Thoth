@@ -59,8 +59,21 @@ def mailer() -> FakeMailer:
     return FakeMailer()
 
 
+DEV_LOGIN = {
+    "THOTH_AUTH_DEV_USERNAME": "dev",
+    "THOTH_AUTH_DEV_PASSWORD": "correct horse",
+    "THOTH_AUTH_DEV_EMAIL": "Dev@Local.Test",
+}
+
+
 @pytest.fixture
-async def api(gateway, provider, mailer):
+def dev_login() -> dict[str, str]:
+    """The env username and password sign-in (operator 2026-11-25); off unless a test sets it."""
+    return {}
+
+
+@pytest.fixture
+async def api(gateway, provider, mailer, dev_login):
     engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
@@ -70,7 +83,10 @@ async def api(gateway, provider, mailer):
             )
         )
     settings = Settings(
-        THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SITE_ORIGIN=ORIGIN, THOTH_AUTH_SECRET="s" * 32
+        THOTH_CONTROL_PLANE_API_KEY="test-key",
+        THOTH_SITE_ORIGIN=ORIGIN,
+        THOTH_AUTH_SECRET="s" * 32,
+        **dev_login,
     )
     app = create_app(
         settings,
@@ -208,3 +224,41 @@ async def test_an_unreachable_provider_at_login_returns_to_the_login_page(api, p
         303,
         "/login?error=provider_error",
     )
+
+
+def password(api, username="dev", secret="correct horse", headers=SAME_SITE):
+    body = {"username": username, "password": secret, "next": "/studio"}
+    return api.post("/auth/password", json=body, headers=headers)
+
+
+async def test_the_password_sign_in_is_off_unless_the_env_sets_it(api, mailer) -> None:
+    assert "password" not in (await api.get("/auth/providers")).json()["providers"]
+    response = await password(api)
+    assert (response.status_code, response.json()) == (404, {"detail": "not_configured"})
+
+
+@pytest.mark.parametrize("dev_login", [DEV_LOGIN])
+async def test_the_env_username_and_password_sign_in_without_a_code(api, mailer, dev_login) -> None:
+    assert (await api.get("/auth/providers")).json() == {"providers": ["google", "password"]}
+    response = await password(api)
+    assert (response.status_code, response.json()) == (200, {"next": "/studio"})
+    assert "thoth_session" in response.cookies and mailer.bodies == []
+    me = (await api.get("/auth/me")).json()
+    assert me["email"] == "dev@local.test"
+
+
+@pytest.mark.parametrize("dev_login", [DEV_LOGIN])
+@pytest.mark.parametrize(
+    ("username", "secret"), [("dev", "wrong"), ("other", "correct horse"), ("", "")]
+)
+async def test_a_wrong_username_or_password_is_refused(api, dev_login, username, secret) -> None:
+    response = await password(api, username, secret)
+    assert (response.status_code, response.json()) == (401, {"detail": "bad_credentials"})
+    assert "thoth_session" not in response.cookies
+    assert (await api.get("/auth/me")).status_code == 401
+
+
+@pytest.mark.parametrize("dev_login", [DEV_LOGIN])
+async def test_a_cross_site_password_sign_in_is_refused(api, dev_login) -> None:
+    response = await password(api, headers={"Origin": "https://evil.test"})
+    assert (response.status_code, response.json()) == (403, {"detail": "cross_site_request"})
