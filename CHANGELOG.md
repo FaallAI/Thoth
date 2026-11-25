@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-26 - Security triage of the first scans
+
+**PR #136 merged** as 2d8ebfaa (operator "ya"). Its push run took about 24 minutes as a single run; the pull request jobs were skipped. CodeQL found 0 new alerts and dependency review passed. The first manual runs then all succeeded: Image scan (45677526663), DAST (45677534558) and the master CodeQL.
+
+**Findings and what this branch does with them** (operator "ya" to the triage plan):
+- **CodeQL `py/log-injection`, 4 medium.**
+  - **Where:** `asset_glances.py` and `preview_proxies.py` logged asset ids taken from the URL. The API process logs plain text, not the worker's JSON, so a crafted id could forge a log line.
+  - **Fix:** both now log the ids of the stored record, found before any log line.
+- **CodeQL, 2 high in test files.** Dismissed as "used in tests":
+  - #1 is a host assertion in `test_tiktok_adapter.py`; the production check is exact.
+  - #6 is a fixture hash in `template-release.test.ts`.
+- **Trivy, 84 alerts (7 critical).**
+  - **thoth:** the Rust `zip` 8.6.0 crate inside temporalio's bridge.
+    - Only temporalio (1.34.0 to 1.36.1, which carries `zip` 9.5.1), opentelemetry-api (1.45.2, Dependabot alert #85) and the yanked `av` 18.1.0 (to 18.1.1, Python below 3.12 only) are bumped.
+    - Both `uv sync` calls use `--no-cache`, so `/root/.cache/uv` no longer ships a second copy of every wheel.
+  - **renderer:**
+    - `apt-get upgrade` takes the Debian fixes for krb5, apt, zlib and zstd.
+    - The bun download cache is removed after `bun install`.
+  - **web:**
+    - Caddy 2.11.7 to 2.11.9 (Go stdlib, x/net, go-jose).
+    - `apk upgrade` takes the Alpine fixes for brotli and curl.
+- **DAST (ZAP 10063):** the site now sends `Permissions-Policy` turning off camera, microphone, geolocation, payment and USB. Fullscreen stays allowed for the Player. COEP is not set, since it would block media previews loaded from the media store.
+- **Dependabot:**
+  - The base image (#137) and action (#138) bumps are applied here, with the contract pins and the workflows' uv 0.13.10 and bun 1.4.5 kept in step.
+  - **#141 is not taken whole.** It raises every lower bound and takes majors: openai 2 to 3, sherpa-onnx-core 1 to 2, scrapling 0.4 to 0.5, and a camoufox bump. That needs its own branch and live checks.
+  - **#139 and #140** (JS) are left for a branch that reruns the goldens and `f1_verify3`.
+- **Left open:** `tinypool` (critical) and `source-map-js` inside the renderer's `@rspack/core`. They go away with the JS bump in #140.
+
+- **Kept as is:**
+  - `Dockerfile.renderer-f1` stays on bun 1.4.4. It is the pinned parity reference for the goldens, and Dependabot's bump to it was not taken.
+  - `docker build --check` flags `Dockerfile.renderer`'s `COPY --exclude`, as it already did on master. That syntax is deliberate (dockerfile labs).
+
+**Verification:**
+- `make test`: 5224 passed, 251 skipped, with temporalio 1.36.1. The one failure, the parity image pin, was fixed by restoring `Dockerfile.renderer-f1`.
+- `make test T=tests/deployment`: 184 passed.
+- `make lint`: clean.
+- **Local web image:** it builds, `caddy validate` passes, and it carries brotli-libs 1.2.1 and curl 8.23.0.
+
+**Next steps (each its own operator gate):**
+1. Push `fix/security-triage`, open the PR, and let CI build the three images.
+2. Merge, then run `Image scan` by hand to confirm the alerts close. Close #137 and #138 as applied, and #131 as covered.
+3. Decide #141 (the Python majors) and #139 and #140 (JS), each on its own branch.
+4. The paid Style A and Style B narration check, and the subject choice on `wf_31f14a60b44046a7f2bdd2ba`.
+
 ## 2026-11-26 - Cut duplicate CI runs, parallelize tests, and gate branch smokes
 
 An audit of recent `Container image` runs (`45522323992` push at 25.0 m and `45522329568` PR at 24.6 m) showed ~53 runner-minutes burned per branch push — including docs-only commits — because every internal PR ran both `push` and `pull_request` workflows in full, `pytest` ran single-process, `Free runner disk` deleted SDKs serially, and `Dockerfile.renderer` invalidated its Remotion browser layer on every source edit.
