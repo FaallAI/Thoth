@@ -1,0 +1,49 @@
+name: Image scan
+
+# SCA of the published images (operator, 2026-11-25): Trivy scans the master images for
+# known vulnerabilities in OS packages and libraries, and reports to the Security tab.
+# Trivy runs from its official image pinned by digest, not through trivy-action.
+on:
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+
+jobs:
+  scan:
+    name: Scan ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [thoth, thoth-remotion-renderer, thoth-web]
+    steps:
+      - name: Free runner disk
+        # The thoth image carries Camoufox, the browsers and the speech models.
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Scan the master image
+        # Read from the registry layer by layer, so the 16 GB image is never pulled whole.
+        env:
+          IMAGE: ghcr.io/faallai/${{ matrix.image }}:master
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/trivy"
+          docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v "${RUNNER_TEMP}/trivy:/out" "${TRIVY_IMAGE}" image --image-src remote --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --format sarif --output /out/results.sarif "${IMAGE}"
+
+      - name: Upload the results
+        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        with:
+          sarif_file: ${{ runner.temp }}/trivy/results.sarif
+          category: image-${{ matrix.image }}
