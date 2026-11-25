@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-26 - Cut duplicate CI runs, parallelize tests, and gate branch smokes
+
+An audit of recent `Container image` runs (`45522323992` push at 25.0 m and `45522329568` PR at 24.6 m) showed ~53 runner-minutes burned per branch push — including docs-only commits — because every internal PR ran both `push` and `pull_request` workflows in full, `pytest` ran single-process, `Free runner disk` deleted SDKs serially, and `Dockerfile.renderer` invalidated its Remotion browser layer on every source edit.
+
+**What changed** (on `feat/stressed-voice`, operator: "saya ikuti rekomendasi mu"):
+- **Eliminated internal PR duplication:** `quality` and `validate-image` now run on `pull_request` only for external forks (`head.repo.full_name != github.repository`); internal branches get full checks from `push`. Added `docker/test-browser-offline.sh` to `stack-smoke` so published images verify the stealthy browser launch too, and added the registry buildcache to `validate-image`.
+- **Skipped docs-only runs & gated heavy branch jobs:** Added `paths-ignore` (`docs/**`, `**/*.md`, `.superpowers/**`) on `push` and `pull_request` (never on `workflow_dispatch`). `quality` detects changed scopes via `git diff` so `template-release-parity` runs on feature branches only when renderer/composition/workflow files change, and `stack-smoke` runs on feature branches only when Docker/Compose/migrations/renderer/composition/workflow files change. Both always run on `master`, `v*` tags, and `workflow_dispatch`.
+- **Faster `Offline quality gates`:** Moved Compose validation and Ruff checks before browser/model setup and pytest (fail-fast). Cached `~/.cache/ms-playwright` and speech test models with pinned `actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9` (`v6.1.0`). Split pytest into parallel `pytest-xdist==3.8.0` (`-n auto --dist loadfile`) for all non-Postgres/non-MinIO tests followed by serial Postgres and MinIO tests, without modifying `python/pyproject.toml` or `python/uv.lock` (preserving the 10+ GB Docker runtime cache). Fixed a missing `ORDER.clear()` in `test_source_investigation.py` exposed by parallel execution.
+- **Faster image builds:** Parallelized `Free runner disk` across all three image jobs, scoped `sbom: true` and `provenance: mode=max` to `master`, `v*` tags, and `workflow_dispatch`, and moved `ensureBrowser()` in `Dockerfile.renderer` ahead of source `COPY` layers so TSX/TS edits reuse the browser layer.
+
+**Verification:**
+- `rhysd/actionlint:latest -shellcheck= .github/workflows/container-image.yml`: exit 0;
+- `make lint`: clean (`All checks passed!`, 624 files formatted);
+- `make test T="tests/deployment/test_container_contract.py tests/workflows/test_source_investigation.py"`: 140 passed;
+- Full non-Postgres/non-MinIO suite under `pytest-xdist==3.8.0 -n 4 --dist loadfile`: 5158 passed in 146.36 s (0 failed).
+
+**Next steps (each its own operator gate):**
+1. Push `feat/stressed-voice` to PR #135 and verify the faster CI run goes green.
+2. Paid live narration check on Style A and Style B (cost shown first).
+3. Merge PR #135.
+4. Start `ci/appsec-scans`.
+
 ## 2026-11-25 - Env username and password sign-in for development
 
 The operator turned GitHub sign-in off on stage1 because GitHub had problems, and set a new direction: Thoth is to be open source, not commercial. Google sign-in already lacked its domain, so stage1 had no way left to sign in. The operator asked for a username and password from env instead (brainstorm items 103 and 104).
