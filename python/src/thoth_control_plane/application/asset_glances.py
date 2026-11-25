@@ -86,7 +86,7 @@ class AssetGlanceService:
                 logger.error("ffmpeg could not run for a glance")
                 raise GlanceUnavailable("ffmpeg_unavailable") from error
             except GlanceBuildFailed as error:
-                logger.warning("glance build failed for %s", asset_id)
+                logger.warning("glance build failed for %s", record.asset.asset_id)
                 raise GlanceUnavailable("glance_failed") from error
             except (MediaUnavailable, MediaLocatorInvalid, MediaStoreUnavailable) as error:
                 raise GlanceUnavailable("media_store_unavailable") from error
@@ -94,7 +94,7 @@ class AssetGlanceService:
                 await asyncio.to_thread(self._write, location, glance)
             except (MediaStoreUnavailable, MediaLocatorInvalid, OSError):
                 # The glance is still good for this answer; the next request builds it again.
-                logger.warning("glance for %s was built but not kept", asset_id)
+                logger.warning("glance for %s was built but not kept", record.asset.asset_id)
             return glance
 
     def _read(self, location: str) -> AssetGlance | None:
