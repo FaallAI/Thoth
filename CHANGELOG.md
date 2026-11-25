@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-25 - Env username and password sign-in for development
+
+The operator turned GitHub sign-in off on stage1 because GitHub had problems, and set a new direction: Thoth is to be open source, not commercial. Google sign-in already lacked its domain, so stage1 had no way left to sign in. The operator asked for a username and password from env instead (brainstorm items 103 and 104).
+
+- **Settings:** `THOTH_AUTH_DEV_USERNAME`, `THOTH_AUTH_DEV_PASSWORD` and `THOTH_AUTH_DEV_EMAIL`. All three set, with `THOTH_AUTH_SECRET`, turn the sign-in on. No provider, SMTP or emailed code is needed.
+- **Account:** the sign-in uses the account with that email, created when missing. Like the bootstrap CLI, a new account claims the bootstrap workspace while it has no owner. A disabled account is refused, and the previous session is revoked.
+- **`POST /auth/password`:**
+  - accepts same-site requests only;
+  - compares both values in constant time;
+  - waits 1 s and logs a warning after a wrong pair (`401 bad_credentials`);
+  - has no lockout, so it is development only, and the API logs a warning at start while it is on.
+- **Login page:** `/auth/providers` lists `password`, and the page shows a username and password form for it. The "we email you a code" note shows only when an OAuth provider is offered.
+- **Wiring:** compose passes the three values to the api; the env example and `docs/python-control-plane.md` describe them.
+
+**Verification:** `make lint` clean; `make test` 5220 passed, 251 skipped; dashboard 2032 pass; `make dashboard-build` clean.
+
+**Stage1:**
+- **GitHub off:** the three `THOTH_AUTH_GITHUB_*` lines are commented out with a `#github-off# ` prefix, values kept. Remove the prefix and recreate the api to turn GitHub back on.
+- **Local images (operator: "build di local saja ... kelamaan kalo nunggu ci"):**
+  - `thoth-local:c289b894` is the deployed `8db32f6c803f` image with this checkout's `python/src` copied on top; the project is installed editable from that folder.
+  - `thoth-web-local:c289b894` is a full `Dockerfile.web` build.
+  - The renderer is unchanged. There is no migration.
+- **Deploy:** `make deploy` was not used, since its preflight accepts only GHCR digests; api, worker and web were recreated with compose.
+- **Credentials:** the env got the dev sign-in for the existing bootstrap owner's email; the generated password is in `D:/thoth-tmp/dev-login.txt`.
+- **Checks:**
+  - `/auth/providers` lists `password`;
+  - a wrong pair gets 401, and the right pair signs in as the `ws_bootstrap` owner, then logs out;
+  - web 200, 0 worker errors, 0 API 5xx.
+- **Rollback:** `D:/thoth-tmp/bu/pins/rollback-to-22630d3a.sh` (pins only).
+
+**Next steps (each its own operator gate):**
+1. Push `feat/stressed-voice` (PR #135) with this commit and wait for CI.
+2. The paid narration check on Style A and Style B, as below.
+3. Merge PR #135.
+4. `ci/appsec-scans` (item 102).
+
 ## 2026-11-24 - Stressed narration delivery with Eleven v4
 
 The operator found our narration flat next to the reference videos. Measured read-only on 11 reference breakdowns against 13 of our narrations:
