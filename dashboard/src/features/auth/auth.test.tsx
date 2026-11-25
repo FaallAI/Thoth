@@ -76,6 +76,34 @@ test("the login page offers the configured providers and carries next", async ()
   expect(screen.getByRole("link", { name: "Continue with GitHub" })).toBeDefined();
 });
 
+test("the env username and password sign in from the login page and report a wrong one", async () => {
+  const password = mock(async (username: string, secret: string, _next: string) => {
+    if (secret !== "correct horse") throw new AuthRequestError(401, "bad_credentials");
+    return `/studio?u=${username}`;
+  });
+  const onSignedIn = mock((_target: string) => {});
+  render(
+    <MemoryRouter initialEntries={["/login?next=%2Fstudio"]}>
+      <LocaleProvider serverLocale="en">
+        <LoginPage client={{ providers: mock(async () => ["password"]), password }} onSignedIn={onSignedIn} />
+      </LocaleProvider>
+    </MemoryRouter>,
+  );
+  const user = userEvent.setup();
+  await user.type(await screen.findByLabelText("Username"), "dev");
+  await user.type(screen.getByLabelText("Password"), "wrong");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByText("Wrong username or password.")).toBeDefined();
+  expect(onSignedIn).not.toHaveBeenCalled();
+  await user.clear(screen.getByLabelText("Password"));
+  await user.type(screen.getByLabelText("Password"), "correct horse");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith("/studio?u=dev"));
+  expect(password).toHaveBeenLastCalledWith("dev", "correct horse", "/studio");
+  expect(screen.queryByRole("link")).toBeNull();
+  expect(screen.queryByText("After signing in we email you a one-time code.")).toBeNull();
+});
+
 test("with no provider configured the login page says so", async () => {
   render(<MemoryRouter initialEntries={["/login"]}><LocaleProvider serverLocale="en"><LoginPage client={{ providers: mock(async () => []) }} /></LocaleProvider></MemoryRouter>);
   expect(await screen.findByText("Sign-in is not configured on this server.")).toBeDefined();

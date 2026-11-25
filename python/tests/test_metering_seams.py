@@ -71,8 +71,8 @@ async def test_elevenlabs_records_the_characters_it_was_asked_to_speak() -> None
             VoiceRequest(text="Halo, dunia!", voice_id="v")
         )
     assert [(e.key, e.quantity, e.unit) for e in sink.events] == [
-        ("elevenlabs/eleven_multilingual_v2", 1.0, "call"),
-        ("elevenlabs/eleven_multilingual_v2", 12.0, "character"),
+        ("elevenlabs/eleven_v4", 1.0, "call"),
+        ("elevenlabs/eleven_v4", 12.0, "character"),
     ]
 
 

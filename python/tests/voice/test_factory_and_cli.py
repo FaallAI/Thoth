@@ -134,3 +134,24 @@ def test_voice_say_meters_the_call_for_the_operator(monkeypatch, tmp_path) -> No
         ("ws_bootstrap", "call", 1.0),
         ("ws_bootstrap", "character", 4.0),
     ]
+
+
+def test_voice_say_says_when_a_model_ignores_speed(monkeypatch, tmp_path) -> None:
+    """Eleven v4 has no speed setting: `--speed` is named as ignored, never silently dropped."""
+
+    class Fake:
+        async def synthesize(self, request):
+            return SynthesizedVoice(
+                audio=b"MP3", media_type="audio/mpeg", duration_seconds=1.0, word_timings=[]
+            )
+
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setattr(cli, "build_voice", lambda settings, provider: Fake())
+    args = ["voice", "say", "--voice", "v", "--text", "Halo", "--out", str(tmp_path / "a")]
+    result = CliRunner().invoke(cli.app, [*args, "--speed", "1.2"])
+    assert result.exit_code == 0
+    assert "--speed is ignored by eleven_v4" in result.output
+    plain = CliRunner().invoke(
+        cli.app, [*args, "--speed", "1.2", "--model", "eleven_multilingual_v2"]
+    )
+    assert "ignored" not in plain.output

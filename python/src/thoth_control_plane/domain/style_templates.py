@@ -58,6 +58,29 @@ class CaptionRules(StrictModel):
     words_per_caption: Annotated[int, Field(ge=1, le=8)]
 
 
+class DeliveryRules(StrictModel):
+    """How a style's narration is stressed: Eleven v4 audio tags and stability (spec 2026-11-24)."""
+
+    #: Lower is more expressive; ElevenLabs' own default is 0.5.
+    stability: Annotated[float, Field(ge=0.0, le=1.0)] = 0.48
+    #: The audio tags the script may use, written as `[tag]` before the words they stress. A
+    #: stored template is JSON, where the tuple comes back as a list.
+    tags: Annotated[tuple[str, ...], Field(strict=False)] = (
+        "curious",
+        "emphatically",
+        "intrigued",
+        "seriously",
+    )
+    max_tags_per_beat: Annotated[int, Field(ge=1, le=6)] = 3
+    guide: Annotated[str, Field(min_length=1, max_length=600)] = (
+        "Use tags sparingly before contrast words, key names, numbers, or surprising turns."
+    )
+
+
+#: An unstyled draft's delivery: moderate stress.
+DEFAULT_DELIVERY = DeliveryRules()
+
+
 class NarrationRules(StrictModel):
     starter: Annotated[str, Field(min_length=1, max_length=12_000)]
     target_seconds: Annotated[int, Field(ge=10, le=180)] | None = None
@@ -65,6 +88,8 @@ class NarrationRules(StrictModel):
     card_line_max_words: Annotated[int, Field(ge=1, le=12)] = 6
     card_seconds: Annotated[float, Field(gt=0.0, le=10.0)] = 2.0
     max_sfx_cues: Annotated[int, Field(ge=0, le=10)] | None = None
+    #: Its own copy of the default, so no two templates share one instance.
+    delivery: DeliveryRules = Field(default_factory=DeliveryRules)
 
 
 class StyleTemplate(StrictModel):
@@ -128,7 +153,21 @@ def _a() -> StyleTemplate:
         },
         cuts=CutRules(max_shot_seconds=2.4, min_shot_seconds=0.9, planned=True),
         captions=CaptionRules(style="boxed", words_per_caption=4),
-        narration=NarrationRules(starter=_STARTER_A),
+        narration=NarrationRules(
+            starter=_STARTER_A,
+            # Measured on the references (item 94): Style A stretches contrast words, names
+            # and numbers, not sentence ends.
+            delivery=DeliveryRules(
+                stability=0.45,
+                tags=("curious", "amused", "excited", "surprised", "emphatically", "whispers"),
+                max_tags_per_beat=3,
+                guide=(
+                    "Expressive conversational commentary. Place tags before contrast or "
+                    "interjection words (tapi, ternyata, malah, wah, eh), key names, numbers, "
+                    "or plot twists; an ellipsis (...) may precede a surprising reveal."
+                ),
+            ),
+        ),
     )
 
 
@@ -152,7 +191,20 @@ def _b() -> StyleTemplate:
             max_shot_seconds=2.4, min_shot_seconds=0.9, card_between_facts=True, planned=True
         ),
         captions=CaptionRules(style="kinetic", words_per_caption=3),
-        narration=NarrationRules(starter=_STARTER_B, card_lines=True),
+        narration=NarrationRules(
+            starter=_STARTER_B,
+            card_lines=True,
+            # The WinNews references read steadily, with light stress (item 94).
+            delivery=DeliveryRules(
+                stability=0.50,
+                tags=("seriously", "intrigued", "emphatically", "thoughtful"),
+                max_tags_per_beat=2,
+                guide=(
+                    "Calm, firm news delivery with light stress on numbers, dates, key names, "
+                    "and punchlines. Never use laughing, whispering, or overly dramatic reactions."
+                ),
+            ),
+        ),
     )
 
 

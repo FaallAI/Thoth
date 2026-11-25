@@ -171,6 +171,23 @@ class SignInService:
             code = "too_soon" if limited.code == "resend_too_soon" else "too_many_codes"
             raise SignInRefused(code) from None
 
+    async def sign_in_password(
+        self, email: str, display_name: str, previous_session: str | None = None
+    ) -> SignedIn:
+        """The env development sign-in: the caller already matched the env username and
+        password, so the account is signed in with no emailed code (operator 2026-11-25)."""
+        if self._secret is None:
+            raise SignInRefused("not_configured")
+        account: AccountUser = await self._run(self._store.ensure_user, email, display_name)
+        if account.disabled:
+            await self._event(
+                "sign_in", "refused", user_id=account.user_id, detail_code="not_allowed"
+            )
+            raise SignInRefused("not_allowed")
+        if previous_session:
+            await self._run(self._store.revoke_session, token_hash(previous_session))
+        return await self._start(account, trust_device=False)
+
     async def verify(
         self,
         challenge_token: str,

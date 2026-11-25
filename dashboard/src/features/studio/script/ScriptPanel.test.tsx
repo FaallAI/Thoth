@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import type { NarrationState } from "@/api/control-plane";
 import { render } from "@/test-render";
 
+import { revoiceCost } from "./RevoiceConfirm";
 import { ScriptPanel } from "./ScriptPanel";
 
 afterEach(cleanup);
@@ -224,4 +225,33 @@ test("a read that could not be answered is asked again, never taken as no narrat
   await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
   expect(result.current[2]).toBe(true);
   expect(seen).not.toContain(true);
+});
+
+test("audio tags render subtly in approval without unsupported underlines and stay editable when completed", () => {
+  const text = "[curious] Kata Andi, [clears throat] ikan diambil.";
+  const tagged: NarrationState = {
+    ...awaiting,
+    script: { ...awaiting.script!, beats: [awaiting.script!.beats[0]!, { beat: "main", text }] },
+  };
+  const { container } = render(
+    <ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={tagged} onChange={() => {}} />,
+  );
+  const tags = [...container.querySelectorAll('[data-audio-tag="true"]')].map((node) => node.textContent);
+  expect(tags).toEqual(["[curious]", "[clears throat]"]);
+  for (const mark of container.querySelectorAll("mark")) expect(mark.textContent).not.toContain("[");
+  expect(screen.getByTitle("Not found in the evidence").textContent).toBe("Andi");
+  cleanup();
+
+  render(
+    <ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={{ ...tagged, status: "completed" }} onChange={() => {}} />,
+  );
+  expect((screen.getByRole("textbox", { name: "Main" }) as HTMLTextAreaElement).value).toBe(text);
+});
+
+test("a re-voice on an older v2 draft is priced on the words the voice is sent, without tags", () => {
+  const beats = [{ beat: "main" as const, text: "[curious] Halo" }];
+  const base = { ...awaiting, script: { ...awaiting.script!, beats }, estimate: { characters: 10, provider: "elevenlabs", voice_id: "plgK", usd: 1 } };
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: "eleven_multilingual_v2" } }, ["main"])).toEqual({ characters: 4, usd: 0.4 });
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: null } }, ["main"]).characters).toBe(4);
+  expect(revoiceCost({ ...base, estimate: { ...base.estimate, voice_model: "eleven_v4" } }, ["main"]).characters).toBe(14);
 });

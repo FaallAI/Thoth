@@ -860,3 +860,60 @@ def test_a_short_script_asked_twice_is_still_used() -> None:
     result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
     assert result.code is None and seen["provider_calls"] == 2  # never a failed narration
     assert seen["store"].status[-1] == ("awaiting_approval", None)
+
+
+# Stressed delivery (spec 2026-11-24): each style's tags and stability reach the script and voice.
+def test_write_script_passes_style_delivery_and_counts_spoken_words_for_min_length() -> None:
+    built, seen = styled_ports("style_a")
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert "[amused]" in seen["provider_requests"][0]["system"]
+
+    built, seen = styled_ports("style_b")
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    system = seen["provider_requests"][0]["system"]
+    assert "[seriously]" in system and "[amused]" not in system
+
+    # 102 spoken words and 9 tags: 111 tokens would pass the 108-word floor (135 x 0.8), but
+    # only spoken words count, so the script is asked for once more.
+    words = " ".join(["kata"] * 34)
+    tagged = {
+        "beats": [
+            {"beat": beat, "text": f"[curious] {words} [curious] [curious]"}
+            for beat in ("hook", "main", "reactions")
+        ],
+        "sfx_cues": [],
+    }
+    built, seen = ports(answers=[tagged, tagged])
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert seen["provider_calls"] == 2
+
+
+def _stabilities(built: NarrationPorts, seen: dict[str, Any]) -> list[float | None]:
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(activities.voice(STEP))
+    run(activities.revoice(NarrationRevoiceInput(**STEP.model_dump(), beat="main")))
+    return [request.stability for request in seen["voice"].requests]
+
+
+def test_voice_and_revoice_pass_style_stability() -> None:
+    assert set(_stabilities(*styled_ports("style_a"))) == {0.45}
+    assert set(_stabilities(*styled_ports("style_b"))) == {0.50}
+    assert set(_stabilities(*ports())) == {0.48}
+
+
+def test_an_unreadable_draft_voices_with_the_default_stability_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    built, seen = styled_ports("style_a")
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    async def down(_p: str, _d: str) -> Any:
+        raise RuntimeError("database down")
+
+    seen["documents"].get_latest = down
+    with caplog.at_level("WARNING"):
+        run(activities.voice(STEP))
+    assert {request.stability for request in seen["voice"].requests} == {0.48}
+    assert any("default delivery" in record.message for record in caplog.records)

@@ -55,6 +55,8 @@ from thoth_control_plane.operations.tiktok_soak_cli import (
     load_tiktok_soak_observations,
     write_tiktok_soak_report,
 )
+from thoth_control_plane.voice.adapters.elevenlabs import DEFAULT_MODEL as ELEVENLABS_DEFAULT
+from thoth_control_plane.voice.adapters.elevenlabs import takes_speed
 from thoth_control_plane.voice.factory import build_voice
 from thoth_control_plane.voice.ports import (
     VoiceNotConfigured,
@@ -386,6 +388,9 @@ def voice_say(
     except ValidationError:
         typer.echo("VoiceRejected: invalid_request")
         raise typer.Exit(1) from None
+    if provider == "elevenlabs" and speed != 1.0 and not takes_speed(model):
+        # Eleven v3 and v4 have no speed setting: say so rather than drop it quietly.
+        typer.echo(f"--speed is ignored by {model or ELEVENLABS_DEFAULT}")
     settings = Settings()
     if settings.THOTH_EDITOR_DATABASE_URL is not None:
         # An operator call outside any workspace: metered for the bootstrap (spec 2026-10-20, 3.1).

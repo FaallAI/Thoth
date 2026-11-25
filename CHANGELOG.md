@@ -2,6 +2,118 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-25 - Env username and password sign-in for development
+
+The operator turned GitHub sign-in off on stage1 because GitHub had problems, and set a new direction: Thoth is to be open source, not commercial. Google sign-in already lacked its domain, so stage1 had no way left to sign in. The operator asked for a username and password from env instead (brainstorm items 103 and 104).
+
+- **Settings:** `THOTH_AUTH_DEV_USERNAME`, `THOTH_AUTH_DEV_PASSWORD` and `THOTH_AUTH_DEV_EMAIL`. All three set, with `THOTH_AUTH_SECRET`, turn the sign-in on. No provider, SMTP or emailed code is needed.
+- **Account:** the sign-in uses the account with that email, created when missing. Like the bootstrap CLI, a new account claims the bootstrap workspace while it has no owner. A disabled account is refused, and the previous session is revoked.
+- **`POST /auth/password`:**
+  - accepts same-site requests only;
+  - compares both values in constant time;
+  - waits 1 s and logs a warning after a wrong pair (`401 bad_credentials`);
+  - has no lockout, so it is development only, and the API logs a warning at start while it is on.
+- **Login page:** `/auth/providers` lists `password`, and the page shows a username and password form for it. The "we email you a code" note shows only when an OAuth provider is offered.
+- **Wiring:** compose passes the three values to the api; the env example and `docs/python-control-plane.md` describe them.
+
+**Verification:** `make lint` clean; `make test` 5220 passed, 251 skipped; dashboard 2032 pass; `make dashboard-build` clean.
+
+**Stage1:**
+- **GitHub off:** the three `THOTH_AUTH_GITHUB_*` lines are commented out with a `#github-off# ` prefix, values kept. Remove the prefix and recreate the api to turn GitHub back on.
+- **Local images (operator: "build di local saja ... kelamaan kalo nunggu ci"):**
+  - `thoth-local:c289b894` is the deployed `8db32f6c803f` image with this checkout's `python/src` copied on top; the project is installed editable from that folder.
+  - `thoth-web-local:c289b894` is a full `Dockerfile.web` build.
+  - The renderer is unchanged. There is no migration.
+- **Deploy:** `make deploy` was not used, since its preflight accepts only GHCR digests; api, worker and web were recreated with compose.
+- **Credentials:** the env got the dev sign-in for the existing bootstrap owner's email; the generated password is in `D:/thoth-tmp/dev-login.txt`.
+- **Checks:**
+  - `/auth/providers` lists `password`;
+  - a wrong pair gets 401, and the right pair signs in as the `ws_bootstrap` owner, then logs out;
+  - web 200, 0 worker errors, 0 API 5xx.
+- **Rollback:** `D:/thoth-tmp/bu/pins/rollback-to-22630d3a.sh` (pins only).
+
+**Next steps (each its own operator gate):**
+1. Push `feat/stressed-voice` (PR #135) with this commit and wait for CI.
+2. The paid narration check on Style A and Style B, as below.
+3. Merge PR #135.
+4. `ci/appsec-scans` (item 102).
+
+## 2026-11-24 - Stressed narration delivery with Eleven v4
+
+The operator found our narration flat next to the reference videos. Measured read-only on 11 reference breakdowns against 13 of our narrations:
+- human Style A narrators stretch contrast words (tapi, ternyata, wah), names and numbers;
+- our `eleven_multilingual_v2` voices stretched sentence ends instead.
+
+A paid listening spike (401 input characters) settled the choice: Eleven v4 with inline audio tags ("lebih enak versi 4"). Every style gets stressed delivery as the default.
+
+**What changed** (spec `docs/superpowers/specs/2026-11-24-stressed-narration-delivery-design.md`, plan `docs/superpowers/plans/2026-11-24-stressed-narration-delivery.md`):
+- **Audio tags in the script.** The script writer may put English ElevenLabs tags such as `[curious]` inside a beat's text, before the words they stress.
+  - Each style's `DeliveryRules` sets the allowed tags, a per-beat cap, a guide and the voice stability:
+    - Style A: expressive, stability 0.45, up to 3 tags;
+    - Style B: calm news, stability 0.50, up to 2 tags, no laughing or whispering;
+    - unstyled drafts: 0.48, up to 3 tags.
+  - Any other bracketed text the model writes is removed, and so is any tag in the headline or card line.
+- **Tags never reach what people read or what is timed.**
+  - Captions, planner phrases and SFX word positions come from the voice's word timings, which drop the tags. Punctuation right after a tag stays on the word before it.
+  - The cut preview, the length checks and the evidence check count spoken words only.
+- **The voice.**
+  - On `eleven_v4*` the adapter sends the tags, `language_code` and the style's stability, and never `speed`.
+  - Any other model gets the text with its tags stripped. `speed` still goes to every model except `eleven_v3*`.
+  - A beat of tags alone is refused before any call, so it is never billed.
+- **Default model.** `NarrationPreset.voice_model` defaults to `eleven_v4`. Editor migration `0036` moves saved project presets that hold the old default `eleven_multilingual_v2` to `eleven_v4` and steps their revision.
+  - A project that chose another model is untouched.
+  - So is every stored narration's own preset snapshot, so a re-voiced beat on an older draft keeps its old voice.
+- **Studio.** The approval view shows tags as small muted badges, never as unsupported words. The editable beat text keeps them, so the operator can change them before re-voicing.
+
+**Rollback:** images before this release send `voice_settings.speed`, which `eleven_v4` rejects. Before rolling back past `0036`, set `narration_presets.preset->>'voice_model'` back to `eleven_multilingual_v2`; the statement is in the migration header. Narrations started on `eleven_v4` cannot be re-voiced after such a rollback; restart them instead.
+
+**Verification:**
+- `make lint` exit 0;
+- `make test` 5206 passed, 251 skipped;
+- `make test-postgres` 229 passed, 0 skipped;
+- `make dashboard-test` 2030 pass, 0 fail;
+- `make dashboard-build` (`tsc -b` and Vite) exit 0;
+- `graphify update .` rebuilt the code graph.
+
+**Final review:** a fresh reviewer found no Critical issue. Fixed test-first:
+- a tag right before punctuation split the punctuation into its own caption word;
+- a beat of tags alone was billed on v4;
+- the billing fallback counted stripped tags;
+- `eleven_v3` was sent `speed`;
+- an unreadable draft logged only at debug;
+- the migration's rollback note was incomplete.
+
+The Postgres suite also caught stored style templates failing to decode their tag list; that was fixed test-first.
+
+**Review minors, fixed test-first on the operator's word ("tolong perbaiki minor sekalian"):**
+- `language_code` is the preset language's primary subtag: `id-ID` is sent as `id`;
+- each estimate names the model it counted for (`VoiceEstimate.voice_model`, default None), and the dashboard prices a re-voiced beat without tags unless the draft is on `eleven_v4`;
+- a voice's length runs to the end of its alignment, so the sound of a trailing tag such as `[laughs]` is not cut;
+- `voice say --speed` says when the model ignores it;
+- every unstyled template gets its own default `DeliveryRules`.
+
+**CI fix:** PR #135's image build failed because `camoufox set` and `fetch` list releases through the GitHub API. Anonymously, the shared runner hit the rate limit (403), and both commands still exited 0, so the browser was never installed and the image's launch check failed. The build now passes the workflow's `GITHUB_TOKEN` as a BuildKit secret, which Camoufox reads. The token never lands in a layer, and a local build without it runs anonymously as before.
+
+**Kept as the spec says:** sanitizing still drops every bracketed span that is not an allowed tag, whole. A first fix that read spans of more than 3 words aloud was reverted after a side note showed a stage note such as `[musik dramatis mulai pelan-pelan]` would be spoken in a paid voice. `test_sanitize_never_lets_a_stage_note_be_spoken` pins the rule. The accepted cost: a word the model wraps in brackets by mistake is not spoken.
+
+**Operator note:** Eleven v4 read the spike line about 15% slower (8.4 s against 7.3 s) and has no speed setting. The operator accepts this as part of the expressive delivery (item 100). The live check compares voice length with the target.
+
+**CI fix, second round:** the first fix read the token as `secrets.GITHUB_TOKEN`, and the container contract test forbids any `secrets.` reference in the workflow. Both builds now pass `github.token`, the same job token the GHCR login already uses, and the contract test pins it (22630d3a). CI went green on every job.
+
+**Deploy:** 22630d3a was deployed to stage1 from the branch image on 2026-11-25 (operator "ya").
+- **Images:** thoth `8db32f6c803f`, renderer `d309d735f7b8`, web `a455bb4b92f0`. The pins match the running containers.
+- **Checks:** editor migration `0036` applied, and the one saved preset moved to `eleven_v4`. Web 200, 0 worker errors, 0 API 5xx, no workflow running.
+- **Rollback:** `D:/thoth-tmp/bu/pins/rollback-to-a0f97728.sh` moves the presets back to `eleven_multilingual_v2` first, then restores the pins without `make deploy`.
+
+**Next steps (each its own operator gate):**
+1. Run a paid narration on stage1 on a Style A and a Style B draft, cost shown first. Check:
+   - the stressed delivery;
+   - no `[...]` in captions, cuts or SFX timing;
+   - re-voicing an edited tag;
+   - voice length against the target.
+2. Merge PR #135.
+3. Build the application security scans on `ci/appsec-scans` (item 102).
+
 ## 2026-11-18 - Studio plays videos from light preview proxies
 
 The operator reported that Studio playback stuttered on draft edoc_afd07b23, although the rendered video was fine.
@@ -23,11 +135,20 @@ The operator reported that Studio playback stuttered on draft edoc_afd07b23, alt
 - on the draft's six real sources, built in the worker's /tmp, every proxy had a keyframe gap of 1.00 s, took 0.6-4.8 s to build, and came to 27 MB in all.
 - Golden parity (`f1_verify3.sh`, rerun after Claude Code stopped the first run for low memory): `vertical_text_story-v1` 16/16, `story_mode-v1` 16/16, `effects-v1` 19/19, every frame 0 changed pixels.
 
+**Deploy of `a0f97728`, with the operator's approval:**
+- **Push:** PR #133, CI green.
+- **Images:** `api` and `worker` on `thoth@sha256:72ec11edfaa8`, renderer `fa8137f005d1`, web `1434e5f9b1d4`. The pins match the running images.
+- **Checks:** web 200; ffmpeg present in the new API; 0 worker error lines; 0 API 5xx.
+- **Rollback:** `rollback-to-4a207742.sh`, which restores the pins only, as there is no new migration.
+
+**Live check and merge:**
+- the operator reopened edoc_afd07b23 and played it: no stutter ("oke sudah aman setelah ku coba");
+- PR #133 was merged on the operator's word, merge `817ee651`; stage1 keeps the branch image, which is the same code.
+
 **Next steps:**
-- push to PR #133 and CI;
-- deploy to stage1;
-- open edoc_afd07b23 once so its proxies build, reopen it and play;
-- merge PR #133.
+- one paid Style A narration on the Mutant draft, started by the operator in Studio (approved; the e2e server did not connect);
+- the next roadmap item: stressed voice;
+- carry this local deploy record onto the next work branch.
 
 ## 2026-11-17 - A silent short voice, a podcast showing the wrong person, thin Style A b-roll
 

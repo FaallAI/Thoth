@@ -476,3 +476,116 @@ def test_footage_said_becomes_footage_talk_in_the_facts() -> None:
     ]
     # The voice never sees an account (final review, Important 9).
     assert "CURHAT" not in facts.model_dump_json()
+
+
+# Stressed delivery (spec 2026-11-24): Eleven v4 audio tags inside the beat text.
+def test_build_script_request_includes_delivery_rules_for_v4_and_omits_for_v2() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    def request(model: str, **changes: object) -> str:
+        system, _ = build_script_request(
+            prompt="Tulis naskah.",
+            beats=BEATS,  # type: ignore[arg-type]
+            facts=FACTS,
+            transcript=TRANSCRIPT,
+            preset=NarrationPreset(voice_model=model),
+            sfx=[],
+            **changes,  # type: ignore[arg-type]
+        )
+        return system
+
+    style_a = BUILT_IN_STYLES["style_a"].narration.delivery
+    system = request("eleven_v4", delivery=style_a)
+    assert "[curious]" in system and "[amused]" in system
+    assert "at most 3 tags per beat" in system
+    assert style_a.guide in system
+    assert "word_index counts spoken words only" in system
+
+    default = request("eleven_v4")
+    assert "[intrigued]" in default and "[amused]" not in default
+
+    v2 = request("eleven_multilingual_v2", delivery=style_a)
+    assert "[curious]" not in v2 and "tags per beat" not in v2
+
+
+def test_parse_script_sanitizes_caps_and_drops_tags_where_they_cannot_go() -> None:
+    tagged = answer(
+        beats=[
+            {
+                "beat": "hook",
+                "text": "[curious] Kucing ini [tertawa] bikin heboh.",
+                "card_line": "[amused] Wah",
+            },
+            {"beat": "main", "text": "[curious] Tiga [amused] ikan [excited] diambil."},
+            {"beat": "reactions", "text": "[curious] [excited]"},
+        ],
+        headline="[curious] Kucing oren viral di pasar",
+    )
+    allowed = frozenset({"curious", "amused", "excited"})
+    script = parse_script(
+        tagged,
+        beats=BEATS,  # type: ignore[arg-type]
+        preset=NarrationPreset(voice_model="eleven_v4"),
+        sfx_ids={"whoosh"},
+        card_line_max_words=6,
+        allowed_tags=allowed,
+        max_tags_per_beat=2,
+    )
+    assert [beat.text for beat in script.beats] == [
+        "[curious] Kucing ini bikin heboh.",
+        "[curious] Tiga [amused] ikan diambil.",
+    ]
+    assert script.beats[0].card_line == "Wah"
+    assert script.headline == "Kucing oren viral di pasar"
+
+    plain = parse_script(
+        tagged,
+        beats=BEATS,  # type: ignore[arg-type]
+        preset=NarrationPreset(voice_model="eleven_multilingual_v2"),
+        sfx_ids={"whoosh"},
+        allowed_tags=allowed,
+    )
+    assert [beat.text for beat in plain.beats] == [
+        "Kucing ini bikin heboh.",
+        "Tiga ikan diambil.",
+    ]
+
+    with pytest.raises(ScriptInvalid):
+        parse_script(
+            answer(beats=[{"beat": "hook", "text": "[curious] [excited]"}]),
+            beats=BEATS,  # type: ignore[arg-type]
+            preset=NarrationPreset(voice_model="eleven_v4"),
+            sfx_ids=set(),
+            allowed_tags=allowed,
+        )
+
+    # The length limit counts spoken words: 168 words fit 45 s x 3 w/s x 1.25, tags do not count.
+    words = " ".join(["kata"] * 54)
+    long_tagged = answer(
+        beats=[
+            {"beat": beat, "text": f"[curious] {words} [amused] lagi [excited] ya"}
+            for beat in BEATS
+        ]
+    )
+    fits = parse_script(
+        long_tagged,
+        beats=BEATS,  # type: ignore[arg-type]
+        preset=NarrationPreset(voice_model="eleven_v4", target_seconds=45, words_per_second=3.0),
+        sfx_ids=set(),
+        allowed_tags=allowed,
+    )
+    assert len(fits.beats) == 3
+
+
+def test_unsupported_tokens_ignores_tags_and_preserves_sentence_start() -> None:
+    script = NarrationScript(
+        beats=[
+            ScriptBeat(
+                beat="hook",
+                text="[curious] Mutant nggak suka. [amused] Tiba-tiba Densu datang sama Budi.",
+            )
+        ],
+        sfx_cues=[],
+    )
+    facts = ScriptFacts(title="Densu datang", description="")
+    assert unsupported_tokens(script, facts, []) == {"hook": ["Budi"]}

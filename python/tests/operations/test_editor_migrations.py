@@ -66,6 +66,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0033_footage_library.sql",
         "0034_footage_said.sql",
         "0035_footage_relation.sql",
+        "0036_stressed_voice_model.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()

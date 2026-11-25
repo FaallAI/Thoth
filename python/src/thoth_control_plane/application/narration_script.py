@@ -26,6 +26,12 @@ from thoth_control_plane.domain.narration import (
     SfxEntry,
     TranscriptSegment,
 )
+from thoth_control_plane.domain.style_templates import DEFAULT_DELIVERY, DeliveryRules
+from thoth_control_plane.voice.audio_tags import (
+    sanitize_script_tags,
+    strip_audio_tags,
+    supports_audio_tags,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +114,18 @@ def _clean(text: str, limit: int) -> str:
     return " ".join(_URL.sub("", text).split())[:limit]
 
 
+def _delivery_rules(delivery: DeliveryRules) -> str:
+    """How Eleven v4 is told where to stress (spec 2026-11-24, 5.3)."""
+    tags = ", ".join(f"[{tag}]" for tag in delivery.tags)
+    return (
+        "Delivery: the voice reads English audio tags written in square brackets inside a beat's "
+        f"text. Allowed tags: {tags}. Use at most {delivery.max_tags_per_beat} tags per beat, "
+        f"each right before the word or clause it stresses. {delivery.guide} Never write any "
+        "other bracketed tag, never a tag in Indonesian, and never a tag in the headline or on "
+        "a card. In sfx_cues, word_index counts spoken words only: tags are not words."
+    )
+
+
 def build_script_request(
     *,
     prompt: str,
@@ -119,6 +137,7 @@ def build_script_request(
     note: str | None = None,
     card_lines: bool = False,
     card_line_max_words: int = 6,
+    delivery: DeliveryRules | None = None,
 ) -> tuple[str, str]:
     """The system prompt (the stage's prompt plus the contract) and the user message."""
     words = round(preset.target_seconds * preset.words_per_second)
@@ -172,6 +191,10 @@ def build_script_request(
         )
         contract = f"{contract} {CARD_CONTRACT}"
     system = f"{prompt}\n\n{SOURCE_RULES}\n\n{contract}"
+    # Every style and every saved prompt gets stressed delivery; a model that would read a tag
+    # aloud is never asked for one.
+    if supports_audio_tags(preset.voice_model):
+        system = f"{system}\n\n{_delivery_rules(delivery or DEFAULT_DELIVERY)}"
     return system, "\n".join(line for line in lines if line)
 
 
@@ -189,7 +212,7 @@ def _card_line(item: dict[str, Any], max_words: int | None) -> dict[str, str]:
     """A beat's card line when the style asked for one and it is short enough, else nothing."""
     if max_words is None:
         return {}
-    line = _HANDLE_AT.sub("", str(item.get("card_line") or "").strip())
+    line = _HANDLE_AT.sub("", strip_audio_tags(str(item.get("card_line") or "")))
     if not line or len(line.split()) > max_words or len(line) > 80:
         return {}
     return {"card_line": line}
@@ -198,7 +221,7 @@ def _card_line(item: dict[str, Any], max_words: int | None) -> dict[str, str]:
 def _headline(raw: object) -> dict[str, str]:
     """The headline when it fits the top of the video and names no account, else nothing: the
     draft then keeps its caption cut to fit (operator, 2026-11-12)."""
-    line = " ".join(str(raw or "").split())
+    line = strip_audio_tags(str(raw or ""))
     if not line or len(line) > HEADLINE_MAX or "@" in line:
         return {}
     return {"headline": line}
@@ -211,17 +234,28 @@ def parse_script(
     preset: NarrationPreset,
     sfx_ids: set[str],
     card_line_max_words: int | None = None,
+    allowed_tags: frozenset[str] | None = None,
+    max_tags_per_beat: int | None = None,
 ) -> NarrationScript:
     if not isinstance(answer, dict):
         raise ScriptInvalid("not an object")
     raw_beats = answer.get("beats")
     if not isinstance(raw_beats, list) or not raw_beats:
         raise ScriptInvalid(f"no beats in {str(answer)[:ANSWER_SHOWN]}")
-    # A beat the model left empty keeps its visuals and simply gets no voice.
+    # The style's tags only, and none for a model that would read them aloud (spec 2026-11-24).
+    tags = frozenset(DEFAULT_DELIVERY.tags) if allowed_tags is None else allowed_tags
+    if not supports_audio_tags(preset.voice_model):
+        tags = frozenset()
+    limit = max_tags_per_beat or DEFAULT_DELIVERY.max_tags_per_beat
+
+    def text_of(item: dict[str, Any]) -> str:
+        return sanitize_script_tags(str(item.get("text", "")).strip(), tags, max_tags=limit)
+
+    # A beat the model left empty, or wrote only tags for, keeps its visuals and gets no voice.
     raw_beats = [
         item
         for item in raw_beats
-        if not (isinstance(item, dict) and not str(item.get("text", "")).strip())
+        if not (isinstance(item, dict) and not strip_audio_tags(text_of(item)))
     ]
     if not raw_beats:
         raise ScriptInvalid("no beats")
@@ -247,7 +281,7 @@ def parse_script(
                     # The voice reads "@" aloud, whatever the prompt asked.
                     {
                         "beat": item["beat"],
-                        "text": _HANDLE_AT.sub("", str(item["text"]).strip()),
+                        "text": _HANDLE_AT.sub("", text_of(item)),
                         **_card_line(item, card_line_max_words),
                     }
                     for item in ordered
@@ -258,7 +292,7 @@ def parse_script(
         )
     except ValidationError as error:
         raise ScriptInvalid(f"not a script: {str(error)[:ANSWER_SHOWN]}") from error
-    words = sum(len(beat.text.split()) for beat in script.beats)
+    words = sum(len(strip_audio_tags(beat.text).split()) for beat in script.beats)
     if words > preset.target_seconds * preset.words_per_second * LENGTH_SLACK:
         raise ScriptInvalid(f"too long: {words} words")
     return script
@@ -293,7 +327,8 @@ def _missing(text: str, words: set[str], numbers: set[str]) -> list[str]:
     """Every number, @handle and mid-sentence capitalised word of `text` the evidence lacks."""
     missing: list[str] = []
     sentence_start = True
-    for token in text.split():
+    # A tag is not spoken: it neither counts as a word nor ends a sentence.
+    for token in strip_audio_tags(text).split():
         stripped = token.strip(_QUOTES)
         if re.fullmatch(r"\d[\d.,]*", stripped.rstrip(".!?")):
             if re.sub(r"\D", "", stripped) not in numbers:

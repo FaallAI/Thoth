@@ -56,6 +56,13 @@ export function createAuthClient(doFetch: Fetch = (input, init) => fetch(input, 
       });
       return ((await response.json()) as { next: string }).next;
     },
+    /** The env development sign-in (operator 2026-11-25): no provider and no emailed code. */
+    async password(username: string, password: string, next: string): Promise<string> {
+      const response = await send("/auth/password", {
+        method: "POST", headers: JSON_BODY, body: JSON.stringify({ username, password, next }),
+      });
+      return ((await response.json()) as { next: string }).next;
+    },
     async resend(): Promise<void> {
       await send("/auth/resend", { method: "POST" });
     },
