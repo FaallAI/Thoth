@@ -74,7 +74,9 @@ def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
 def test_the_stealthy_browser_launch_smoke_gates_publication_and_deploy() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     validation = workflow.split("  validate-image:", 1)[1].split("  publish-image:", 1)[0]
+    smoke = workflow.split("  stack-smoke:", 1)[1].split("  template-release-parity:", 1)[0]
     assert "test-browser-offline.sh" in validation
+    assert "test-browser-offline.sh" in smoke
     assert "test-browser-offline.sh" in _repo_text("scripts/ops/deploy-stage1.sh")
 
 
@@ -154,7 +156,16 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "          THOTH_TEST_MEDIA_S3_SECRET_KEY: thoth-test-secret\n"
         '          THOTH_REQUIRE_MINIO_TESTS: "1"\n'
         '          THOTH_REQUIRE_BROWSER_TESTS: "1"\n'
-        '        run: uv run pytest -m "not live" -q'
+        "        run: |\n"
+        "          set -euo pipefail\n"
+        "          uv run --frozen --all-groups --extra acquisition "
+        "--with 'pytest-xdist==3.8.0' \\\n"
+        '            pytest -m "not live" --ignore-glob="*_postgres.py" \\\n'
+        "            --ignore=tests/infrastructure/test_media_store.py "
+        "-n auto --dist loadfile -q\n"
+        "          uv run --frozen --all-groups --extra acquisition \\\n"
+        '            pytest -m "not live" tests/*/*_postgres.py '
+        "tests/infrastructure/test_media_store.py -q"
     ) in workflow
     # The card selectors are checked against recorded pages in Chromium (spec 5c-2); without a
     # browser those tests would skip and a broken selector would pass CI unseen.
@@ -166,13 +177,19 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
     assert "type=ref,event=branch" in workflow
     assert "type=ref,event=tag" in workflow
     assert "refs/heads/master" in workflow
-    assert "provenance: mode=max" in workflow
-    assert "sbom: true" in workflow
+    assert "provenance:" in workflow and "'mode=max'" in workflow
+    assert "sbom:" in workflow and "refs/heads/master" in workflow
     assert "steps.build.outputs.digest" in workflow
     assert "secrets." not in workflow
     # Camoufox lists its releases through the GitHub API; anonymous CI runners hit the rate
     # limit, so both image builds hand it the job token as a build secret (PR #135).
     assert workflow.count("github_token=${{ github.token }}") == 2
+    # Fail fast on lint and Compose config before installing browsers or running pytest.
+    quality = workflow.split("  quality:", 1)[1].split("  validate-image:", 1)[0]
+    assert quality.index("Run Ruff checks") < quality.index("Run Python non-live tests")
+    assert quality.index("Validate local Stage 1 Compose") < quality.index(
+        "Run Python non-live tests"
+    )
 
 
 #: The renderer is a second image from a second Dockerfile, so it gets a second
@@ -195,18 +212,19 @@ def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
     assert "file: Dockerfile.web" in publication
     assert "images: ${{ env.WEB_REGISTRY_IMAGE }}" in publication
     assert publication.count("push: true") == 3
-    assert publication.count("provenance: mode=max") == 3
-    assert publication.count("sbom: true") == 3
+    assert publication.count("'mode=max'") == 3
+    assert publication.count("sbom: ${{") == 3
 
 
 def test_container_workflow_exposes_each_published_digest_separately() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
-    outputs = workflow.split("    outputs:\n", 1)[1].split("    steps:", 1)[0]
+    publication = workflow.split("  publish-image:", 1)[1].split("  stack-smoke:", 1)[0]
+    outputs = publication.split("    outputs:\n", 1)[1].split("    steps:", 1)[0]
 
     assert "digest: ${{ steps.build.outputs.digest }}" in outputs
     assert "renderer_digest: ${{ steps.renderer-build.outputs.digest }}" in outputs
     assert "web_digest: ${{ steps.web-build.outputs.digest }}" in outputs
-    summary = workflow.split("Record immutable release identity", 1)[1]
+    summary = publication.split("Record immutable release identity", 1)[1]
     assert "RENDERER_IMAGE_DIGEST: ${{ steps.renderer-build.outputs.digest }}" in summary
     assert "${RENDERER_REGISTRY_IMAGE}" in summary
 
@@ -395,6 +413,7 @@ def test_container_workflow_pins_every_action_to_full_commit_sha() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     expected = {
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "# v7.0.1",
+        "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9": "# v6.1.0",
         "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0": "# v7.1.0",
         "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e": "# v10.3.2",
         "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6": "# v2.2.0",
@@ -551,6 +570,10 @@ def test_renderer_image_carries_the_composition_without_the_release_capsule() ->
     assert "test ! -e /opt/thoth/renderer/src/release-preview-entry.tsx" in dockerfile
     assert "test ! -d /opt/thoth/packages/remotion-composition/releases" in dockerfile
     assert "bun install --frozen-lockfile --production" in dockerfile
+    # Remotion's browser layer belongs before source copies so TSX/TS edits reuse it.
+    assert dockerfile.index("ensureBrowser()") < dockerfile.index(
+        "COPY --chown=thoth:thoth packages/remotion-composition/src/"
+    )
 
 
 def test_the_player_is_only_a_development_dependency_of_the_renderer() -> None:
@@ -816,3 +839,27 @@ def test_the_image_carries_the_bundled_sfx_and_their_licences() -> None:
         in dockerfile
     )
     assert (REPOSITORY_ROOT / "assets/sfx/LICENSES.json").is_file()
+
+
+def test_container_workflow_avoids_duplicate_runs_and_skips_docs() -> None:
+    workflow = _repo_text(".github/workflows/container-image.yml")
+    header = workflow.split("\njobs:\n", 1)[0]
+    for ignored in ('- "docs/**"', '- "**/*.md"', '- ".superpowers/**"'):
+        assert header.count(ignored) == 2  # push and pull_request, never workflow_dispatch
+
+    jobs = _workflow_jobs()
+    fork_guard = "github.event.pull_request.head.repo.full_name != github.repository"
+    assert fork_guard in jobs["quality"]
+    assert fork_guard in jobs["validate-image"]
+    assert "type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache" in jobs["validate-image"]
+    assert "needs.quality.outputs.parity_needed == 'true'" in jobs["template-release-parity"]
+    assert "needs.publish-image.outputs.smoke_needed == 'true'" in jobs["stack-smoke"]
+    assert "refs/heads/master" in jobs["stack-smoke"]
+    # A branch is compared with master as a whole, so a later push that touches other files
+    # cannot skip the smoke an earlier push still needed.
+    detect = jobs["quality"].split("Detect changed scopes", 1)[1].split("- name:", 1)[0]
+    assert "git merge-base origin/master" in detect
+    assert "github.event.before" not in detect
+    # A dependency bump (patchright, camoufox) changes the image's browsers: the smoke's
+    # launch check must run, as the 2026-10-23 refresh showed.
+    assert "python/uv\\.lock" in detect and "python/pyproject\\.toml" in detect

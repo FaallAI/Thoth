@@ -1891,6 +1891,7 @@ async def test_a_cancel_during_footage_cancels_the_open_stage_and_skips_the_rest
     workflow_env: WorkflowEnvironment,
 ) -> None:
     global FOOTAGE_RELEASE
+    ORDER.clear()
     FOOTAGE_RELEASE = asyncio.Event()
     async with Worker(
         workflow_env.client,

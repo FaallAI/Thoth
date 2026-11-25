@@ -277,3 +277,4 @@ The operator asked that these not be lost.
 - Creator Studio: the next legacy mode and the three deferred F3 minors.
 - Structured JSON logs across the system.
 - Scrapling in place of the CDP sidecar.
+- Application security scanning (added 2026-11-25, operator): SAST (CodeQL), SCA (dependency review, Dependabot, a Trivy image scan) and DAST (a weekly ZAP baseline) run as their own workflows, apart from the container CI. IAST is skipped for now: no free option fits Python and FastAPI. Revisit it when the product grows a paid security budget or an open-source IAST agent for Python appears.
