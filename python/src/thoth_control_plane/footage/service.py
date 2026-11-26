@@ -102,6 +102,7 @@ from thoth_control_plane.footage.moments import (
     SECTION_SECONDS,
     CaptionPort,
     Discussion,
+    LongVideoHints,
     parse_json3,
     pick_discussions,
     section,
@@ -943,8 +944,12 @@ class FootageBuilder:
                 if handled:
                     await asyncio.sleep(self._caption_spacing)
                 handled += 1
-                data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
-                if data:
+                port = self._ports.captions_text
+                if hasattr(port, "hints"):  # chapters and heatmap from the same metadata call
+                    hints = await port.hints(c.url, CAPTION_LANGUAGE)
+                else:
+                    hints = LongVideoHints(await port.captions(c.url, CAPTION_LANGUAGE))
+                if hints.captions or hints.chapters:
                     subject = subject_names(card)
                     others = [name for name in card_names(card) if name not in subject]
                     # A name is never a discussion word: "Denny" from the event is a person.
@@ -955,14 +960,24 @@ class FootageBuilder:
                         subject, others = [], card_names(card)
                         terms |= related_terms(card)
                     words = [*card.spoken, *sorted(t for t in terms if t not in named)]
-                    found = pick_discussions(parse_json3(data), subject, others, words)
+                    lines = parse_json3(hints.captions) if hints.captions else []
+                    found = pick_discussions(
+                        lines,
+                        subject,
+                        others,
+                        words,
+                        chapters=hints.chapters,
+                        heatmap=hints.heatmap,
+                    )
             rows = [
                 NewCandidate(
                     url=f"{c.url}{SECTION_MARK}{discussion.moment:.1f}",
                     platform=c.platform,
                     source="section",
                     query=c.query,
-                    visual=PERSON_VISUAL,  # a person talking, named nowhere (spec 10.12)
+                    # A person talking, named nowhere (spec 10.12); a chapter cut has no words
+                    # said, so it shows what the long video was searched for.
+                    visual=PERSON_VISUAL if discussion.said else (c.visual or PERSON_VISUAL),
                     owner_handle=c.owner_handle,
                     caption=c.caption,
                     published_at=c.published_at,

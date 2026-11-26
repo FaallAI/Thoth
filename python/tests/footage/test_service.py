@@ -3023,3 +3023,69 @@ async def test_a_traced_long_original_is_cut_into_sections(store: FootageStore) 
     rows = store.candidates("wf_a")
     assert any(c.source == "section" and c.url.startswith(f"{PODCAST}#t=") for c in rows)
     assert {c.url: c for c in rows}[PODCAST].reason == "duration"
+
+
+# Multi-hour cutting (spec 2026-11-27, 5.2): a ceremony with chapters and no captions.
+
+CEREMONY_URL = "https://www.youtube.com/watch?v=ffi2026live"
+STAGE_VISUAL = "a winner speaking at the award ceremony podium"
+
+
+class HintsCaptions:
+    """A caption port that also gives chapters and the replay heatmap."""
+
+    def __init__(self, hints: Any) -> None:
+        self.value = hints
+        self.calls: list[str] = []
+
+    async def hints(self, url: str, language: str) -> Any:
+        self.calls.append(url)
+        return self.value
+
+    async def captions(self, url: str, language: str) -> bytes | None:
+        raise AssertionError("hints() is the one metadata call")
+
+
+def _ceremony(store: FootageStore) -> None:
+    from thoth_control_plane.footage.models import NewCandidate
+
+    store.start_run("wf_a", [])
+    store.add_candidates(
+        "wf_a",
+        [
+            NewCandidate(
+                url=CEREMONY_URL,
+                platform="youtube",
+                source="trace",
+                query="FFI 2026 3 jari",
+                visual=STAGE_VISUAL,
+                owner_handle="festivalfilmindonesia",
+                caption="Malam Anugerah Piala Citra FFI 2026",
+                source_duration=10800.0,
+            )
+        ],
+    )
+    store.score("wf_a", CEREMONY_URL, 1.0)
+
+
+async def test_a_ceremony_without_captions_is_cut_at_its_chapter(store: FootageStore) -> None:
+    from thoth_control_plane.footage.moments import Chapter, LongVideoHints
+
+    _ceremony(store)
+    title = "Pidato Pemenang Piala Citra, singgung Fadli Zon"
+    port = HintsCaptions(LongVideoHints(None, [Chapter(5400.0, 5700.0, title)], []))
+    await _builder(store, captions_text=port)._sections("wf_a", _ffi())
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    cut = rows[f"{CEREMONY_URL}#t=5406.0"]
+    assert cut.source == "section" and cut.visual == STAGE_VISUAL and cut.said == []
+    assert rows[CEREMONY_URL].reason == "duration"
+    assert port.calls == [CEREMONY_URL]
+
+
+async def test_a_transcript_cut_keeps_the_person_visual(store: FootageStore) -> None:
+    from thoth_control_plane.footage.context import PERSON_VISUAL
+
+    _ceremony(store)
+    await _builder(store, captions_text=Captions(CAPTIONS))._sections("wf_a", _saiful())
+    cuts = [c for c in store.candidates("wf_a") if c.source == "section"]
+    assert cuts and all(c.visual == PERSON_VISUAL and c.said for c in cuts)

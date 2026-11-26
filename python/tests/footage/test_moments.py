@@ -5,7 +5,17 @@ from __future__ import annotations
 from itertools import pairwise
 from pathlib import Path
 
-from thoth_control_plane.footage.moments import CaptionLine, parse_json3, pick_discussions, section
+from thoth_control_plane.footage.moments import (
+    CaptionLine,
+    Chapter,
+    HeatPoint,
+    LongVideoHints,
+    parse_chapters,
+    parse_heatmap,
+    parse_json3,
+    pick_discussions,
+    section,
+)
 
 CAPTIONS = (
     Path(__file__).resolve().parents[1]
@@ -155,3 +165,139 @@ def test_sections_are_cut_only_where_the_subject_is_named() -> None:  # spec 10.
     ]
     found = pick_discussions(lines, SUBJECT, OTHERS, WORDS)
     assert [d.moment for d in found] == [200.0]
+
+
+# Footage sourcing v2 (spec 2026-11-27, 5.2): chapters and Most Replayed from the same metadata
+# call, and a caption track in a nearby language.
+
+
+def test_chapters_and_heat_points_parse_and_skip_malformed_items() -> None:
+    chapters = parse_chapters(
+        [
+            {"start_time": 0, "end_time": 120.5, "title": "Pembukaan"},
+            {"start_time": "x", "end_time": 10, "title": "t"},
+            "bad",
+            {"start_time": 50, "end_time": 30, "title": "backwards"},
+            {"start_time": 10, "end_time": 20, "title": " "},
+        ]
+    )
+    assert chapters == [Chapter(0.0, 120.5, "Pembukaan")]
+    heat = parse_heatmap(
+        [{"start_time": 0, "end_time": 10, "value": 0.2}, {"start_time": 10, "value": 1}, None]
+    )
+    assert heat == [HeatPoint(0.0, 10.0, 0.2)]
+    assert parse_chapters(None) == [] and parse_heatmap({"a": 1}) == []
+
+
+def _track(name: str) -> list[dict[str, str]]:
+    return [{"ext": "json3", "url": f"https://captions/{name}"}]
+
+
+def test_a_caption_track_is_chosen_by_language_before_source() -> None:
+    from thoth_control_plane.footage.adapters.captions import _json3_url
+
+    both = {"automatic_captions": {"en": _track("auto-en")}, "subtitles": {"id": _track("sub-id")}}
+    assert _json3_url(both, "id") == "https://captions/sub-id"
+    orig = {"automatic_captions": {"id-orig": _track("id-orig")}, "subtitles": {"en": _track("en")}}
+    assert _json3_url(orig, "id") == "https://captions/id-orig"
+    assert _json3_url({"automatic_captions": {"en-US": _track("en-US")}}, "id") == (
+        "https://captions/en-US"
+    )
+    english = {"subtitles": {"en": _track("en")}, "automatic_captions": {"en-GB": _track("gb")}}
+    assert _json3_url(english, "id") == "https://captions/en"
+    assert _json3_url({"automatic_captions": {"fr": _track("fr")}}, "id") is None
+
+
+class _Counting(_Client):
+    def __init__(self, info: dict[str, object]) -> None:
+        super().__init__(info)
+        self.calls = 0
+
+    async def extract(self, url: str, *, comments: bool) -> dict[str, object]:
+        self.calls += 1
+        assert comments is False
+        return self.info
+
+
+CHAPTERS = [{"start_time": 5400, "end_time": 5700, "title": "Pidato Pemenang"}]
+HEAT = [{"start_time": 5500, "end_time": 5510, "value": 0.95}]
+
+
+async def test_hints_come_from_one_metadata_call() -> None:
+    import httpx
+
+    from thoth_control_plane.footage.adapters.captions import YtDlpCaptionFetcher
+
+    info = {"automatic_captions": {"id": _track("id")}, "chapters": CHAPTERS, "heatmap": HEAT}
+    client = _Counting(info)
+    http = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=CAPTIONS))
+    )
+    hints = await YtDlpCaptionFetcher(client, http).hints("https://youtu.be/x", "id")  # type: ignore[arg-type]
+    assert hints == LongVideoHints(
+        CAPTIONS, [Chapter(5400.0, 5700.0, "Pidato Pemenang")], [HeatPoint(5500.0, 5510.0, 0.95)]
+    )
+    assert client.calls == 1
+
+
+async def test_hints_keep_chapters_without_a_caption_track() -> None:
+    from thoth_control_plane.footage.adapters.captions import YtDlpCaptionFetcher
+
+    client = _Counting({"chapters": CHAPTERS, "heatmap": HEAT})
+    fetcher = YtDlpCaptionFetcher(client)  # type: ignore[arg-type]
+    hints = await fetcher.hints("https://youtu.be/x", "id")
+    assert hints.captions is None and len(hints.chapters) == 1 and len(hints.heatmap) == 1
+    assert await fetcher.captions("https://youtu.be/x", "id") is None
+    assert client.calls == 2
+
+
+def test_a_matching_chapter_lifts_a_window_over_the_score() -> None:
+    lines = [CaptionLine(100.0, "pedang marah"), CaptionLine(130.0, "x")]
+    assert pick_discussions(lines, [], [], ["pedang", "marah"]) == []
+    chapters = [Chapter(90.0, 200.0, "Saat marah di panggung")]
+    found = pick_discussions(lines, [], [], ["pedang", "marah"], chapters=chapters)
+    assert [d.moment for d in found] == [100.0] and found[0].said
+
+
+def test_a_replayed_peak_picks_the_moment_inside_a_window() -> None:
+    lines = [CaptionLine(100.0, "mutan pedang marah"), CaptionLine(130.0, "mutan pedang marah")]
+    words = ["pedang", "marah"]
+    assert pick_discussions(lines, ["mutan"], [], words)[0].moment == 100.0
+    heat = [HeatPoint(128.0, 135.0, 0.9)]
+    assert pick_discussions(lines, ["mutan"], [], words, heatmap=heat)[0].moment == 130.0
+    weak = [HeatPoint(128.0, 135.0, 0.5)]
+    assert pick_discussions(lines, ["mutan"], [], words, heatmap=weak)[0].moment == 100.0
+
+
+CEREMONY = [
+    Chapter(0.0, 20.0, "Pidato pemenang pembuka"),  # ends inside the intro
+    Chapter(3600.0, 3605.0, "Pidato pemenang singkat"),  # under 8 s
+    Chapter(5400.0, 5700.0, "Pidato Pemenang Film Terbaik Para Perasuk"),
+    Chapter(1200.0, 1500.0, "Pidato pemenang aktris terbaik"),
+    Chapter(1230.0, 1400.0, "Pidato pemenang lagi"),  # a moment under a minute from 1206
+    Chapter(2000.0, 2300.0, "Jeda iklan"),
+]
+
+
+def test_chapters_alone_give_safe_moments_in_time_order() -> None:
+    words = ["pidato", "pemenang"]
+    for lines in ([], [CaptionLine(100.0, "tidak ada yang cocok")]):
+        found = pick_discussions(lines, [], [], words, chapters=CEREMONY)
+        assert [d.moment for d in found] == [1206.0, 5406.0]
+        assert all(d.said == [] for d in found)
+
+
+def test_a_chapter_without_the_subject_is_no_moment() -> None:
+    assert pick_discussions([], ["mutan"], [], ["pidato", "pemenang"], chapters=CEREMONY) == []
+
+
+def test_a_chapter_moment_snaps_to_its_strongest_peak_inside_the_chapter() -> None:
+    chapter = [Chapter(5400.0, 5700.0, "Pidato Pemenang")]
+    heat = [HeatPoint(5500.0, 5510.0, 0.95), HeatPoint(5600.0, 5610.0, 0.5)]
+    found = pick_discussions([], [], [], ["pidato", "pemenang"], chapters=chapter, heatmap=heat)
+    assert [d.moment for d in found] == [5505.0]
+    edge = [HeatPoint(5690.0, 5720.0, 0.99)]
+    found = pick_discussions([], [], [], ["pidato", "pemenang"], chapters=chapter, heatmap=edge)
+    assert [d.moment for d in found] == [5693.0]
+    start, end = section(found[0].moment)
+    assert start >= 5400.0 and end <= 5700.0
