@@ -677,7 +677,22 @@ def materialized() -> dict[str, Any]:
     data["footage"][1]["said"] = [
         {"text": "dia bawa pedang", "start_seconds": 292.0, "end_seconds": 296.0}
     ]
+    data["footage"][1]["caption"] = "Fadli Zon  bantah\nsoal 1998"
     return data
+
+
+@pytest.mark.asyncio
+async def test_materials_carry_the_footage_caption_and_description(tmp_path: Path) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    items = {item.item_id: item for item in materials.items}
+    assert items["footage_001"].caption == "Fadli Zon bantah soal 1998"  # spec 2026-11-26
+    assert items["footage_001"].description
+    assert items["footage_000"].caption is None  # no caption stored
+    assert items["comment_000"].caption is None and items["main_000"].caption is None
 
 
 @pytest.mark.asyncio
