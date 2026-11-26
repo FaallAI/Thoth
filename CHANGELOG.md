@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-26 - Remotion 4.0.545, the JS bumps, and a signed-in DAST
+
+**The security triage shipped:**
+- PR #142 merged as dc05f8fd (operator "ya boleh").
+- **Image scan after the merge:** Trivy fell from 84 open alerts to 4, and all four CodeQL log-injection alerts closed.
+- **Left open:**
+  - the renderer's `tinypool` (2 critical) and `source-map-js` (1 high), which this branch closes;
+  - the web image's `golang.org/x/net`, inside the Caddy 2.11.9 binary, until Caddy releases again.
+- **Dependabot:** #137, #138 and #131 were closed as applied.
+
+**Deploy:** dc05f8fd was deployed to stage1 from the master images (operator: "langsung deploy aja").
+- **Images:** thoth `a1937b89e5c8`, renderer `7e9378b4f275`, web `ec61fb37bda7`. The pins match the running containers.
+- **Checks:**
+  - no migration (editor `0036`);
+  - web 200, 0 worker errors, 0 API 5xx;
+  - the `Permissions-Policy` header is served;
+  - `/auth/providers` still lists `password`.
+- **Rollback:** `D:/thoth-tmp/bu/pins/rollback-to-c289b894.sh`, which goes back to the local images.
+
+**What this branch changes (`build/js-deps`):**
+- **Remotion 4.0.538 → 4.0.545,** through Dependabot #140 (dashboard and renderer) and #139 (e2e tools).
+  - Remotion's bundler now uses rspack 2.3, which no longer vendors the vulnerable `tinypool` 1.1.1.
+  - The composition package's peer versions follow.
+  - Every `remotion-4.0.538` renderer version pin moves to 4.0.545: the Dockerfiles, compose, `config.py`, the renderer config and the tests.
+  - The parity image keeps its bun 1.4.4 base.
+- **The Studio preview's blurred background is fixed for 4.0.545.**
+  - **Symptom:** the first `f1_verify3` run gave the same result twice. The renders matched the goldens, but the Player preview of `effects-v1` frames 60 and 90 lost the blurred background behind the landscape video, changing 56-67% of the pixels.
+  - **Cause:** `videoClip` made a new blur target and frame callback on every render, and re-attached the canvas each time. Remotion 4.0.545's Player keeps the first callback, which then drew into a detached canvas.
+  - **Fix** (operator's diagnosis): it is now a `VideoClipView` component that holds the canvas in `useRef` and the callback in `useCallback`, pinned by a new test.
+- **`source-map-js` 1.2.1 → 1.2.2 in the renderer** (operator), the last Trivy finding there. `bun update` picked 1.2.4, which was seven days old, so the lock pins 1.2.2, released 2026-09-30.
+- **DAST signs in** (side note, operator: "ya tolong pastikan ini"). The first runs saw only `/`, `robots.txt` and `sitemap.xml`, because ZAP had no account.
+  - **Accounts:** the throwaway CI stack now gets a random dev sign-in and service key. The job fails unless both a session and the key are accepted.
+  - **Baseline:** it runs signed in, with the AJAX spider driving the dashboard.
+  - **API scan:** an active scan covers every `/api/v1` route from `python/openapi.json`.
+  - **Pull requests:** the workflow also runs on any pull request that changes `dast.yml`.
+  - **Warning:** the workflow says never to aim these scans at a real site. Signed in, a spider clicks what an owner can click.
+
+**Verification:**
+- **`f1_verify3.sh`, after the fix:** all three releases pass with 0 changed pixels, preview and render alike: `vertical_text_story-v1` (5 frames), `story_mode-v1` (5) and `effects-v1` (6). The first run had passed the other two and failed only `effects-v1` frames 60 and 90 in the preview.
+- **Dashboard:** 2033 pass, and the build is clean.
+- **Renderer:** 267 pass. Its tests need the repository's `ffmpeg.exe`, which was copied into the worktree for the run only.
+- **Python:**
+  - `make test`: 5226 passed, 251 skipped;
+  - `make lint`: clean;
+  - the render-version tests: 441 passed;
+  - `make test T=tests/deployment`: 185 passed;
+  - actionlint: clean.
+
+**Next steps (each its own operator gate):**
+1. Push `build/js-deps`, open its PR and watch CI. The new DAST job runs on that PR, because it changes `dast.yml`.
+2. Merge, then run `Image scan` by hand to confirm `tinypool` and `source-map-js` close. Close Dependabot #139 and #140 as applied.
+3. Deploy the merged images to stage1.
+4. Decide #141 (the Python majors) on its own branch.
+5. The paid Style A and Style B narration check, and the subject choice on `wf_31f14a60b44046a7f2bdd2ba`.
+
 ## 2026-11-26 - Security triage of the first scans
 
 **PR #136 merged** as 2d8ebfaa (operator "ya"). Its push run took about 24 minutes as a single run; the pull request jobs were skipped. CodeQL found 0 new alerts and dependency review passed. The first manual runs then all succeeded: Image scan (45677526663), DAST (45677534558) and the master CodeQL.
