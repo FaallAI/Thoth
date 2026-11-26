@@ -12,7 +12,7 @@ FROM oven/bun:1.4.5 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive \
     THOTH_CONTROL_PLANE_ARTIFACT_ROOT=/var/lib/thoth/artifacts \
     THOTH_RENDERER_PORT=8080 \
-    THOTH_RENDERER_VERSION=remotion-4.0.538 \
+    THOTH_RENDERER_VERSION=remotion-4.0.545 \
     HOME=/home/thoth
 
 # Chrome Headless Shell's own shared libraries, the fonts a vertical text story

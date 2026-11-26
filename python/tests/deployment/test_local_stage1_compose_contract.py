@@ -490,7 +490,7 @@ def test_pinned_renderer_version_is_declared_once_on_each_side() -> None:
     api = _service_block(overlay, "api")
     renderer = _service_block(overlay, "remotion-renderer")
 
-    pinned = "THOTH_RENDERER_VERSION: ${THOTH_RENDERER_VERSION:-remotion-4.0.538}"
+    pinned = "THOTH_RENDERER_VERSION: ${THOTH_RENDERER_VERSION:-remotion-4.0.545}"
     assert api.count(pinned) == 1
     assert renderer.count(pinned) == 1
 
