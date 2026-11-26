@@ -2,6 +2,66 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-27 - Footage sourcing v2: TikTok fallback, credit tracing, multi-hour YouTube cuts
+
+**Why** (live run `wf_af610964`; brainstorm items 111-114; spec and plan `2026-11-27-footage-sourcing-v2`):
+- Only 2 clips were admitted, against a cap of 8.
+- 14 TikTok candidates failed with `TikWmError`, among them both operator references. Three workers hit TikWm at once, a busy answer took 20-30 s, and nothing fell back.
+- Credit tracing stopped as soon as 16 candidates were pending (52 were). It missed Indonesian credit markers, and it looked a channel up only by its handle.
+- Long YouTube cuts used only the exact `id` caption track. Chapters and the Most Replayed heatmap, already in the same metadata, went unused.
+
+**Changes:**
+- **TikWm:**
+  - One request in flight at a time, spaced 1.2 s from the end of the previous one.
+  - One retry after a rate limit; an unavailable CDN is not retried.
+  - The footage call times out after 20 s. Stage 3 acquisition keeps 45 s.
+- **Clip downloader:**
+  - `js_runtimes: {"bun": {}}`, with `yt-dlp-ejs>=0.8.0,<1` added next to `yt-dlp==2026.11.23`.
+  - TikWm failures keep their code (`tikwm_cdn_rate_limited`, `tikwm_cdn_unavailable`).
+  - After a failed TikTok download, or a YouTube `bot_check`/`http_403`/`http_429`, one retry runs through a leased account and proxy:
+    - It is profile-free and honors an `anonymous` policy.
+    - It runs in its own scratch directory, within the clip's 75 s budget. The direct attempt is capped at 40 s, and the retry needs at least 10 s left.
+    - Normal downloads stay direct (`proxy=""`).
+    - The outcome is reported to the account store: `success`, `rate_limited`, `blocked`, or none for a timeout or a missing file.
+    - The retry is logged as `footage download fallback platform=... cause=...`, with no URL.
+- **Credits** (`credited_source`):
+  - Recognized markers: `Sumber YT :`, `Source YT:`, `sc:`, `cr:`, `credit:`, `kredit:`, `yt:`, `yt/`, `YouTube/`, and `via` before `@` or a platform word.
+  - A URL and prose `via` are refused. Handle dots are kept.
+  - A named credit beats an earlier bare `@handle`.
+- **Tracing:**
+  - YouTube credits are still traced on a full queue (at most 3 accounts per run).
+  - When a channel listing gives no new on-story video, one cached YouTube search runs for the channel name, a card person and up to three event words.
+- **Long videos:**
+  - The caption track is chosen by language first: `id`, then `id-*`, `en` and `en-*`, auto captions before uploaded subtitles.
+  - The same metadata call gives the chapters and the heatmap.
+  - A chapter on the story adds 2 to the caption windows it holds, and a replay peak (0.7 or more) places the cut inside a window.
+  - With no window, chapters on the story are cut at their strongest replay peak, or 5 s in. The 8 s section always stays inside the chapter and past the intro.
+  - A chapter cut keeps the long video's visual.
+
+No migrations; no API, OpenAPI, `EditDocumentV2`, Remotion or golden changes.
+
+**Verification:**
+- `make lint` exit 0.
+- `make test` exit 0: 5326 passed, 251 skipped.
+- `make dashboard-test` exit 0: 2033 pass, 0 fail.
+- `make dashboard-build` exit 0.
+- `python/uv.lock`: only `yt-dlp-ejs` 0.8.0 added; `yt-dlp` stays 2026.11.23.
+- The final review was a self-review. It added the fallback log (`e6e5d6bc`).
+
+**Deferred minors:**
+- The leased cookie file sits in a scratch directory under `reports/<workflow>/footage/` (mode 0600, removed with the scratch).
+- A named credit label runs up to 60 characters, so "Sumber: Kompas TV @kompastv" reads as one name.
+- The chapter fallback also runs when captions exist but match no window.
+- A second repost crediting an already-traced channel stays in the queue.
+
+**Next steps (each its own operator gate):**
+1. Push `feat/footage-sourcing-v2` and open its PR.
+2. Once CI is green, deploy the branch image to stage1.
+3. Run a live acceptance test, with the cost shown first:
+   - The official FFI YouTube channel's multi-hour FFI 2026 ceremony video: find the seconds where the award winner's speech mentions Fadli Zon, and cut only that ~8 s window.
+   - A TikTok fallback check: the `footage download fallback` log, and the recovered clips.
+4. Merge after the operator accepts.
+
 ## 2026-11-26 - Commentary context footage and mid-story b-roll cutaways
 
 **Before this branch:**
