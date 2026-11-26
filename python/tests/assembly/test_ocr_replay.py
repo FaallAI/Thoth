@@ -92,26 +92,28 @@ def test_the_rev_18_source_blurs_only_while_its_captions_show() -> None:
     ocr = replay(json.loads(path.read_text(encoding="utf-8")))
 
     assert (ocr.outcome, ocr.mute_audio) == ("subtitle", True)
-    assert [(round(r.start, 2), round(r.end, 2)) for r in ocr.subtitle_blur] == pytest.approx(
-        [
-            (0.0, 4.75),
-            (5.25, 6.25),
-            (8.25, 9.25),
-            (16.32, 20.75),
-            (24.25, 25.75),
-            (26.25, 27.14),
-            (27.75, 29.25),
-            (31.75, 34.25),
-            (34.75, 35.75),
-            (39.75, 42.75),
-            (43.75, 45.25),
-            (45.75, 47.25),
-            (47.75, 48.75),
-            (51.75, 53.75),
-            (56.25, 57.75),
-            (59.25, 60.25),
-            (63.25, 67.75),
-        ],
-        abs=0.01,
+    # pytest 9.2's approx refuses nested sequences; flattened, order and count still compare.
+    spans = [(round(r.start, 2), round(r.end, 2)) for r in ocr.subtitle_blur]
+    expected = [
+        (0.0, 4.75),
+        (5.25, 6.25),
+        (8.25, 9.25),
+        (16.32, 20.75),
+        (24.25, 25.75),
+        (26.25, 27.14),
+        (27.75, 29.25),
+        (31.75, 34.25),
+        (34.75, 35.75),
+        (39.75, 42.75),
+        (43.75, 45.25),
+        (45.75, 47.25),
+        (47.75, 48.75),
+        (51.75, 53.75),
+        (56.25, 57.75),
+        (59.25, 60.25),
+        (63.25, 67.75),
+    ]
+    assert [t for pair in spans for t in pair] == pytest.approx(
+        [t for pair in expected for t in pair], abs=0.01
     )
     assert all(r.y >= 0.82 and r.y + r.h <= 0.92 for r in ocr.subtitle_blur)

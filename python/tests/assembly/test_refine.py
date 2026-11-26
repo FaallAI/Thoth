@@ -219,6 +219,11 @@ def spans(regions: tuple[Region, ...]) -> list[tuple[float, float]]:
     return [(region.start, region.end) for region in regions]
 
 
+def flat(pairs: list[tuple[float, float]]) -> list[float]:
+    """pytest 9.2's approx refuses nested sequences; order and count still compare in full."""
+    return [value for pair in pairs for value in pair]
+
+
 def test_a_caption_window_closes_when_the_text_is_gone() -> None:
     read = half_seconds(*((word(text),) for text in WORDS), (), (), ())
 
@@ -388,7 +393,7 @@ def test_a_two_line_caption_over_a_whole_video_leaves_the_credit_and_the_end_car
 
     followed = follow_captions(read, 6.8, duration)
 
-    assert spans(followed) == pytest.approx([(6.8, 42.75), (6.8, 42.75)])
+    assert flat(spans(followed)) == pytest.approx(flat([(6.8, 42.75), (6.8, 42.75)]))
     assert all(region.y >= 0.64 and region.y + region.h <= 0.75 for region in followed)
 
 
@@ -398,8 +403,8 @@ def test_captions_the_samples_missed_are_blurred_and_their_gaps_are_not() -> Non
 
     followed = follow_captions(read, 5.3, duration)
 
-    assert sorted(set(spans(followed))) == pytest.approx(
-        [(5.3, 5.75), (15.25, 20.75), (30.25, 35.75), (42.75, 48.25)]
+    assert flat(sorted(set(spans(followed)))) == pytest.approx(
+        flat([(5.3, 5.75), (15.25, 20.75), (30.25, 35.75), (42.75, 48.25)])
     )
     assert len(followed) == 14  # every line of each caption, the short last lines too
     assert all(region.y >= 0.68 for region in followed)
