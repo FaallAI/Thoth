@@ -16,9 +16,10 @@ import logging
 import math
 import re
 from bisect import bisect_right
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
+from typing import Any
 
 from thoth_control_plane.domain.clip_moves import stretch_moves
 from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
@@ -324,15 +325,15 @@ def narrate_document(
         )
 
     curve = _duck_curve(speech, preset, fps)
-    ducked = []
-    for clip in clips:
-        # Every movie with sound ducks, footage on the b-roll too (stage1, 2026-11-12).
-        under = _sounding(clip, assets) or (
-            isinstance(clip, TimelineAudioClip) and not clip.clip_id.startswith(_LAYER_PREFIXES)
-        )
-        if under and curve:
-            clip = clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
-        ducked.append(clip)
+    # Every movie with sound ducks, footage on the b-roll too (stage1, 2026-11-12); operator
+    # audio clips too, never the narration's own layers.
+    ducked = _video_audio(
+        clips,
+        tracks.values(),
+        assets,
+        curve,
+        lambda c: isinstance(c, TimelineAudioClip) and not c.clip_id.startswith(_LAYER_PREFIXES),
+    )
 
     used = {getattr(clip, "asset_id", None) for clip in ducked}
     track_clips: dict[str, list[str]] = {track_id: [] for track_id in tracks}
@@ -442,17 +443,12 @@ def narrate_document(
             len(stacked),
             stacked[0],
         )
-    if not curve:
-        return _recorded(styled, roles_by_item, kept)
-    # New shots of a movie duck under the voice like the clip they replaced.
+    # New shots of a movie duck under the voice like the clip they replaced; a cutaway over the
+    # running main video is muted, even without a curve.
     restyled = styled.model_dump(mode="python")
     restyled["clips"] = [
-        (
-            clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
-            if _sounding(clip, assets)
-            else clip
-        ).model_dump(mode="python")
-        for clip in styled.clips
+        clip.model_dump(mode="python")
+        for clip in _video_audio(styled.clips, styled.tracks, assets, curve)
     ]
     return _recorded(EditDocumentV2.model_validate(restyled), roles_by_item, kept)
 
@@ -871,6 +867,40 @@ def _sounding(clip: object, assets: Mapping[str, AssetRef]) -> bool:
         return False
     asset = assets.get(clip.asset_id)
     return asset is not None and asset.kind == "video" and asset.has_audio
+
+
+def _video_audio(
+    clips: Sequence[Any],
+    tracks: Iterable[TimelineTrack],
+    assets: Mapping[str, AssetRef],
+    curve: list[tuple[int, float]],
+    ducks: Callable[[Any], bool] = lambda clip: False,
+) -> list[Any]:
+    """Each clip's sound under the narration: a movie with sound on the b-roll over a visible
+    main video is muted, a cutaway is pictures only (spec 2026-11-26, 4.3, Option A); any other
+    movie with sound, and each clip `ducks` names, ducks under the voice."""
+    kinds = {track.track_id: track.kind for track in tracks}
+    mains = [
+        (c.from_frame, c.end_frame)
+        for c in clips
+        if isinstance(c, TimelineVideoClip)
+        and kinds.get(c.track_id) == "main_video"
+        and not c.hidden
+    ]
+    out = []
+    for clip in clips:
+        sounding = _sounding(clip, assets)
+        if (
+            sounding
+            and kinds.get(clip.track_id) == "b_roll"
+            and any(clip.from_frame < end and start < clip.end_frame for start, end in mains)
+        ):
+            muted = [VolumeKeyframe(frame=0, volume=0.0)]
+            clip = clip.model_copy(update={"volume_keyframes": muted})
+        elif (sounding or ducks(clip)) and curve:
+            clip = clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
+        out.append(clip)
+    return out
 
 
 def _duck_curve(
