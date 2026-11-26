@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from thoth_control_plane.acquisition.adapters.tikwm import TikWmError
 from thoth_control_plane.acquisition.youtube_service import _Silent
 from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters import downloader as downloader_module
@@ -287,3 +289,313 @@ async def test_an_answer_without_the_asked_scene_is_unusable(
     assert (await judge.judge(frames, "a street")).same_event is None
     with pytest.raises(AttributionError, match="vision_unavailable"):
         await judge.judge(frames, "a street", reference=Frame(second=0.0, jpeg=b"m"))
+
+
+# Footage sourcing v2 (spec 2026-11-27, 3.2 and 5.1): bun for YouTube's JS, TikWm codes kept,
+# and one leased retry only after the direct download fails.
+
+TIKTOK = "https://www.tiktok.com/@podmuses/video/7400000000000000001"
+
+
+def _writes(url: str, options: dict[str, Any]) -> None:
+    Path(options["outtmpl"].replace("%(ext)s", "mp4")).write_bytes(b"\x00" * 64)
+
+
+class Session:
+    """A fake leased session: yields its options and records how the attempt ended."""
+
+    def __init__(self, extra: dict[str, Any] | None = None, *, lease: bool = True) -> None:
+        self.extra = extra or {"proxy": "http://leased", "cookiefile": "c.txt"}
+        self.lease = lease
+        self.calls: list[tuple[str, Path]] = []
+        self.ended: list[str] = []
+
+    def __call__(self, platform: str, scratch: Path) -> Any:
+        @asynccontextmanager
+        async def session() -> Any:
+            self.calls.append((platform, scratch))
+            try:
+                yield self.extra if self.lease else None
+                self.ended.append("ok")
+            except ClipError as error:
+                self.ended.append(str(error))
+                raise
+
+        return session()
+
+
+async def test_direct_downloads_solve_youtube_js_with_bun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        seen.update(options)
+        _writes(url, options)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    await YtDlpClipDownloader("ffmpeg", fallback_session=Session()).download(
+        "https://www.youtube.com/watch?v=x", (4.0, 12.0), tmp_path / "c.mp4"
+    )
+    assert seen["js_runtimes"] == {"bun": {}}
+    assert seen["proxy"] == ""
+
+
+@pytest.mark.parametrize("code", ["cdn_rate_limited", "cdn_unavailable"])
+async def test_a_tikwm_failure_keeps_its_code(tmp_path: Path, code: str) -> None:
+    async def resolve(url: str) -> str:
+        raise TikWmError(code)  # type: ignore[arg-type]
+
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve).download(
+            TIKTOK, None, tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == f"tikwm_{code}"
+    assert "tiktok.com" not in str(raised.value)
+
+
+async def test_a_failed_tikwm_falls_back_to_a_leased_download_of_the_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def resolve(url: str) -> str:
+        raise TikWmError("cdn_rate_limited")
+
+    runs: list[tuple[str, dict[str, Any]]] = []
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        runs.append((url, options))
+        _writes(url, options)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session()
+    target = tmp_path / "c.mp4"
+    downloader = YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve, fallback_session=session)
+    assert await downloader.download(TIKTOK, None, target) == target
+    ((url, options),) = runs
+    assert url == TIKTOK
+    assert options["proxy"] == "http://leased" and options["cookiefile"] == "c.txt"
+    assert options["js_runtimes"] == {"bun": {}}
+    ((platform, scratch),) = session.calls
+    assert platform == "tiktok" and Path(options["outtmpl"]).parent == scratch
+    assert session.ended == ["ok"]
+
+
+async def test_a_failed_cdn_download_falls_back_in_its_own_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def resolve(url: str) -> str:
+        return "https://cdn.example/v.mp4"
+
+    runs: list[tuple[str, dict[str, Any]]] = []
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        runs.append((url, dict(options)))
+        if options["proxy"] == "":
+            raise RuntimeError("connection reset")
+        _writes(url, options)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session()
+    downloader = YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve, fallback_session=session)
+    await downloader.download(TIKTOK, (2.0, 10.0), tmp_path / "c.mp4")
+    (direct_url, direct), (fallback_url, fallback) = runs
+    assert direct_url == "https://cdn.example/v.mp4" and fallback_url == TIKTOK
+    assert Path(direct["outtmpl"]).parent != Path(fallback["outtmpl"]).parent
+    assert "download_ranges" in fallback
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.youtube.com/watch?v=abc",
+        "https://youtu.be/abc",
+        "https://m.youtube.com/watch?v=abc",
+    ],
+)
+@pytest.mark.parametrize(
+    "message",
+    ["Sign in to confirm you are not a bot", "HTTP Error 403: Forbidden", "HTTP Error 429"],
+)
+async def test_a_blocked_youtube_download_retries_leased(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, url: str, message: str
+) -> None:
+    def fake(link: str, options: dict[str, Any]) -> None:
+        if options["proxy"] == "":
+            raise RuntimeError(message)
+        _writes(link, options)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session()
+    await YtDlpClipDownloader("ffmpeg", fallback_session=session).download(
+        url, (40.0, 48.0), tmp_path / "c.mp4"
+    )
+    assert [platform for platform, _ in session.calls] == ["youtube"]
+
+
+@pytest.mark.parametrize("failure", ["network", "nothing"])
+async def test_other_youtube_failures_do_not_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    def fake(url: str, options: dict[str, Any]) -> None:
+        if failure == "network":
+            raise RuntimeError("connection reset")
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session()
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg", fallback_session=session).download(
+            "https://youtu.be/abc", None, tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == ("RuntimeError" if failure == "network" else "no file")
+    assert session.calls == []
+
+
+async def test_a_failed_leased_retry_reports_its_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake(url: str, options: dict[str, Any]) -> None:
+        raise RuntimeError("HTTP Error 429: Too Many Requests")
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session()
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg", fallback_session=session).download(
+            "https://youtu.be/abc", None, tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == "http_429"
+    assert session.ended == ["http_429"]
+
+
+async def test_no_lease_keeps_the_direct_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake(url: str, options: dict[str, Any]) -> None:
+        raise RuntimeError("HTTP Error 403: Forbidden")
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    session = Session(lease=False)
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg", fallback_session=session).download(
+            "https://youtu.be/abc", None, tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == "http_403"
+    assert len(session.calls) == 1
+
+
+def _hangs_when_direct(url: str, options: dict[str, Any]) -> None:
+    if options["proxy"] != "":
+        _writes(url, options)
+        return
+    while True:  # a direct download that only ends when the downloader stops it
+        for hook in options["progress_hooks"]:
+            hook({})
+        time.sleep(0.01)
+
+
+async def test_the_direct_attempt_leaves_time_for_the_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", _hangs_when_direct)
+    monkeypatch.setattr(downloader_module, "DIRECT_FALLBACK_CAP_SECONDS", 0.1)
+    monkeypatch.setattr(downloader_module, "MIN_FALLBACK_SECONDS", 1.0)
+    monkeypatch.setattr(downloader_module, "BLOCKED_CAUSES", frozenset({"TimeoutError"}))
+    session = Session()
+    target = tmp_path / "c.mp4"
+    started = time.monotonic()
+    await asyncio.wait_for(
+        YtDlpClipDownloader("ffmpeg", timeout=30.0, fallback_session=session).download(
+            "https://youtu.be/abc", None, target
+        ),
+        10,
+    )
+    assert time.monotonic() - started < 5
+    assert target.is_file() and session.ended == ["ok"]
+
+
+async def test_too_little_time_left_skips_the_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", _hangs_when_direct)
+    monkeypatch.setattr(downloader_module, "BLOCKED_CAUSES", frozenset({"TimeoutError"}))
+    session = Session()
+    with pytest.raises(ClipError) as raised:
+        await YtDlpClipDownloader("ffmpeg", timeout=0.2, fallback_session=session).download(
+            "https://youtu.be/abc", None, tmp_path / "c.mp4"
+        )
+    assert str(raised.value) == "TimeoutError"
+    assert session.calls == []
+
+
+class Leases:
+    def __init__(self, mode: str = "fallback", lease: object | None = None) -> None:
+        self._mode = mode
+        self._lease = lease
+        self.leased: list[str] = []
+        self.released: list[tuple[object, str | None]] = []
+
+    async def mode(self, platform: str) -> str:
+        return self._mode
+
+    async def lease(self, platform: str) -> object | None:
+        self.leased.append(platform)
+        return self._lease
+
+    async def release(self, lease: object, outcome: str | None) -> None:
+        self.released.append((lease, outcome))
+
+
+class Access:
+    def yt_dlp_options(self, directory: Path) -> dict[str, Any]:
+        return {"proxy": "http://leased", "cookiefile": str(directory / "cookies.txt")}
+
+
+class Lease:
+    access = Access()
+
+
+async def test_the_production_session_honors_an_anonymous_policy(tmp_path: Path) -> None:
+    leases = Leases(mode="anonymous", lease=Lease())
+    async with _download_fallback_session(leases)("tiktok", tmp_path) as extra:
+        assert extra is None
+    assert leases.leased == [] and leases.released == []
+
+
+async def test_the_production_session_without_an_account_yields_nothing(tmp_path: Path) -> None:
+    leases = Leases(lease=None)
+    async with _download_fallback_session(leases)("youtube", tmp_path) as extra:
+        assert extra is None
+    assert leases.leased == ["youtube"] and leases.released == []
+
+
+@pytest.mark.parametrize(
+    ("raised", "outcome"),
+    [
+        (None, "success"),
+        (ClipError("http_429"), "rate_limited"),
+        (ClipError("bot_check"), "blocked"),
+        (ClipError("http_403"), "blocked"),
+        (ClipError("TimeoutError"), None),
+        (ClipError("no file"), None),
+        (asyncio.CancelledError(), None),
+    ],
+)
+async def test_the_production_session_reports_the_outcome(
+    tmp_path: Path, raised: BaseException | None, outcome: str | None
+) -> None:
+    lease = Lease()
+    leases = Leases(lease=lease)
+    session = _download_fallback_session(leases)("youtube", tmp_path)
+    if raised is None:
+        async with session as extra:
+            assert extra == {"proxy": "http://leased", "cookiefile": str(tmp_path / "cookies.txt")}
+    else:
+        with pytest.raises(type(raised)):
+            async with session:
+                raise raised
+    assert leases.released == [(lease, outcome)]
+
+
+def _download_fallback_session(leases: Leases) -> Any:
+    from thoth_control_plane.activities.footage import _download_fallback_session as build
+
+    return build(leases)  # type: ignore[arg-type]

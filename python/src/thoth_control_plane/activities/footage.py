@@ -13,7 +13,8 @@ import base64
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
@@ -45,6 +46,9 @@ from thoth_control_plane.infrastructure.media_store import (
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 if TYPE_CHECKING:
+    from thoth_control_plane.acquisition.accounts.policy import Outcome
+    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+    from thoth_control_plane.footage.adapters.downloader import FallbackSession
     from thoth_control_plane.footage.faces import Face
 
 logger = logging.getLogger(__name__)
@@ -304,6 +308,41 @@ async def _tiktok_direct_url(url: str) -> str:
         return (await resolver.resolve(url)).media.ephemeral_url.get_secret_value()
 
 
+#: A failed leased download, by cause, as the account store counts it (spec 2026-11-27, 3.2);
+#: a timeout or a missing file says nothing about the account.
+_LEASE_OUTCOMES: dict[str, Outcome] = {
+    "http_429": "rate_limited",
+    "bot_check": "blocked",
+    "http_403": "blocked",
+}
+
+
+def _download_fallback_session(leases: StoreLeases) -> FallbackSession:
+    """One leased footage retry: honors the platform's access policy, needs no browser profile
+    (yt-dlp takes only the cookies and the proxy), and reports the attempt's outcome."""
+    from thoth_control_plane.footage.adapters.downloader import ClipError
+
+    @asynccontextmanager
+    async def session(platform: str, scratch: Path) -> AsyncIterator[dict[str, Any] | None]:
+        lease = None
+        if await leases.mode(platform) != "anonymous":  # type: ignore[arg-type]
+            lease = await leases.lease(platform)  # type: ignore[arg-type]
+        if lease is None:
+            yield None
+            return
+        outcome: Outcome | None = None
+        try:
+            yield lease.access.yt_dlp_options(scratch)
+            outcome = "success"
+        except ClipError as error:
+            outcome = _LEASE_OUTCOMES.get(str(error))
+            raise
+        finally:
+            await leases.release(lease, outcome)
+
+    return session
+
+
 def context_ports(settings: Settings, key: str, media: MediaStore) -> dict[str, object]:
     """The footage library's ports (spec 2026-11-15): the card model with the query model as its
     fallback, long videos' captions, and a copy of a library clip's stored media."""
@@ -363,7 +402,14 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             search=build_platform_search(leases),
             embedder=OnnxEmbedder(settings.THOTH_EMBEDDING_MODEL_DIR),
             downloader=YtDlpClipDownloader(
-                settings.THOTH_FFMPEG, resolve_tiktok=_tiktok_direct_url
+                settings.THOTH_FFMPEG,
+                resolve_tiktok=_tiktok_direct_url,
+                # Profile-free leases: a footage retry never unseals a browser profile.
+                fallback_session=(
+                    _download_fallback_session(StoreLeases(accounts))
+                    if accounts is not None
+                    else None
+                ),
             ),
             frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
             probe=FfprobeDuration(settings.THOTH_FFPROBE),
