@@ -42,7 +42,7 @@ def test_dast_scans_behind_the_sign_in_on_a_throwaway_stack() -> None:
     when it cannot, and scans the whole API from its OpenAPI document."""
     dast = (WORKFLOWS / "dast.yml").read_text(encoding="utf-8")
     for name in ("THOTH_AUTH_DEV_USERNAME", "THOTH_AUTH_DEV_PASSWORD", "THOTH_AUTH_DEV_EMAIL"):
-        assert f"echo \"{name}=" in dast
+        assert f'echo "{name}=' in dast
     assert "/auth/password" in dast and "/auth/me" in dast
     assert "ZAP_AUTH_HEADER_VALUE" in dast
     assert "zap-baseline.py" in dast and " -j " in dast  # the AJAX spider runs the SPA
