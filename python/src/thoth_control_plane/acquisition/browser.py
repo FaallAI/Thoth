@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -37,6 +38,12 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.acquisition.normalize import normalize_engagement, published_at_from_epoch
 
+logger = logging.getLogger(__name__)
+
+# Scrapling 0.5.1 keeps 1 MB per recorded body and 20 MB per session, then empties or evicts
+# silently; capture_xhr before it had no limit. A session here is one short-lived tab.
+RECORDED_BODY_BYTES = 32 * 1024 * 1024
+RECORDED_TOTAL_BYTES = 256 * 1024 * 1024
 CAPTURE_XHR_PATTERN = r"https://[^\s]+"
 EMBEDDED_DATA_SELECTOR = "script#__UNIVERSAL_DATA_FOR_REHYDRATION__::text"
 MEDIA_REFERER = "https://www.tiktok.com/"
@@ -223,10 +230,72 @@ def _decrement_active_sessions() -> None:
     _active_session_count = max(0, _active_session_count - 1)
 
 
+class _XhrRecordingSession:
+    """Scrapling 0.5 replaced the per-fetch `capture_xhr` with a session network history
+    (2026-11-26). This keeps our callers' contract: `capture_xhr=pattern` in, and each response's
+    `captured_xhr` holds only the XHR and fetch calls of that fetch, so a warm-up visit never
+    reaches the next page's results."""
+
+    def __init__(self, inner: Any, pattern: str) -> None:
+        self._inner = inner
+        self._pattern = pattern
+
+    async def __aenter__(self) -> _XhrRecordingSession:
+        await self._inner.__aenter__()
+        return self
+
+    async def __aexit__(self, *exc: object) -> Any:
+        return await self._inner.__aexit__(*exc)
+
+    async def fetch(self, *args: Any, **kwargs: Any) -> Any:
+        network = self._inner.network
+        mark, dropped = network.last_id, network.dropped_count
+        response = await self._inner.fetch(*args, **kwargs)
+        captured = network.search(
+            url_pattern=self._pattern, after_id=mark, limit=None, include_static=False
+        )
+        _report_recording(captured, network.dropped_count - dropped)
+        response.captured_xhr = captured
+        return response
+
+
+def _report_recording(captured: list[Any], dropped: int) -> None:
+    """A body Scrapling did not keep, or a record it evicted, must never read as an empty page
+    (2026-11-26). The path is logged without its query, which can carry cursors and tokens."""
+    for entry in captured:
+        note = (getattr(entry, "meta", None) or {}).get("body_note")
+        # Non-text bodies (images, media) are never JSON we read; anything else is data lost.
+        if note and not str(note).startswith("Non-text"):
+            logger.warning(
+                "captured xhr body not kept path=%s note=%s", urlsplit(entry.url).path, note
+            )
+    if dropped:
+        logger.warning("captured xhr history evicted records dropped=%d", dropped)
+    sizes = [len(getattr(entry, "body", b"") or b"") for entry in captured]
+    logger.info("captured xhr count=%d largest_bytes=%d", len(sizes), max(sizes, default=0))
+
+
+def _raise_recording_limits() -> None:
+    # ponytail: Scrapling 0.5.1 reads these private module constants on every capture and has
+    # no setting for them; drop this once it takes a per-session limit. The test pins the names.
+    from scrapling.engines._browsers import _network
+
+    _network.MAX_BODY_BYTES = RECORDED_BODY_BYTES
+    _network.MAX_TOTAL_BODY_BYTES = RECORDED_TOTAL_BYTES
+
+
+def _recording_session(make: Callable[..., Any], **kwargs: Any) -> Any:
+    pattern = kwargs.pop("capture_xhr", None)
+    if pattern is None:
+        return make(**kwargs)
+    return _XhrRecordingSession(make(**kwargs, record_requests=True), pattern)
+
+
 def _stealthy_session(**kwargs: Any) -> Any:
     from scrapling.fetchers import AsyncStealthySession
 
-    return AsyncStealthySession(**kwargs)
+    _raise_recording_limits()
+    return _recording_session(AsyncStealthySession, **kwargs)
 
 
 def _default_session_factory(**kwargs: Any) -> Any:

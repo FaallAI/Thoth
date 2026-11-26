@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -877,3 +878,124 @@ def test_an_unavailable_browser_keeps_retry_but_cools_no_account() -> None:
     code = AcquisitionReason.BROWSER_UNAVAILABLE.value
     assert code in RETRYABLE_FAILURES & SOURCE_EVENT_REASONS
     assert code not in BLOCKED_CODES
+
+
+class _RecordedNetwork:
+    """Scrapling 0.5's session history: ids grow across fetches; search filters by them."""
+
+    def __init__(self) -> None:
+        self.last_id = 0
+        self.dropped_count = 0
+        self.records: list[tuple[int, SimpleNamespace]] = []
+        self.searches: list[dict[str, object]] = []
+
+    def record(self, url: str, body: bytes = b"{}", note: str | None = None) -> None:
+        self.last_id += 1
+        meta = {"body_note": note} if note else {}
+        self.records.append((self.last_id, SimpleNamespace(url=url, body=body, meta=meta)))
+
+    def search(self, **kwargs: object) -> list[SimpleNamespace]:
+        self.searches.append(kwargs)
+        after = kwargs["after_id"]
+        return [record for record_id, record in self.records if record_id > after]
+
+
+class _Scrapling05Session:
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+        self.network = _RecordedNetwork()
+        self.entered = self.exited = False
+        self.next_records: list[dict[str, object]] = []
+        self.next_evicted = 0
+
+    async def __aenter__(self) -> "_Scrapling05Session":
+        self.entered = True
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        self.exited = True
+
+    async def fetch(self, url: str, **kwargs: object) -> object:
+        for record in self.next_records or [{"url": f"{url}/api/list"}]:
+            self.network.record(**record)  # type: ignore[arg-type]
+        self.network.dropped_count += self.next_evicted  # evicted while this page loaded
+        self.next_records, self.next_evicted = [], 0
+        return type("Page", (), {"url": url})()
+
+
+async def test_capture_xhr_keeps_its_per_fetch_contract_on_scrapling_0_5() -> None:
+    """Scrapling 0.5 removed `capture_xhr` for a session network history (2026-11-26). The
+    stealthy session still takes `capture_xhr=pattern` and still hands each response only the
+    XHR and fetch calls that fetch made, so a warm-up visit never leaks into the next page."""
+    made: list[_Scrapling05Session] = []
+
+    def make(**kwargs: object) -> _Scrapling05Session:
+        made.append(_Scrapling05Session(**kwargs))
+        return made[-1]
+
+    session = browser_module._recording_session(make, headless=True, capture_xhr=r"/api/list")
+    assert made[0].kwargs == {"headless": True, "record_requests": True}
+    async with session as active:
+        warm_up = await active.fetch("https://w.test/explore")
+        page = await active.fetch("https://w.test/page")
+    assert [entry.url for entry in warm_up.captured_xhr] == ["https://w.test/explore/api/list"]
+    assert [entry.url for entry in page.captured_xhr] == ["https://w.test/page/api/list"]
+    assert made[0].network.searches[-1] == {
+        "url_pattern": r"/api/list",
+        "after_id": 1,
+        "limit": None,
+        "include_static": False,
+    }
+    assert made[0].entered and made[0].exited
+
+
+def test_a_session_without_capture_xhr_records_nothing() -> None:
+    made: list[_Scrapling05Session] = []
+
+    def make(**kwargs: object) -> _Scrapling05Session:
+        made.append(_Scrapling05Session(**kwargs))
+        return made[-1]
+
+    assert browser_module._recording_session(make, headless=True) is made[0]
+    assert made[0].kwargs == {"headless": True}
+
+
+async def test_a_captured_body_that_was_not_kept_is_said_out_loud(caplog) -> None:
+    """Scrapling 0.5 keeps a recorded body only up to its limit and drops the oldest past the
+    session total; either loss once read as an empty page (NO_DATA) with no trace (2026-11-26).
+    Every unsaved body and every evicted record now logs a warning, without the query string."""
+    made: list[_Scrapling05Session] = []
+
+    def make(**kwargs: object) -> _Scrapling05Session:
+        made.append(_Scrapling05Session(**kwargs))
+        return made[-1]
+
+    session = browser_module._recording_session(make, capture_xhr=r"/api/")
+    async with session as active:
+        made[0].next_records = [
+            {"url": "https://w.test/api/list?cursor=secret", "note": "too large; not saved."},
+            {"url": "https://w.test/api/item", "body": b"x" * 2048},
+        ]
+        made[0].next_evicted = 3
+        with caplog.at_level("INFO", logger="thoth_control_plane.acquisition.browser"):
+            await active.fetch("https://w.test/page")
+    lines = [record.getMessage() for record in caplog.records]
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any(
+        "not kept" in line and "/api/list" in line and "too large" in line for line in warnings
+    )
+    assert any("dropped=3" in line for line in warnings)
+    assert not any("secret" in line for line in lines)
+    # The largest captured body is logged, so a live capture shows how close a site runs.
+    assert any("captured xhr count=2 largest_bytes=2048" in line for line in lines)
+
+
+def test_recorded_bodies_are_not_capped_at_scrapling_0_5s_one_megabyte() -> None:
+    """Scrapling 0.5.1 keeps 1 MB per recorded body and 20 MB per session; a TikTok list or an
+    X search page past that came back empty. Our sessions raise both (2026-11-26)."""
+    from scrapling.engines._browsers import _network
+
+    browser_module._raise_recording_limits()
+    assert _network.MAX_BODY_BYTES == browser_module.RECORDED_BODY_BYTES == 32 * 1024 * 1024
+    assert _network.MAX_TOTAL_BODY_BYTES == browser_module.RECORDED_TOTAL_BYTES
+    assert browser_module.RECORDED_TOTAL_BYTES == 256 * 1024 * 1024
