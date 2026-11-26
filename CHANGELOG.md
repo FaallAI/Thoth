@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-26 - Python majors: openai 3, scrapling 0.5, sherpa-onnx 2
+
+**Before this branch:**
+- PR #144 merged as 065d7b1e (operator "ya").
+- **Image scan:** one alert left, `golang.org/x/net` in the Caddy 2.11.9 binary. `tinypool` and `source-map-js` closed, and CodeQL has 0 open.
+- **Deploy:** 065d7b1e was deployed to stage1 (operator "ya boleh").
+  - **Images:** thoth `17121232cc13`, renderer `c9b7fc10db91` (`remotion-4.0.545`), web `bb035dfb8f6f`.
+  - **Checks:** no migration; web 200, 0 worker errors, 0 API 5xx.
+  - **Rollback:** `rollback-to-dc05f8fd.sh`.
+
+**Scope** (Dependabot #141, operator: all four parts, and "proxy dataimpulse sudah ada"; brainstorm item 105).
+- **Version rule:** every package takes its newest release at least two weeks old (cutoff 2026-11-12), the rule the pinned actions and scanner images follow, so most targets sit below #141's:
+
+| Package | From | To |
+|---|---|---|
+| openai | 2.54.0 | 3.50.0 |
+| scrapling | 0.4.15 | 0.5.1 |
+| sherpa-onnx, sherpa-onnx-core | 1.13.8 | 2.0.1 |
+| camoufox | 0.5.8 | 0.5.9 |
+| agno | 3.1.9 | 3.2.0 |
+| fastapi | 0.161.1 | 0.162.5 |
+| typer | 0.27.3 | 0.29.1 |
+| onnxruntime | 1.31.0 | 1.31.1 |
+| sqlalchemy | 2.1.6 | 2.1.8 |
+| psycopg | 3.3.6 | 3.3.9 |
+| authlib | 1.9.1 | 1.9.5 |
+| pydantic-settings | 2.16.1 | 2.16.2 |
+| pytest | 9.1.1 | 9.2.0 |
+| pytest-asyncio | 1.4.0 | 1.5.0 |
+| ruff | 0.17.2 | 0.17.5 |
+
+temporalio stays 1.36.1, the security triage's fix.
+
+**What had to change:**
+- **scrapling 0.5 removed `capture_xhr`,** which five capture paths use: the TikTok post page, discovery, Threads, X search and the footage search. It became a session network history.
+  - **Adapter:** one adapter where every path builds its stealthy session (`_stealthy_session`) keeps our contract. It takes `capture_xhr=pattern` in, turns `record_requests=True` on, marks the history before each fetch, and gives each response a `captured_xhr` holding only that fetch's XHR and fetch calls. A discovery warm-up visit still never reaches the next page.
+  - **Silent losses** (side note, operator: "ya tolong pastikan ini dengan baik!!!"):
+    - **The limits:** Scrapling 0.5.1 keeps a recorded body only up to 1 MB and evicts the oldest records past 20 MB per session, with no error. An empty body then read as `NO_DATA`.
+    - **Raised:** our sessions raise both limits to 32 MB and 256 MB. Scrapling has no setting for them, so `ponytail:` overrides its two private constants, and a test pins their names against the real module.
+    - **Logged:** every body still not kept (except non-text media) and every eviction logs a warning with the path but not the query. Every capture logs `captured xhr count=N largest_bytes=M`, so the live check shows how close TikTok and X run.
+- **openai 3 moved to HTTPX2** and no longer installs `httpx`.
+  - **Why the adapters stay on `httpx`:** agno 3.2's `OpenAILike` passes on only an `httpx.AsyncClient` and drops any other with a warning. Five of our six provider adapters go through agno, and they own their client so it closes on the loop that made it.
+  - **What still works:** openai 3 still sends through an `httpx` client, its legacy client path. A new test proves agno hands our client to openai and the request goes through it.
+  - **Dependency:** `httpx` was already a direct dependency.
+  - **TLS:** HTTPX2 trusts the operating-system store; the image installs `ca-certificates`.
+- **pytest 9.2's `approx` refuses nested sequences.** Four tests compared lists of (start, end) pairs. They now compare the flattened values, with order, count and tolerance unchanged.
+- **The local test environment follows `uv.lock`.** `scripts/dev/pytest-wsl.sh` had hand-kept pins that drifted from the lock (`openai<3`, `camoufox==0.5.8`, `yt-dlp==2026.10.21`, `pytest==9.1.1`), so local runs tested other versions than CI and the image. It now installs `uv export --frozen`. The Makefile's ruff pin follows the lock (0.17.5).
+
+**Verification**, on the locked versions:
+- `make test`: 5231 passed, 251 skipped. This includes the sherpa-onnx 2 diarization tests, which fail rather than skip without their models.
+- `make lint` (ruff 0.17.5): clean.
+- **Not yet proven:** the image build, with camoufox 0.5.9's fetch of the pinned browser and its launch smoke, runs in CI.
+
+**Next steps (each its own operator gate):**
+1. Push `build/python-deps`, open its PR and watch CI: the image build, the browser launch, the stack smoke and DAST.
+2. Deploy the branch image to stage1.
+3. **A live capture check** (DataImpulse is available again):
+   - one TikTok post page, one TikTok discovery and one X footage search;
+   - read the worker's `captured xhr count=… largest_bytes=…` lines, and check there are no `not kept` or `evicted` warnings;
+   - one paid vision or LLM call through an agno adapter, to prove openai 3 live.
+4. Merge, then close Dependabot #141 as applied in part. Its newer versions wait for the two-week rule.
+5. The paid Style A and Style B narration check, and the subject choice on `wf_31f14a60b44046a7f2bdd2ba`.
+
 ## 2026-11-26 - Remotion 4.0.545, the JS bumps, and a signed-in DAST
 
 **The security triage shipped:**

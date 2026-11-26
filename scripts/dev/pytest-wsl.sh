@@ -20,11 +20,11 @@ export PYTHONPATH="$PWD/src"
 
 [ "$#" -gt 0 ] || set -- tests
 
-exec "$HOME/.local/bin/uv" run --no-project --python 3.12 \
-    --with 'pytest==9.1.1' --with pytest-asyncio --with pydantic --with pydantic-settings --with typer \
-    --with httpx --with respx --with temporalio --with fastapi --with python-multipart \
-    --with 'psycopg[binary]' --with sqlalchemy --with alembic --with 'minio>=7.2.20,<8' --with boto3 --with pyjwt \
-    --with agno --with 'openai<3' --with pillow --with pyyaml --with cryptography --with 'authlib>=1.6,<2' --with itsdangerous \
-    --with rapidocr --with onnxruntime --with numpy --with tokenizers --with faster-whisper \
-    --with sherpa-onnx --with camoufox==0.5.8 --with yt-dlp==2026.10.21 \
+# The exact versions in uv.lock, as CI installs them: hand-kept pins here drifted from the lock
+# (openai, camoufox, yt-dlp, pytest) and tested other code than the image runs (2026-11-26).
+requirements="$HOME/thoth-tmp/locked-requirements.txt"
+"$HOME/.local/bin/uv" export --frozen --no-hashes --no-emit-project --all-groups --extra acquisition \
+    --format requirements-txt --quiet > "$requirements"
+
+exec "$HOME/.local/bin/uv" run --no-project --python 3.12 --with-requirements "$requirements" \
     -- python -m pytest "$@" -q -p no:cacheprovider -p no:warnings --basetemp="$HOME/thoth-tmp/pt"

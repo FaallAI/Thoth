@@ -287,8 +287,9 @@ def test_spike_shaped_v4_alignment_yields_only_spoken_words() -> None:
     spoken = [(t, s, e) for t, s, e in SPIKE_V4 if not t.startswith("[")]
     assert len(words) == 19
     assert [w.text for w in words] == [t for t, _, _ in spoken]
-    assert [(w.start_seconds, w.end_seconds) for w in words] == pytest.approx(
-        [(s, e) for _, s, e in spoken]
+    # pytest 9.2's approx refuses nested sequences, so each word's start and end are flattened.
+    assert [t for w in words for t in (w.start_seconds, w.end_seconds)] == pytest.approx(
+        [t for _, s, e in spoken for t in (s, e)]
     )
 
 
