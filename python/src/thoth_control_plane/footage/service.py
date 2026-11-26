@@ -59,9 +59,13 @@ from thoth_control_plane.footage.context import (
     card_objects,
     context_objects,
     context_reason,
+    discussed_names,
     event_terms,
+    has_event_term,
     in_window,
+    names_discussed_with_context,
     names_subject,
+    related_terms,
     same_event,
     subject_names,
 )
@@ -77,6 +81,7 @@ from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate,
 from thoth_control_plane.footage.gates import (
     MAX_SECONDS,
     MainIdentity,
+    mentions,
     norm,
     same_as_main,
     text_gate,
@@ -698,7 +703,9 @@ class FootageBuilder:
         self, text: str, published_at: str | None, main: SourceReport, card: ContextCard
     ) -> bool:
         # Spec 10.5/10.12: naming the subject opens two years; event words alone keep 30 days.
-        if names_subject(norm(text), card):
+        # A commentary's discussed figure with a context word opens two years too (2026-11-26).
+        said = norm(text)
+        if names_subject(said, card) or names_discussed_with_context(said, card):
             return not in_window(
                 published_at, main.post.published_at, self._clock(), before=PERSON_WINDOW
             )
@@ -747,6 +754,9 @@ class FootageBuilder:
         ][:REFINE_TITLES]
         material = json.dumps({"card": card.model_dump(), "results": titles}, ensure_ascii=False)
         refined = await self._ports.card.card(REFINE_PROMPT, material)
+        if refined is not None:
+            # Round two sees titles only, never the main: the kind stays round one's.
+            refined = refined.model_copy(update={"main_kind": card.main_kind})
         if refined is None or not card_names(refined):
             await asyncio.to_thread(
                 self._store.set_context, workflow, {**card.model_dump(), REFINED: True}
@@ -871,7 +881,12 @@ class FootageBuilder:
                     others = [name for name in card_names(card) if name not in subject]
                     # A name is never a discussion word: "Denny" from the event is a person.
                     named = {word for name in card_names(card) for word in name.split()}
-                    words = [*card.spoken, *(t for t in event_terms(card) if t not in named)]
+                    terms = set(event_terms(card))
+                    if card.main_kind == "commentary":
+                        # The video discusses the event, not the commentator (2026-11-26, 3.4).
+                        subject, others = [], card_names(card)
+                        terms |= related_terms(card)
+                    words = [*card.spoken, *sorted(t for t in terms if t not in named)]
                     found = pick_discussions(parse_json3(data), subject, others, words)
             rows = [
                 NewCandidate(
@@ -1294,7 +1309,7 @@ class FootageBuilder:
                 workflow, root, candidate, location, owned, "media_failed", state
             )
         shown = True
-        if state.subject is not None and candidate.source != "carousel":
+        if self._needs_subject_face(candidate, state):
             # Spec 10.12: before the paid call, so a clip without the subject costs nothing.
             steps[candidate.url] = "faces"
             shown = await self._shows_subject(path, state)
@@ -1474,6 +1489,23 @@ class FootageBuilder:
 
         faces = await asyncio.to_thread(self._ports.faces.faces, path)
         return shows_subject(state.subject, faces)
+
+    @staticmethod
+    def _needs_subject_face(candidate: CandidateView, state: _Build) -> bool:
+        """Whether a clip must show the subject's face (spec 10.12). On a commentary card only a
+        query about the commentator alone does: clips of the discussed events and figures never
+        show them (spec 2026-11-26, 3.4)."""
+        if state.subject is None or candidate.source == "carousel":
+            return False
+        card = state.card
+        if card is None or card.main_kind != "commentary":
+            return True
+        query = norm(candidate.query)
+        return (
+            names_subject(query, card)
+            and not any(mentions(query, name) for name in discussed_names(card))
+            and not has_event_term(query, card)
+        )
 
     @staticmethod
     def _may_discuss(candidate: CandidateView, state: _Build) -> bool:
@@ -1687,8 +1719,10 @@ class FootageBuilder:
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "duplicate")
                 continue
-            # Spec 10.12: a library clip is checked like any candidate for the subject's face.
-            if state.subject is not None and not await self._shows_subject(path, state):
+            # Spec 10.12: a library clip is checked like any candidate for the subject's face,
+            # except on a commentary card, whose clips show the discussed events (2026-11-26).
+            face = state.subject is not None and card.main_kind != "commentary"
+            if face and not await self._shows_subject(path, state):
                 path.unlink(missing_ok=True)
                 await asyncio.to_thread(self._store.reject, workflow, clip.url, "subject_absent")
                 continue

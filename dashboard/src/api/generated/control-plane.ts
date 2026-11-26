@@ -4823,8 +4823,12 @@ export interface components {
             asset_id?: string | null;
             /** Author */
             author?: string | null;
+            /** Caption */
+            caption?: string | null;
             /** Clip Start */
             clip_start?: number | null;
+            /** Description */
+            description?: string | null;
             /**
              * Disposition
              * @enum {string}

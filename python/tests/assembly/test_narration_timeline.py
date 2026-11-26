@@ -25,6 +25,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     TimelineAudioClip,
     TimelineCaptionClip,
     TimelineVideoClip,
+    VolumeKeyframe,
 )
 from thoth_control_plane.domain.narration import NarrationPreset, SfxCue
 from thoth_control_plane.voice.ports import WordTiming
@@ -985,3 +986,106 @@ def test_a_planned_credit_follows_its_shot_on_a_revoice() -> None:
         shot.from_frame,
         shot.duration_in_frames,
     )
+
+
+# Spec 2026-11-26, 4.3 (Option A): a footage cutaway over the running main video is pictures only.
+MUTED = [VolumeKeyframe(frame=0, volume=0.0)]
+
+
+def _cutaway_plan(voices: list[VoicedBeat]) -> Any:
+    from thoth_control_plane.domain.planner import (
+        BeatPlan,
+        DraftPlan,
+        PlanPhrase,
+        PlanShot,
+        words_key,
+    )
+
+    footage = PlanShot(
+        shot_id="S2",
+        asset_id="asset_vid_long",
+        source="footage",
+        start_seconds=1.0,
+        end_seconds=4.0,
+        handle="@kompascomreport",
+    )
+    return DraftPlan(
+        shots=[footage],
+        beats=[
+            BeatPlan(
+                beat="main",
+                words_key=words_key(voices[1].words),
+                phrases=[
+                    PlanPhrase(phrase_id="P1", first_word=0, last_word=1, text=""),
+                    PlanPhrase(phrase_id="P2", first_word=2, last_word=3, text="", base=["S2"]),
+                    PlanPhrase(phrase_id="P3", first_word=4, last_word=5, text=""),
+                ],
+            )
+        ],
+    )
+
+
+def _cutaway(document: EditDocumentV2) -> TimelineVideoClip:
+    return next(
+        c
+        for c in document.clips
+        if isinstance(c, TimelineVideoClip)
+        and c.asset_id == "asset_vid_long"
+        and c.clip_id.startswith("clip_style_main_plan_")
+    )
+
+
+def _narrated_cutaway() -> tuple[EditDocumentV2, list[VoicedBeat], Any, Any]:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    style = BUILT_IN_STYLES["style_b"]
+    voices = [voiced("hook", 2.0), voiced("main", 5.0, PHRASED), voiced("reactions", 4.0)]
+    plan = _cutaway_plan(voices)
+    return (
+        narrate_document(draft(), voices, [], PRESET, ROLES, style=style, plan=plan),
+        voices,
+        style,
+        plan,
+    )
+
+
+def test_a_footage_cutaway_over_the_main_video_is_muted() -> None:
+    document, *_ = _narrated_cutaway()
+    cutaway = _cutaway(document)
+    b_roll = {t.track_id for t in document.tracks if t.kind == "b_roll"}
+    mains = [
+        c
+        for c in document.clips
+        if c.track_id in {t.track_id for t in document.tracks if t.kind == "main_video"}
+        and not c.hidden
+        and c.from_frame < cutaway.end_frame
+        and cutaway.from_frame < c.end_frame
+    ]
+    assert cutaway.track_id in b_roll and mains  # it covers the running main video
+    assert cutaway.volume_keyframes == MUTED
+    # A still card has no sound: nothing to mute or duck.
+    cards = [c for c in document.clips if getattr(c, "asset_id", None) == "asset_card_a"]
+    assert cards and all(c.volume_keyframes == [] for c in cards)
+
+
+def test_a_muted_cutaway_stays_muted_on_every_narration_again() -> None:
+    once, voices, style, plan = _narrated_cutaway()
+    # The same voices return before any re-cut; every clip is unchanged (the list order of a
+    # styled draft's clips already moves on a narration again, before this change).
+    same = narrate_document(once, voices, [], PRESET, ROLES, style=style, plan=plan)
+    assert {c.clip_id: c for c in same.clips} == {c.clip_id: c for c in once.clips}
+    assert _cutaway(same).volume_keyframes == MUTED
+    # A new hook voice re-cuts by the style: the cutaway is muted again.
+    hook = VoicedBeat(
+        beat="hook", asset=audio("asset_voice_hook_2", 3.0), duration_seconds=3.0,
+        words=words("satu dua tiga empat lima enam", 3.0),
+    )  # fmt: skip
+    again = narrate_document(once, [hook, *voices[1:]], [], PRESET, ROLES, style=style, plan=plan)
+    assert _cutaway(again).volume_keyframes == MUTED
+
+
+def test_footage_with_no_main_video_under_it_still_ducks() -> None:
+    document = narrate_document(draft(), [*VOICES, voiced("footage", 4.0)], [], PRESET, ROLES)
+    footage = clip(document, "clip_footage_000")
+    assert footage.volume_keyframes != MUTED
+    assert PRESET.duck_volume in {key.volume for key in footage.volume_keyframes}

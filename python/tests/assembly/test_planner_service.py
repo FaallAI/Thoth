@@ -438,3 +438,67 @@ def test_the_prompt_keeps_a_named_person_to_their_own_shots() -> None:
     from thoth_control_plane.assembly.adapters.planner_model import SYSTEM_PROMPT
 
     assert "WHO IS ON SCREEN" in SYSTEM_PROMPT and "other people" in SYSTEM_PROMPT
+
+
+# Commentary context footage (spec 2026-11-26, 4.1 and 4.2).
+
+
+async def _sources(**update: Any) -> str:
+    item = MATERIALS.items[0].model_copy(update=update)
+    materials = MATERIALS.model_copy(update={"items": [item, *MATERIALS.items[1:]]})
+    model = Model()
+    await planner(Store(), model).plan(
+        "project_001", DOC, draft(), materials, [voice("main", "satu dua tiga")]
+    )
+    return model.calls[0]["sources"]
+
+
+async def test_a_footage_source_line_says_what_the_clip_is_about() -> None:
+    sources = await _sources(
+        caption="  Menang Piala\n Citra!  " + "x" * 300,
+        description="A filmmaker  speaking on stage " + "y" * 300,
+        query="kritik FFI 2026",
+    )
+    (line,) = [s for s in sources.splitlines() if s.startswith("- F1:")]
+    topic = "Menang Piala Citra! " + "x" * 140  # 160 characters
+    shows = "A filmmaker speaking on stage " + "y" * 110  # 140 characters
+    assert line == f"- F1: footage video, from @kompascomreport — topic: {topic}; shows: {shows}"
+
+
+async def test_a_footage_source_without_caption_falls_back_to_its_query() -> None:
+    sources = await _sources(query="  kritik   FFI 2026 ")
+    assert "- F1: footage video, from @kompascomreport — topic: kritik FFI 2026" in sources
+    plain = await _sources()
+    assert "- F1: footage video, from @kompascomreport\n" in f"{plain}\n"
+
+
+SOUNDBITE = "dan disebut penjilat nasional. Lalu apa lagi"  # P1 is spoken in S1
+
+
+async def _first(answer: PhraseAnswer | None, fail: bool = False) -> Any:
+    model = Model([answer] if answer else [], fail=fail)
+    plan = await make(Store(), model, [voice("main", SOUNDBITE)])
+    assert plan is not None
+    return plan.beats[0].phrases[0]
+
+
+async def test_a_footage_cutaway_may_cover_a_soundbite() -> None:
+    first = await _first(PhraseAnswer("P1", ["S3"], "C1", "Fadli Zon di panggung"))
+    assert (first.base, first.soundbite) == (["S3", "S1"], False)  # the soundbite falls back
+    assert (first.overlay, first.why) == ("C1", "Fadli Zon di panggung")
+
+
+async def test_a_soundbite_keeps_its_shot_when_the_model_picks_main_or_none() -> None:
+    main = await _first(PhraseAnswer("P1", ["S2"], "C1", "lain"))
+    assert (main.base, main.soundbite, main.overlay, main.why) == (["S1"], True, "C1", "lain")
+    none = await _first(PhraseAnswer("P1", [], None, "tidak ada"))
+    assert (none.base, none.soundbite) == (["S1"], True)
+    down = await _first(None, fail=True)
+    assert (down.base, down.soundbite) == (["S1"], True)
+
+
+def test_the_prompt_allows_a_context_cutaway_over_a_talking_head() -> None:
+    from thoth_control_plane.assembly.adapters.planner_model import SYSTEM_PROMPT
+
+    assert "13. Context cutaway over a talking head." in SYSTEM_PROMPT
+    assert "it may still show an outside person named in SOURCES" in SYSTEM_PROMPT

@@ -82,7 +82,15 @@ Rules, from the editor who judges this:
    phrases about that moment.
 12. A phrase that names a person listed in "WHO IS ON SCREEN IN EACH SHOT" takes shots where that
    person is on screen, when there are any. A shot listed only with "other people" is never the
-   picture for a named person.
+   picture for a person who IS listed there (it may still show an outside person named in SOURCES).
+13. Context cutaway over a talking head. When the main video is mostly one person talking to
+   camera and a phrase names or describes a specific outside event, stage moment, protest or
+   another public figure that a footage source (F1, F2, ...) clearly shows (check its topic and
+   shows in SOURCES and its contact sheet), the base is that footage shot for that phrase (1-2
+   phrases) instead of the talking head: even when the main speaker says those words (the one
+   exception to rule 1) and even when "WHO IS ON SCREEN IN EACH SHOT" lists the shot as "other
+   people". Cut only to footage that directly shows the phrase; return to MAIN for the
+   speaker's own opinion, reaction or summary.
 
 For every phrase answer:
 - base: list of S ids; overlay: list with at most one C id;

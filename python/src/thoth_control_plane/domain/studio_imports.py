@@ -258,6 +258,9 @@ class StudioMaterial(StrictModel):
     # A footage item's source speech and where the clip starts in it (spec 2026-11-15, 9.5).
     said: list[SpokenLine] = Field(default_factory=list)
     clip_start: float | None = None
+    # A footage item's source caption and what the vision check saw (spec 2026-11-26, 4.1).
+    caption: str | None = None
+    description: str | None = None
     author: str | None = None
     verdict: Literal["original", "replaced", "unresolved", "none"] | None = None
     ocr_outcome: Literal["clean", "cover", "subtitle", "overlay"] | None = None

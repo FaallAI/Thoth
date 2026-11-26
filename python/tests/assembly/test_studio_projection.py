@@ -270,3 +270,16 @@ def test_footage_provenance_carries_said_and_clip_start() -> None:  # spec 2026-
     why = projected.provenance["footage_000"]
     assert why["said"] == said and why["clip_start"] == 3.0
     assert "said" not in projected.provenance["main_000"]
+
+
+def test_footage_provenance_carries_its_caption_and_description() -> None:  # spec 2026-11-26
+    clips = [
+        footage(0, caption="  Menang Piala\n Citra!  ", description="A filmmaker  on stage"),
+        footage(1, caption="x" * 2000, description=""),
+    ]
+    data = content_set() | {"footage": clips, "footage_status": "ok"}
+    provenance = project_content_set(parse(data)).provenance
+    first, second = provenance["footage_000"], provenance["footage_001"]
+    assert first["caption"] == "Menang Piala Citra!"
+    assert first["description"] == "A filmmaker on stage"
+    assert len(second["caption"]) == 300 and second["description"] is None

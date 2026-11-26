@@ -13,6 +13,7 @@ import asyncio
 import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
@@ -173,12 +174,13 @@ class Planner:
         by_id = {answer.phrase_id: answer for answer in answers}
         fresh_beats = {voice.beat for voice in fresh}
         shot_ids = {shot.shot_id for shot in shots}
+        footage_ids = {shot.shot_id for shot in shots if shot.source == "footage"}
         card_ids = {card.card_id for card in cards}
         beats = {
             name: beat.model_copy(
                 update={
                     "phrases": [
-                        _merged(p, by_id.get(p.phrase_id))
+                        _merged(p, by_id.get(p.phrase_id), footage_ids)
                         if name in fresh_beats
                         else p.model_copy(
                             update={
@@ -254,6 +256,12 @@ class Planner:
             for i in materials.items
             if i.role == "footage" and i.asset_id and i.said
         }
+        # What each footage clip is about, so the planner can cut to it (spec 2026-11-26, 4.1).
+        topics = {
+            i.asset_id: _topic(i.caption, i.description, i.query)
+            for i in materials.items
+            if i.role == "footage" and i.asset_id
+        }
         footage += [
             c.asset_id
             for c in videos
@@ -295,7 +303,12 @@ class Planner:
             label = "MAIN" if kind == "main" else f"F{sum(k.startswith('F') for k in files) + 1}"
             files[label] = path
             handle = handles.get(asset_id) if kind == "footage" else None
-            sources.append(f"- {label}: {kind} video" + (f", from {handle}" if handle else ""))
+            topic = topics.get(asset_id) if kind == "footage" else None
+            sources.append(
+                f"- {label}: {kind} video"
+                + (f", from {handle}" if handle else "")
+                + (f" — {topic}" if topic else "")
+            )
             for start, end in spans:
                 key = (asset_id, round(start, 3), round(end, 3))
                 shots.append(
@@ -428,9 +441,28 @@ def _ordered(beats: list[BeatPlan]) -> list[BeatPlan]:
     return sorted(beats, key=lambda beat: BEAT_ORDER.index(beat.beat))
 
 
-def _merged(phrase: PlanPhrase, answer: PhraseAnswer | None) -> PlanPhrase:
-    """A soundbite keeps its base; the model's card still sits on top of it."""
+def _topic(caption: str | None, description: str | None, query: str | None) -> str:
+    """A footage clip's caption and what the vision check saw; its search when neither."""
+    topic = " ".join((caption or "").split())[:160]
+    shows = " ".join((description or "").split())[:140]
+    parts = [f"topic: {topic}" if topic else "", f"shows: {shows}" if shows else ""]
+    if not topic and not shows:
+        query = " ".join((query or "").split())[:160]
+        parts = [f"topic: {query}" if query else ""]
+    return "; ".join(part for part in parts if part)
+
+
+def _merged(
+    phrase: PlanPhrase, answer: PhraseAnswer | None, footage_ids: AbstractSet[str] = frozenset()
+) -> PlanPhrase:
+    """A soundbite keeps its main base unless the model chose a footage cutaway (spec
+    2026-11-26, 4.2); the soundbite's shots stay behind it as the fallback when the cutaway is
+    used up or too short. The model's card still sits on top."""
     if answer is None:
         return phrase
-    base = phrase.base if phrase.soundbite else answer.base
-    return phrase.model_copy(update={"base": base, "overlay": answer.overlay, "why": answer.why})
+    update: dict[str, Any] = {"overlay": answer.overlay, "why": answer.why}
+    if not phrase.soundbite:
+        update["base"] = answer.base
+    elif cutaway := [shot for shot in answer.base if shot in footage_ids]:
+        update |= {"base": [*cutaway, *phrase.base], "soundbite": False}
+    return phrase.model_copy(update=update)

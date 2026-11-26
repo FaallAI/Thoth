@@ -8711,6 +8711,17 @@
             ],
             "title": "Author"
           },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
           "clip_start": {
             "anyOf": [
               {
@@ -8721,6 +8732,17 @@
               }
             ],
             "title": "Clip Start"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "disposition": {
             "enum": [

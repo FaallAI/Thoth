@@ -173,6 +173,9 @@ def _footage(built: _Builder, role: SourceRole, clips: list[Footage]) -> None:
                 # What the source says around the clip, for the narration and the planner.
                 "said": [line.model_dump(mode="json") for line in clip.said],
                 "clip_start": clip.clip_start,
+                # What the clip is about, for the planner (spec 2026-11-26, 4.1).
+                "caption": " ".join(clip.caption.split())[:300] or None,
+                "description": " ".join(clip.description.split())[:300] or None,
             },
         )
 
