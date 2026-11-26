@@ -6,6 +6,7 @@ go through a leased account and proxy (spec 2026-11-27, 3.2). The file lands thr
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shutil
 import tempfile
@@ -19,6 +20,8 @@ from typing import Any
 from thoth_control_plane.acquisition.adapters.tikwm import TikWmError
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.acquisition.youtube_service import STOP_GRACE_SECONDS, _Silent
+
+logger = logging.getLogger(__name__)
 
 FORMAT = "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/b[ext=mp4]/b"
 TIMEOUT_SECONDS = 75.0
@@ -98,6 +101,7 @@ class YtDlpClipDownloader:
             or (platform == "youtube" and str(failed) not in BLOCKED_CAUSES)
         ):
             raise failed
+        logger.warning("footage download fallback platform=%s cause=%s", platform, failed)
         # Its own scratch: an abandoned direct thread can never write into this attempt.
         with _scratch(target) as scratch:
             async with fallback(platform, scratch) as extra:

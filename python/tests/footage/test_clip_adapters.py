@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -480,6 +481,23 @@ async def test_no_lease_keeps_the_direct_failure(
         )
     assert str(raised.value) == "http_403"
     assert len(session.calls) == 1
+
+
+async def test_a_leased_retry_is_logged_without_the_url(  # final review
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def fake(url: str, options: dict[str, Any]) -> None:
+        if options["proxy"] == "":
+            raise RuntimeError("HTTP Error 403: Forbidden")
+        _writes(url, options)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    with caplog.at_level(logging.INFO, logger=downloader_module.__name__):
+        await YtDlpClipDownloader("ffmpeg", fallback_session=Session()).download(
+            "https://youtu.be/abc", None, tmp_path / "c.mp4"
+        )
+    assert "footage download fallback platform=youtube cause=http_403" in caplog.text
+    assert "youtu.be" not in caplog.text
 
 
 def _hangs_when_direct(url: str, options: dict[str, Any]) -> None:
