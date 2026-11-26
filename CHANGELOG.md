@@ -68,10 +68,14 @@ All notable changes to this project will be documented in this changelog.
   - **First `make deploy` failed:** temporal was unhealthy from the known stale DNS search domain (by IP it answered SERVING, by name it hung), so api, worker and web stayed down for a few minutes. Recreating temporal and rerunning `make deploy` fixed it.
   - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
   - **Rollback:** pins backup `pins-840eb1c2.env`.
+- **Live acceptance (2026-11-27, operator "iya" + "langsug saja"):**
+  - Workflow `wf_af610964fe3742b70823ebbc` (`https://www.instagram.com/p/DgFu-6szNpk/`, `@ernestprakasa`): succeeded, `footage_status=ok`. Context card detected `main_kind="commentary"` (preserved across round 2 `refined=true`), Indonesian `event` (`Polemik kritik panggung Piala Citra FFI 2026...`), people `[Ernest Prakasa, Fadli Zon, Irini Dewi Wanti, Siera Tamihardja]`, 69 on-story candidates, 0 `subject_absent`, 2 clean external clips admitted (`youtube/@tribunkaltimofficial` Fadli Zon, `tiktok/@ant9493` DPR 1998 hearing via 2-year window).
+  - Studio draft `edoc_47261fababaf4cd785a87c2e1b7d0a72` (`style_a`, `eleven_v4` 1031 chars, planner `qwen/qwen3.7-flash`, rev 16): `StudioMaterial` carried `caption` and `description`; planner placed 4 mid-story B-roll cutaways during beat `main` (11.67–23.77 s, overriding 3 soundbite phrases on Fadli Zon / 1998 / FFI); all 4 overlapping `b_roll` clips muted (`[{"frame": 0, "volume": 0.0}]`), still cards kept `[]`, standalone `footage` beat kept ducking (`0.12`).
+- **Merged:** PR #146 merged into `master` as `1f77dae9` (operator "ya diizinkan").
 
 **Next steps (each its own operator gate):**
-1. Run one live commentary test (for example Ernest / FFI 2026), with the cost shown first. Check the card's `main_kind`, the admitted event clips and the mid-story cutaways.
-2. Merge PR #146 after the operator accepts.
+1. Follow-up brainstorming & spec on `feat/footage-sourcing-v2` (operator research request 2026-11-27): resilient TikTok downloader (`TikWmError` pacing/retry + proxy/headless fallback), Credit-to-YouTube tracing fixes (lift `kept >= 16` stop for YouTube credits, broader credit markers + YouTube search fallback), and multi-hour YouTube surgical cutting (`js_runtimes: {"bun": {}}` in `downloader.py`, `id*` caption fallback, `chapters` + `heatmap` scoring in `moments.py`).
+2. Clean up parked local branch `feat/commentary-context-footage` once no longer needed; keep docs-only commits riding on `feat/footage-sourcing-v2`.
 
 ## 2026-11-26 - Python majors: openai 3, scrapling 0.5, sherpa-onnx 2
 
