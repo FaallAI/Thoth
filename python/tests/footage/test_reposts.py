@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from thoth_control_plane.footage.context import CardPerson, ContextCard
-from thoth_control_plane.footage.reposts import credit_label, credited_account, is_own_account
+from thoth_control_plane.footage.reposts import (
+    CreditRef,
+    credit_label,
+    credited_account,
+    credited_source,
+    is_own_account,
+)
 
 
 def test_credits_are_read_from_common_forms() -> None:
@@ -37,3 +45,61 @@ def test_credit_labels() -> None:
 def test_a_credited_handle_keeps_its_dots_for_the_listing() -> None:  # final review, Important 5
     assert credited_account("Master Saiful ngamuk cr: @denny.sumargo") == "denny.sumargo"
     assert credited_account("tt/@tretan_muslim.") == "tretan_muslim"
+
+
+# Footage sourcing v2 (spec 2026-11-27, 4.1): Indonesian credit prefixes and their platform.
+
+
+@pytest.mark.parametrize(
+    ("caption", "expected"),
+    [
+        ("Sumber YT : Ernest Prakasa", CreditRef("ernestprakasa", "Ernest Prakasa", "youtube")),
+        ("Source YT: Rhenald Kasali", CreditRef("rhenaldkasali", "Rhenald Kasali", "youtube")),
+        (
+            "Sumber: YouTube Kompas TV | FFI 2026",
+            CreditRef("kompastv", "Kompas TV", "youtube"),
+        ),
+        ("sc: KompasTV", CreditRef("kompastv", "KompasTV", None)),
+        ("kredit: TVR Parlemen", CreditRef("tvrparlemen", "TVR Parlemen", None)),
+        ("yt: DPR RI", CreditRef("dprri", "DPR RI", "youtube")),
+        (
+            "Master Saiful ngamuk cr: @denny.sumargo",
+            CreditRef("denny.sumargo", "denny.sumargo", None),
+        ),
+        (
+            "via YouTube/CURHAT BANG Denny Sumargo",
+            CreditRef("curhatbangdennysumargo", "CURHAT BANG Denny Sumargo", "youtube"),
+        ),
+        ("via @kompastv", CreditRef("kompastv", "kompastv", None)),
+    ],
+)
+def test_credited_source_reads_the_prefix_and_its_platform(
+    caption: str, expected: CreditRef
+) -> None:
+    assert credited_source(caption) == expected
+
+
+def test_a_named_youtube_credit_beats_an_earlier_handle() -> None:
+    assert credited_source("@ernestprakasa Sumber: YouTube Kompas TV") == CreditRef(
+        "kompastv", "Kompas TV", "youtube"
+    )
+
+
+def test_a_bare_handle_takes_youtube_from_the_caption() -> None:
+    assert credited_source("Full di yt @kompastv") == CreditRef("kompastv", "kompastv", "youtube")
+    assert credited_source("ikuti @kompastv") == CreditRef("kompastv", "kompastv", None)
+
+
+@pytest.mark.parametrize(
+    "caption",
+    [
+        "Model Source: https://makerworld.com/en/models/123",
+        "Sumber: www.kompas.com",
+        "Merbabu via Tekhelan — jalur bersahabat",
+        "Pesan via WA atau via chat atau via transfer atau via link",
+        "cr: @akun",
+    ],
+)
+def test_urls_prose_and_placeholders_are_not_credits(caption: str) -> None:
+    assert credited_source(caption) is None
+    assert credited_account(caption) is None
