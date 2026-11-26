@@ -266,6 +266,22 @@ projection helper stay in the code for item 2.
   - the Camoufox layer's venv `chown` size.
 - **Persistence:**
   - convert the seven psycopg editor repositories to the SQLAlchemy ORM. Spec: `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`. Done 2026-10-26 on `refactor/editor-repositories-orm` (its own PR and deploy).
+- **Security findings deferred by the 2026-11-26 triage** (operator: "tolong catat dulu temuan yang perbaikan nya di tunda"; branch `fix/security-triage`):
+  - **Python majors, Dependabot #141.**
+    - **Contents:** openai 2→3, sherpa-onnx-core 1→2, scrapling 0.4→0.5, camoufox 0.5.8→0.5.9, agno, fastapi, typer, opencv and others, with every lower bound in `pyproject.toml` raised.
+    - **Why deferred:** it can break scraping, the browsers and narration.
+    - **Needs:** its own branch, the full suite, a stack smoke and a live capture check.
+    - **Also:** temporalio 1.37.0 (taken: 1.36.1).
+  - **JS bumps, Dependabot #139 (e2e, composition package) and #140 (dashboard, renderer).**
+    - **Trivy finding:** a critical `tinypool` and a high `source-map-js`, both inside the renderer's `@rspack/core`, close only with #140.
+    - **Needs:** a renderer change reruns the goldens and `f1_verify3.sh` before a push.
+  - **Parity reference image.** Dependabot keeps proposing a bump of `Dockerfile.renderer-f1` (bun 1.4.4, pinned on purpose). Moving it means re-approving the goldens; until then, close that part of each base-image PR.
+  - **DAST warnings left (ZAP baseline):**
+    - **Cross-Origin-Embedder-Policy:** would block previews loaded from the media store; needs CORP on those responses first.
+    - **CSP `style-src 'unsafe-inline'`:** the dashboard's inline styles.
+    - **Notices:** non-storable content, Unix timestamps, one suspicious comment, and the modern web app notice.
+  - **API logs are plain text.** The worker logs JSON, which escapes newlines; the API under uvicorn does not, which is why CodeQL's log injection applied there. Use the same JSON formatter in the API (see the structured JSON logging item in the backlog).
+  - **`docker build --check`** flags `Dockerfile.renderer`'s `COPY --exclude`. It is deliberate dockerfile labs syntax, so it is no fix, only noise to know about.
 
 ## Backlog after the migration
 
