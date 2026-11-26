@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # The dashboard SPA behind Caddy (spec 2026-10-19, section 1). No credential is baked in.
-FROM oven/bun:1.4.4 AS build
+FROM oven/bun:1.4.5 AS build
 WORKDIR /src
 COPY packages/remotion-composition packages/remotion-composition
 COPY dashboard/package.json dashboard/bun.lock dashboard/
@@ -8,11 +8,13 @@ RUN cd dashboard && bun install --frozen-lockfile
 COPY dashboard dashboard
 RUN cd dashboard && bun run build
 
-FROM caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
 COPY deploy/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /src/dashboard/dist /srv/dashboard
 # The official binary carries cap_net_bind_service; every port here is above 1024, so drop it and
 # the container can run with cap_drop: [ALL].
-RUN setcap -r /usr/bin/caddy
+# The base's own Alpine packages (brotli, curl) take their security fixes here.
+RUN apk upgrade --no-cache \
+    && setcap -r /usr/bin/caddy
 USER 10001:10001
 EXPOSE 8088

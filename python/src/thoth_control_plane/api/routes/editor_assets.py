@@ -197,7 +197,11 @@ async def issue_editor_asset_preview_capability(
         if await proxies.ready(project_id, asset_id):
             preview_url = f"{preview_path}/proxy"
         else:
-            proxies.request(project_id, asset_id, record.artifact_location, record.asset.media_type)
+            # The stored ids, not the URL's: the proxy logs its key (CodeQL py/log-injection).
+            asset = record.asset
+            proxies.request(
+                asset.project_id, asset.asset_id, record.artifact_location, asset.media_type
+            )
     body = PreviewCapabilityResponse(preview_url=preview_url, expires_at=capability.expires_at)
     response = JSONResponse(content=body.model_dump(mode="json"), headers=PREVIEW_HEADERS)
     response.set_cookie(
