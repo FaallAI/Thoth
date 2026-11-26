@@ -23,7 +23,7 @@ dependencies = [
 # yt-dlp is pinned in both extras; the yt-dlp update workflow bumps both.
 # sherpa-onnx-core is listed explicitly: uv locked sherpa-onnx 1.13.8 without it (its wheels
 # disagree on the dependency), so a frozen sync could not import sherpa_onnx.
-acquisition = ["scrapling[fetchers]>=0.5.1,<0.6", "yt-dlp==2026.11.23", "opencv-python-headless>=4.10,<6", "rapidocr>=3.9,<4", "onnxruntime>=1.30,<2", "openai>=3.50,<4", "faster-whisper>=1.2,<2", "sherpa-onnx>=2.0.1,<3", "sherpa-onnx-core>=2.0.1,<3", "av>=11", "pillow>=10", "camoufox==0.5.9"]
+acquisition = ["scrapling[fetchers]>=0.5.1,<0.6", "yt-dlp==2026.11.23", "yt-dlp-ejs>=0.8.0,<1", "opencv-python-headless>=4.10,<6", "rapidocr>=3.9,<4", "onnxruntime>=1.30,<2", "openai>=3.50,<4", "faster-whisper>=1.2,<2", "sherpa-onnx>=2.0.1,<3", "sherpa-onnx-core>=2.0.1,<3", "av>=11", "pillow>=10", "camoufox==0.5.9"]
 # Legacy Scout shells out to both executables; the compatibility image must ship them.
 
 [project.scripts]
