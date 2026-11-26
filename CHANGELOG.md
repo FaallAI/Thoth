@@ -61,11 +61,17 @@ All notable changes to this project will be documented in this changelog.
 
 **Found, not fixed:** narrating a styled draft again reorders its `clips` list. The clip contents are identical, and this predates this branch.
 
+**Delivery (2026-11-27):**
+- PR #145 merged (`9c462f49`); this branch pushed as PR #146 (operator "next step di izinkan").
+- CI green; deployed to stage1 from the branch image (operator "lanjutkan ci sudah hijau").
+  - **Images:** thoth `e02605a92726`, renderer `75d491400ef3`, web `fea36de9c1a5`; pulled digests match the CI publish log.
+  - **First `make deploy` failed:** temporal was unhealthy from the known stale DNS search domain (by IP it answered SERVING, by name it hung), so api, worker and web stayed down for a few minutes. Recreating temporal and rerunning `make deploy` fixed it.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-840eb1c2.env`.
+
 **Next steps (each its own operator gate):**
-1. Merge PR #145 first, then push `feat/commentary-context-footage` and open its PR.
-2. Once CI is green, deploy the branch image to stage1.
-3. Run one live commentary test (for example Ernest / FFI 2026), with the cost shown first. Check the card's `main_kind`, the admitted event clips and the mid-story cutaways.
-4. Merge after the operator accepts.
+1. Run one live commentary test (for example Ernest / FFI 2026), with the cost shown first. Check the card's `main_kind`, the admitted event clips and the mid-story cutaways.
+2. Merge PR #146 after the operator accepts.
 
 ## 2026-11-26 - Python majors: openai 3, scrapling 0.5, sherpa-onnx 2
 
