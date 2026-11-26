@@ -1,12 +1,18 @@
 name: DAST
 
-# DAST (operator, 2026-11-25): a weekly OWASP ZAP baseline scan of the master images,
-# started on the runner with a throwaway environment and no live provider. The baseline only
-# spiders and scans passively; it never attacks. Its report goes to the job summary.
+# DAST (operator, 2026-11-25): OWASP ZAP against the master images, started on the runner with a
+# throwaway environment and no provider key, so no scan can reach a paid service or real data.
+# It signs in first (operator, 2026-11-26: the first runs saw only the sign-in page):
+#   - a baseline with a signed-in session and the AJAX spider, which runs the dashboard (passive);
+#   - an API scan of every /api/v1 route from the OpenAPI document (active).
+# Never point these scans at a real site: signed in, a spider clicks what an owner can click.
 on:
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/dast.yml
 
 permissions:
   contents: read
@@ -14,11 +20,13 @@ permissions:
 env:
   ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
   COMPOSE_FILE_ARGS: --env-file stage1.dast.env -f compose.stage1.local.yml -f compose.stage1.web.yml
+  SITE: http://127.0.0.1:8088
 
 jobs:
-  zap-baseline:
-    name: ZAP baseline
+  zap:
+    name: ZAP baseline and API scan
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: read
@@ -50,6 +58,7 @@ jobs:
             echo "THOTH_IMAGE=ghcr.io/faallai/thoth:master"
             echo "THOTH_WEB_IMAGE=ghcr.io/faallai/thoth-web:master"
             echo "THOTH_STAGE1_DATA_ROOT=${root}"
+            echo "THOTH_SITE_ORIGIN=${SITE}"
             echo "THOTH_CONTROL_PLANE_API_KEY=$(openssl rand -hex 24)"
             echo "THOTH_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo "THOTH_EDITOR_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
@@ -57,6 +66,9 @@ jobs:
             echo "THOTH_MEDIA_S3_ACCESS_KEY=thoth-dast-$(openssl rand -hex 6)"
             echo "THOTH_MEDIA_S3_SECRET_KEY=$(openssl rand -hex 24)"
             echo "THOTH_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "THOTH_AUTH_DEV_USERNAME=zap"
+            echo "THOTH_AUTH_DEV_PASSWORD=$(openssl rand -hex 24)"
+            echo "THOTH_AUTH_DEV_EMAIL=zap@dast.test"
           } > stage1.dast.env
 
       - name: Start the site
@@ -66,14 +78,45 @@ jobs:
           docker compose ${COMPOSE_FILE_ARGS} run --rm --no-deps api thoth-control editor migrate | tail -1
           docker compose ${COMPOSE_FILE_ARGS} up -d --wait api web
 
-      - name: Run the ZAP baseline
+      - name: Sign in and prove both credentials work
+        # The scans are worthless signed out, so a failed sign-in fails the job here.
+        id: signin
+        run: |
+          set -euo pipefail
+          value() { grep -E "^$1=" stage1.dast.env | cut -d= -f2-; }
+          body="$(printf '{"username":"%s","password":"%s"}' "$(value THOTH_AUTH_DEV_USERNAME)" "$(value THOTH_AUTH_DEV_PASSWORD)")"
+          curl -fsS -c jar.txt -H "Origin: ${SITE}" -H "Content-Type: application/json" -d "${body}" "${SITE}/auth/password" >/dev/null
+          session="$(awk '$6 == "thoth_session" {print $7}' jar.txt)"
+          rm -f jar.txt
+          test -n "${session}"
+          echo "::add-mask::${session}"
+          curl -fsS -o /dev/null -H "Cookie: thoth_session=${session}" "${SITE}/auth/me"
+          key="$(value THOTH_CONTROL_PLANE_API_KEY)"
+          echo "::add-mask::${key}"
+          curl -fsS -o /dev/null -H "Authorization: Bearer ${key}" "${SITE}/auth/me"
+          umask 077
+          echo "thoth_session=${session}" > "${RUNNER_TEMP}/zap-cookie"
+          echo "Bearer ${key}" > "${RUNNER_TEMP}/zap-bearer"
+
+      - name: Baseline, signed in, with the AJAX spider
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/zap"
           chmod 777 "${RUNNER_TEMP}/zap"
           status=0
-          docker run --rm --network host -v "${RUNNER_TEMP}/zap:/zap/wrk:rw" "${ZAP_IMAGE}" zap-baseline.py -t http://127.0.0.1:8088 -I -w report.md -r report.html || status=$?
-          cat "${RUNNER_TEMP}/zap/report.md" >> "${GITHUB_STEP_SUMMARY}"
+          docker run --rm --network host -v "${RUNNER_TEMP}/zap:/zap/wrk:rw" -e ZAP_AUTH_HEADER=Cookie -e ZAP_AUTH_HEADER_VALUE="$(cat "${RUNNER_TEMP}/zap-cookie")" "${ZAP_IMAGE}" zap-baseline.py -t "${SITE}/workflows" -j -I -w baseline.md -r baseline.html || status=$?
+          cat "${RUNNER_TEMP}/zap/baseline.md" >> "${GITHUB_STEP_SUMMARY}"
+          exit "${status}"
+
+      - name: API scan of every /api/v1 route
+        # Runs even when the baseline reports a failure, but never signed out.
+        if: ${{ !cancelled() && steps.signin.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          cp python/openapi.json "${RUNNER_TEMP}/zap/openapi.json"
+          status=0
+          docker run --rm --network host -v "${RUNNER_TEMP}/zap:/zap/wrk:rw" -e ZAP_AUTH_HEADER_VALUE="$(cat "${RUNNER_TEMP}/zap-bearer")" "${ZAP_IMAGE}" zap-api-scan.py -t /zap/wrk/openapi.json -f openapi -O "${SITE}" -I -w api.md -r api.html || status=$?
+          cat "${RUNNER_TEMP}/zap/api.md" >> "${GITHUB_STEP_SUMMARY}"
           exit "${status}"
 
       - name: Dump service logs on failure
@@ -82,4 +125,6 @@ jobs:
 
       - name: Stop the site
         if: always()
-        run: docker compose ${COMPOSE_FILE_ARGS} down --remove-orphans --volumes
+        run: |
+          rm -f "${RUNNER_TEMP}/zap-cookie" "${RUNNER_TEMP}/zap-bearer"
+          docker compose ${COMPOSE_FILE_ARGS} down --remove-orphans --volumes
