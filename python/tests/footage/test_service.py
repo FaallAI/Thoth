@@ -2726,3 +2726,153 @@ async def test_every_long_video_gets_its_captions(
         context_enabled=True,
     ).build(_inputs(tmp_path))
     assert len(captions.calls) == 6
+
+
+# Commentary cards (spec 2026-11-26, 3.2 and 3.4): Ernest Prakasa on FFI 2026, wf_18344b47.
+STAGE = "Sineas acungkan 3 jari di panggung FFI 2026"
+DENIAL = "Fadli Zon bantah pemerkosaan massal Mei 1998"
+IRINI = "Irini Dewi Wanti tanggapi kritik panggung FFI 2026"
+ERNEST = "Ernest Prakasa stand up lucu"
+
+
+def _ffi(**update: Any) -> Any:
+    from thoth_control_plane.footage.context import RelatedEvent
+
+    card = _card("ffi_card").model_copy(
+        update={
+            "queries": ["FFI 2026 3 jari", "Fadli Zon menyangkal 1998"],
+            "related": [
+                RelatedEvent(event="Irini Dewi Wanti berbicara", query="Irini Dewi Wanti FFI"),
+                RelatedEvent(event="Ernest Prakasa di panggung", query="Ernest Prakasa standup"),
+            ],
+        }
+    )
+    return card.model_copy(update=update)
+
+
+def _ffi_search() -> Search:
+    return Search(
+        {
+            ("tiktok", "FFI 2026 3 jari"): [_video(1, caption=STAGE)],
+            ("tiktok", "Fadli Zon menyangkal 1998"): [_video(2, caption=DENIAL)],
+            ("tiktok", "Irini Dewi Wanti FFI"): [_video(3, caption=IRINI)],
+            ("tiktok", "Ernest Prakasa standup"): [
+                _video(4, caption=ERNEST),
+                _video(5, caption=f"{ERNEST} part 2"),
+            ],
+        }
+    )
+
+
+def test_a_discussed_figure_opens_two_years_on_a_commentary_card(store: FootageStore) -> None:
+    main = _report()  # published 2026-10-10
+    old = "2026-06-12T08:00:00Z"  # 120 days before the main
+    builder = _builder(store)
+    assert not builder._off_story(DENIAL, old, main, _ffi())
+    assert builder._off_story(STAGE, old, main, _ffi())  # event words alone keep 30 days
+    assert builder._off_story(DENIAL, old, main, _ffi(main_kind="incident"))
+
+
+async def test_round_two_keeps_the_commentary_kind(store: FootageStore, tmp_path: Path) -> None:
+    card = _ffi()
+    refined = card.model_copy(update={"main_kind": "incident", "queries": []})  # omitted
+    await _builder(
+        store, search=_ffi_search(), card=Cards(card, refined), context_enabled=True
+    ).build(_inputs(tmp_path))
+    run = store.run("wf_a")
+    assert run is not None and run.context is not None
+    assert run.context["main_kind"] == "commentary"
+
+
+async def test_commentary_event_clips_skip_the_commentators_face(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    faces = Faces(set())  # Ernest is in none of the clips
+    await _builder(
+        store, search=_ffi_search(), card=Cards(_ffi()), faces=faces, context_enabled=True
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    relations = _relations(store)
+    for n in (1, 2, 3):  # not capped at MAX_DISCUSSES, never subject_absent
+        assert relations.get(_url(n)) == "related", rows[_url(n)].reason
+    # An Ernest-only query still checks his face: one may discuss him, the next is absent.
+    ernest = sorted(rows[_url(n)].reason or relations[_url(n)] for n in (4, 5))
+    assert ernest == ["discusses", "subject_absent"]
+
+
+async def test_an_incident_card_still_checks_the_subjects_face(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    await _builder(
+        store,
+        search=_ffi_search(),
+        card=Cards(_ffi(main_kind="incident")),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(_face_inputs(tmp_path, _video_main(tmp_path)))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert list(_relations(store).values()) == ["discusses"]
+    for n in (1, 3):
+        assert rows[_url(n)].reason == "subject_absent"
+
+
+async def test_a_commentary_run_reuses_library_clips_without_the_commentators_face(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    from dataclasses import replace
+
+    import numpy as np
+
+    _in_workspace(store, "ws1", "wf_a", "wf_b")
+    search = Search(_hits(_video(1, caption=STAGE), query="FFI 2026 3 jari"))
+    await _builder(store, search=search, card=Cards(_ffi()), context_enabled=True).build(
+        _inputs(tmp_path, _video_main(tmp_path))
+    )
+    assert _relations(store) == {_url(1): "related"}
+    inputs = replace(
+        _inputs_b(tmp_path), subject=np.vstack([_saiful_vector()] * 4), face_check=True
+    )
+    await _builder(
+        store,
+        card=Cards(_ffi(queries=["tanggapan Kemenbud FFI 2026"], related=[])),
+        library_media=Media(tmp_path),
+        faces=Faces(set()),
+        context_enabled=True,
+    ).build(inputs)
+    reused = [c.url for c in store.admitted("wf_b") if c.source == "library"]
+    assert reused == [_url(1)]
+
+
+def _json3(*lines: tuple[float, str]) -> bytes:
+    events = [{"tStartMs": int(s * 1000), "segs": [{"utf8": text}]} for s, text in lines]
+    return json.dumps({"events": events}).encode()
+
+
+async def test_a_commentary_long_video_is_cut_where_the_event_is_discussed(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    talk = _json3(
+        (120.0, "Fadli Zon bicara soal Piala Citra"),
+        (125.0, "tragedi 1998 jadi sorotan"),
+    )
+    video = _podcast("Kemenbud dan FFI 2026 dibahas tuntas")
+
+    async def sections(workflow: str, query: str, **update: Any) -> int:
+        await _builder(
+            store,
+            search=_yt(query, video),
+            card=Cards(_ffi(queries=[query], **update)),
+            captions_text=Captions(talk),
+            context_enabled=True,
+        ).build(replace_workflow(_inputs(tmp_path), workflow))
+        return len([c for c in store.candidates(workflow) if c.source == "section"])
+
+    # Distinct queries: a query searched once is cached for 24 h.
+    assert await sections("wf_a", "Kemenbud FFI 2026", main_kind="incident") == 0  # no Ernest
+    assert await sections("wf_b", "polemik FFI 2026") >= 1
+
+
+def replace_workflow(inputs: FootageInputs, workflow: str) -> FootageInputs:
+    from dataclasses import replace
+
+    return replace(inputs, workflow_id=workflow)

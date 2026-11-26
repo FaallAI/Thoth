@@ -324,14 +324,14 @@ def discussed_names(card: ContextCard) -> list[str]:
     return list(dict.fromkeys(name for person in card.people[1:] for name in _names(person)))
 
 
-def _related_terms(card: ContextCard) -> set[str]:
+def related_terms(card: ContextCard) -> set[str]:
     return {term for r in card.related for term in _terms(r.event) | _terms(r.query)}
 
 
 def has_event_term(text: str, card: ContextCard) -> bool:
     """Whether normalised `text` says a non-person event word of the card or its related events,
     as a whole word ("Ernest khusus" never says "USS")."""
-    terms = (set(event_terms(card)) | _related_terms(card)) - _named_words(card)
+    terms = (set(event_terms(card)) | related_terms(card)) - _named_words(card)
     return any(_says(text, term) for term in terms)
 
 
@@ -344,7 +344,7 @@ def names_discussed_with_context(said: str, card: ContextCard) -> bool:
     if not any(mentions(said, name) for name in discussed_names(card)):
         return False
     queries = {term for query in card.queries for term in _terms(query)}
-    terms = (set(event_terms(card)) | _related_terms(card) | queries) - _named_words(card)
+    terms = (set(event_terms(card)) | related_terms(card) | queries) - _named_words(card)
     return any(_says(said, term) for term in terms | set(card.spoken))
 
 
