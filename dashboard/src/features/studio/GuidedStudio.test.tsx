@@ -714,7 +714,7 @@ function renderClientFixture() {
   const capability = {
     available: true,
     preset_id: "standard_vertical_mp4_v1" as const,
-    renderer_version: "remotion-4.0.538",
+    renderer_version: "remotion-4.0.545",
   };
   return {
     getRenderCapability: mock(async () => capability),
@@ -727,7 +727,7 @@ function renderClientFixture() {
       template_id: "vertical_text_story" as const,
       template_version: 1 as const,
       preset_id: "standard_vertical_mp4_v1" as const,
-      renderer_version: "remotion-4.0.538",
+      renderer_version: "remotion-4.0.545",
       created_at: "2026-09-21T10:00:00Z",
     })),
     listRenderJobs: mock(async () => ({ jobs: [], next_cursor: null })),

@@ -1078,6 +1078,23 @@ test("a movie's blur-fill blurs each frame inside its small canvas, never as a C
   ]);
 });
 
+test("the blur-fill frame callback survives a re-render and still reaches the mounted canvas", () => {
+  // Remotion 4.0.545's Player kept the first callback while every render made a new one and
+  // re-attached the canvas, so the Studio preview lost the blurred background (f1, 2026-11-26).
+  mediaProps.video.length = 0;
+  const document = effectsDocument({ background: "blur_fill" });
+  const { rerender } = render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const callbacks = () => mediaProps.video.map((props) => props.onVideoFrame).filter((call) => typeof call === "function");
+  const first = callbacks()[0] as (image: unknown) => void;
+  rerender(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(callbacks().at(-1)).toBe(first);
+  const canvas = screen.getByTestId("clip-blur-fill").querySelector("canvas")!;
+  const calls: string[] = [];
+  canvas.getContext = (() => ({ filter: "none", clearRect: () => calls.push("clear"), drawImage: () => calls.push("draw") })) as never;
+  first({ displayWidth: canvas.width, displayHeight: canvas.height });
+  expect(calls).toEqual(["clear", "draw"]);
+});
+
 test("turning blur-fill on remounts the clip's video, so a paused preview draws the background", () => {
   // A paused player does not redraw for a new frame callback (review 2026-11-10).
   // A clip that already has an effect keeps its layers, so only a key makes the video remount.

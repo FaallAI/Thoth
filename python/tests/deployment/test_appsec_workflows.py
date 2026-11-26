@@ -34,3 +34,19 @@ def test_every_workflow_pins_actions_and_images_and_reads_no_secret() -> None:
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
         images = re.findall(r"_IMAGE: (\S+)", text)
         assert images and all(re.search(r"@sha256:[0-9a-f]{64}$", image) for image in images)
+
+
+def test_dast_scans_behind_the_sign_in_on_a_throwaway_stack() -> None:
+    """A side note (2026-11-26): the first ZAP runs saw only /, robots.txt and sitemap.xml,
+    because ZAP could not sign in. The scan now signs in on the runner's throwaway stack, fails
+    when it cannot, and scans the whole API from its OpenAPI document."""
+    dast = (WORKFLOWS / "dast.yml").read_text(encoding="utf-8")
+    for name in ("THOTH_AUTH_DEV_USERNAME", "THOTH_AUTH_DEV_PASSWORD", "THOTH_AUTH_DEV_EMAIL"):
+        assert f'echo "{name}=' in dast
+    assert "/auth/password" in dast and "/auth/me" in dast
+    assert "ZAP_AUTH_HEADER_VALUE" in dast
+    assert "zap-baseline.py" in dast and " -j " in dast  # the AJAX spider runs the SPA
+    assert "zap-api-scan.py" in dast and "openapi.json" in dast
+    assert "::add-mask::" in dast
+    # Proven on the pull request that changes it, not only after a merge.
+    assert ".github/workflows/dast.yml" in dast.split("jobs:", 1)[0]

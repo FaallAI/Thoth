@@ -586,7 +586,7 @@ def test_the_player_is_only_a_development_dependency_of_the_renderer() -> None:
     """
     manifest = json.loads(_repo_text("renderer/package.json"))
 
-    assert manifest["devDependencies"]["@remotion/player"] == "4.0.538"
+    assert manifest["devDependencies"]["@remotion/player"] == "4.0.545"
     assert "@remotion/player" not in manifest["dependencies"]
 
 

@@ -1,6 +1,6 @@
 import { Video } from "@remotion/media";
 import { AbsoluteFill, Audio, Freeze, Img, Sequence, useCurrentFrame } from "remotion";
-import { Fragment, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useRef, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
@@ -428,8 +428,17 @@ function renderClip(
       );
     }
     case "video": {
-      const draw = (motion: MotionState) =>
-        videoClip(clip, muted, refs, canvas, sources, motion, onPreviewUnavailable);
+      const draw = (motion: MotionState) => (
+        <VideoClipView
+          clip={clip}
+          muted={muted}
+          refs={refs}
+          canvas={canvas}
+          sources={sources}
+          motion={motion}
+          onPreviewUnavailable={onPreviewUnavailable}
+        />
+      );
       // Only a moving clip reads the frame, so a still clip draws exactly as before Story mode.
       const moving = (clip.moves?.length ?? 0) > 0 || (clip.motion && clip.motion !== "none");
       const drawn = moving ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
@@ -592,15 +601,30 @@ function MovingClip({ clip, draw }: { clip: VideoClip; draw: (motion: MotionStat
   return <>{draw(motionTransform(clip.motion ?? "none", frame, clip.duration_in_frames))}</>;
 }
 
-function videoClip(
-  clip: VideoClip,
-  muted: boolean,
-  refs: Map<string, AssetRef>,
-  canvas: EditDocumentV2["canvas"],
-  sources: PreviewSources,
-  motion: MotionState,
-  onPreviewUnavailable?: (assetId: string) => void,
-): ReactNode {
+/**
+ * A component, not a plain function, so the blur-fill canvas and its frame callback live across
+ * renders: Remotion 4.0.545's Player keeps the first callback it was given, and a callback made per
+ * render drew into a detached canvas, losing the Studio preview's blurred background (2026-11-26).
+ */
+function VideoClipView({
+  clip,
+  muted,
+  refs,
+  canvas,
+  sources,
+  motion,
+  onPreviewUnavailable,
+}: {
+  clip: VideoClip;
+  muted: boolean;
+  refs: Map<string, AssetRef>;
+  canvas: EditDocumentV2["canvas"];
+  sources: PreviewSources;
+  motion: MotionState;
+  onPreviewUnavailable?: ((assetId: string) => void) | undefined;
+}): ReactNode {
+  const blurCanvas = useRef<HTMLCanvasElement | null>(null);
+  const drawBlur = useCallback((image: CanvasImageSource) => drawCover(blurCanvas.current, image), []);
   const kind = refs.get(clip.asset_id)?.kind;
   if (kind !== "video" && kind !== "image") {
     return <PreviewUnavailable label="Video preview unavailable" />;
@@ -611,9 +635,7 @@ function videoClip(
   const position = clip.position ?? NO_POSITION;
   // A movie's blur-fill is drawn from the clip's own decoded frames: a second decoder of the same
   // source made a 60 s render five times slower (plan 2026-11-09, Task 8).
-  const blurTarget: { canvas: HTMLCanvasElement | null } = { canvas: null };
-  const onVideoFrame =
-    clip.background === "blur_fill" ? (image: CanvasImageSource) => drawCover(blurTarget.canvas, image) : undefined;
+  const onVideoFrame = clip.background === "blur_fill" ? drawBlur : undefined;
   const media: CSSProperties = {
     position: "absolute",
     width: percent(1 / span(crop.width)),
@@ -703,9 +725,7 @@ function videoClip(
             <Img src={source} style={{ ...BLUR_FILL_MEDIA, filter: BLUR_FILL_RADIUS }} />
           ) : (
             <canvas
-              ref={(element) => {
-                blurTarget.canvas = element;
-              }}
+              ref={blurCanvas}
               width={Math.max(1, Math.round(canvas.width / 8))}
               height={Math.max(1, Math.round(canvas.height / 8))}
               style={BLUR_FILL_MEDIA}

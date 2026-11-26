@@ -21,7 +21,7 @@ const CONFIG: RendererConfig = {
   credential: CREDENTIAL,
   controlPlaneUrl: "http://api:8000",
   artifactRoot: "/srv/artifacts",
-  rendererVersion: "remotion-4.0.538",
+  rendererVersion: "remotion-4.0.545",
   deadlineSeconds: 900,
 };
 
