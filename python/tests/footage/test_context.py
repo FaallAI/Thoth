@@ -19,8 +19,13 @@ from thoth_control_plane.footage.context import (
     card_objects,
     context_objects,
     context_reason,
+    discussed_names,
+    event_terms,
+    has_event_term,
     in_window,
+    names_discussed_with_context,
     names_subject,
+    same_event,
     subject_names,
 )
 
@@ -246,3 +251,87 @@ def test_a_name_without_its_title_names_the_subject() -> None:  # live wf_4ac021
 
 def test_the_card_prompt_asks_for_names_without_titles() -> None:
     assert "without titles" in CARD_PROMPT
+
+
+# Commentary cards (spec 2026-11-26): Ernest Prakasa on FFI 2026, run wf_18344b47.
+
+
+def test_main_kind_defaults_to_incident_and_reads_commentary() -> None:
+    assert ContextCard().main_kind == "incident"
+    assert ContextCard.model_validate({"main_kind": " Commentary "}).main_kind == "commentary"
+    for odd in (None, "unknown", 123, ["commentary"]):
+        assert ContextCard.model_validate({"main_kind": odd}).main_kind == "incident"
+    assert card("mutant_card").main_kind == "incident"  # an old stored card
+
+
+def test_the_prompts_ask_for_the_kind_and_the_post_language() -> None:
+    assert '"main_kind"' in CARD_PROMPT and '"commentary"' in CARD_PROMPT
+    assert "language of the post" in CARD_PROMPT  # event and place, not English
+    assert "people[1:]" in CARD_PROMPT  # the figures a commentary discusses
+    assert "visible scene" in CARD_PROMPT  # related[].event is what frames can show
+    assert '"main_kind"' in REFINE_PROMPT
+    assert "language of the post" in REFINE_PROMPT
+
+
+def test_event_terms_keep_years_and_drop_indonesian_filler() -> None:
+    # Names stay in; the callers drop them ("fadli" is no event word on its own).
+    assert event_terms(card("ffi_card")) == ["2026", "citra", "fadli", "ffi", "kemenbud", "piala"]
+    filler = ContextCard(
+        event="Tanggapan Respons Kritik Soal Tentang Terkait Berita Kasus Momen Aksi Polemik "
+        "Pernyataan Panggung Tahun Hari Orang Warga Publik Pemerintah Sosial 1998",
+    )
+    assert event_terms(filler) == ["1998"]
+
+
+def test_a_year_and_the_place_alone_are_not_the_event() -> None:
+    polemic = ContextCard(event="Polemik FFI 2026", place="Jakarta")
+    assert context_reason("Konser musik di Jakarta 2026", polemic) == "story"
+    assert context_reason("Sineas acungkan 3 jari di panggung FFI 2026", polemic) is None
+    siera = polemic.model_copy(update={"people": [CardPerson(name="Siera")]})
+    assert not same_event(siera, "Konser Jakarta 2026", ["siera"])
+    assert same_event(siera, "Pidato FFI 2026", ["siera"])
+
+
+def test_a_commentary_card_admits_the_discussed_events_and_figures() -> None:
+    ffi = card("ffi_card")
+    for text in (
+        "Menang Piala Citra! Produser Film Para Perasuk Kritik Fadli Zon Soal Pemerkosaan Mei 1998",
+        "Sentilan Keras Siera Tamihardja untuk Fadli Zon di Panggung FFI 2026 Soal Tragedi 1998",
+        "Respons Fadli Zon seusai Dikritik Terang-terangan di Panggung FFI 2026 soal Pemerkosaan "
+        "Massal",
+        "Sejumlah Sineas Gunakan Panggung FFI 2026 untuk Suarakan Protes, Ini Tanggapan Kemenbud",
+        "Fadli Zon bantah pemerkosaan massal Mei 1998",
+        "Sineas acungkan 3 jari di panggung FFI 2026",
+        "Irini Dewi Wanti tanggapi kritik panggung FFI 2026",
+    ):
+        assert context_reason(text, ffi) is None, text
+    for text in (
+        "Fadli Zon kunjungi museum batik di Solo",
+        "Berita terbaru panggung musik tahun ini",
+        "Tanggapan kasus viral hari ini",
+    ):
+        assert context_reason(text, ffi) == "story", text
+
+
+def test_a_discussed_name_needs_a_context_word() -> None:
+    ffi = card("ffi_card")
+    assert discussed_names(ffi) == ["irini dewi wanti", "fadli zon"]
+    assert names_discussed_with_context(norm_text("Fadli Zon bantah soal 1998"), ffi)
+    assert not names_discussed_with_context(norm_text("Fadli Zon kunjungi museum batik"), ffi)
+    assert not names_discussed_with_context(norm_text("Ernest Prakasa soal 1998"), ffi)
+    incident = ffi.model_copy(update={"main_kind": "incident"})
+    assert not names_discussed_with_context(norm_text("Fadli Zon bantah soal 1998"), incident)
+
+
+def test_has_event_term_matches_whole_words_only() -> None:
+    ffi, mutant = card("ffi_card"), card("mutant_card")
+    assert has_event_term(norm_text("Ernest Prakasa kritik FFI 2026"), ffi)
+    assert not has_event_term(norm_text("Ernest Prakasa standup"), ffi)
+    assert has_event_term(norm_text("Mutant di USS"), mutant)
+    assert not has_event_term(norm_text("Ernest khusus"), mutant)  # "uss" inside a word
+
+
+def test_an_incident_card_still_needs_the_subject_or_two_event_terms() -> None:
+    mutant = card("mutant_card")
+    assert context_reason("Podcast Denny Sumargo soal pedang", mutant) == "story"
+    assert not names_discussed_with_context(norm_text("Denny Sumargo podcast"), mutant)

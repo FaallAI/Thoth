@@ -1,0 +1,17 @@
+{
+ "main_kind": "commentary",
+ "people": [
+  {"name": "Ernest Prakasa", "aliases": ["ernestprakasa", "Ko Ernest"], "role": "Comedian and filmmaker", "accounts": ["ernestprakasa"]},
+  {"name": "Irini Dewi Wanti", "aliases": [], "role": "Director of Film, Music and Arts, Kemenbud", "accounts": []},
+  {"name": "Fadli Zon", "aliases": [], "role": "Minister of Culture", "accounts": []}
+ ],
+ "event": "Polemik kritik panggung Piala Citra FFI 2026 soal pernyataan Fadli Zon dan Kemenbud",
+ "place": "Indonesia",
+ "when": "November 2026",
+ "queries": ["FFI 2026 3 jari", "tanggapan Kemenbud FFI 2026"],
+ "related": [
+  {"event": "Sineas berpidato dan mengacungkan tiga jari di panggung FFI 2026", "query": "FFI 2026 3 jari"},
+  {"event": "Fadli Zon berbicara di konferensi pers", "query": "Fadli Zon menyangkal 1998"}
+ ],
+ "spoken": ["piala", "citra", "pemerkosaan", "tragedi"]
+}

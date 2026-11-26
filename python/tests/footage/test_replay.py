@@ -34,6 +34,43 @@ def test_the_mutant_run_replays_under_the_context_gate() -> None:
     assert travel and not any(r["caption"] in passed for r in travel)
 
 
+# Run wf_18344b47 (stage1 2026-11-26): Ernest Prakasa's monologue on FFI 2026. Under the old
+# English card every caption below was rejected "story"; the commentary card admits them.
+FFI_ON_STORY = (
+    "Dalam euforia para pemenang Piala Citra FFI 2026",
+    "Sejumlah Sineas Gunakan Panggung FFI 2026",
+    "Respons Fadli Zon seusai Dikritik",
+    "Direktur film,musik, Dan seni kementerian kebudayaan,Irini Dewi Wanti",
+    "Produser film Para Perasuk, Siera Tamihardja",
+    "Malam puncak Festival Film Indonesia (FFI) 2026",
+    "Malam penganugerahan Piala Citra",
+    "Menang Piala Citra! Produser Film Para Perasuk",
+    "Sentilan Keras Siera Tamihardja untuk Fadli Zon",
+)
+FFI_OFF_STORY = (
+    "Kekuatan Musik Indonesia",  # Irini Dewi Wanti on music, August 2026
+    "TERNYATA LAURA BASUKI",
+    "COACH JUSTIN",
+    "JUS TALK #603",  # "FFI" alone
+    "Gara-gara Warisan",
+    "Penjelasan Ending",
+)
+
+
+def test_the_ffi_commentary_run_replays_under_the_commentary_card() -> None:
+    card = ContextCard.model_validate_json((CONTEXT / "ffi_card.json").read_text("utf-8"))
+    assert card.main_kind == "commentary"
+    rows = json.loads((CONTEXT / "ffi_candidates.json").read_text("utf-8"))
+
+    def verdicts(part: str) -> list[bool]:
+        found = [r for r in rows if part in r["caption"]]
+        assert found, part
+        return [context_reason(f"{r['caption']} {r['owner_handle']}", card) is None for r in found]
+
+    assert [s for s in FFI_ON_STORY if not all(verdicts(s))] == []
+    assert [s for s in FFI_OFF_STORY if any(verdicts(s))] == []
+
+
 def test_production_wiring_builds_the_context_ports(tmp_path: Path) -> None:
     from types import SimpleNamespace
 
