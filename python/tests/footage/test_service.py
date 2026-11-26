@@ -2876,3 +2876,150 @@ def replace_workflow(inputs: FootageInputs, workflow: str) -> FootageInputs:
     from dataclasses import replace
 
     return replace(inputs, workflow_id=workflow)
+
+
+# Footage sourcing v2 (spec 2026-11-27, 4.2): YouTube credits are traced past a full queue, and
+# a channel whose listing misses is found by one cached YouTube search.
+
+CURHAT = "Master Saiful Ngamuk di depan Denny Sumargo | Sumber: YouTube Curhat Bang"
+
+
+def _seed(store: FootageStore, *rows: tuple[str, str, str], fillers: int = 0) -> None:
+    """Pending search candidates: (url, owner, caption) plus `fillers` uncredited ones."""
+    from thoth_control_plane.footage.models import NewCandidate
+
+    store.start_run("wf_a", [])
+    items = list(rows)
+    items += [
+        (f"https://www.tiktok.com/@f{n}/video/76000000000000000{n:02d}", f"f{n}", f"klip {n}")
+        for n in range(fillers)
+    ]
+    store.add_candidates(
+        "wf_a",
+        [
+            NewCandidate(
+                url=url,
+                platform="tiktok",
+                source="search",
+                query="Mutant USS Denny Sumargo",
+                visual="v",
+                owner_handle=owner,
+                caption=caption,
+            )
+            for url, owner, caption in items
+        ],
+    )
+
+
+async def _trace(builder: Any, card: Any) -> None:
+    from thoth_control_plane.footage.gates import MainIdentity
+
+    main = _report()
+    url = str(main.source.canonical_url)
+    await builder._trace("wf_a", main, MainIdentity.of(url, [url], main.post.text), card)
+
+
+class ChannelSearch(Search):
+    """YouTube search answering every query with the same videos."""
+
+    def __init__(self, videos: list[DiscoveredVideo], error: Exception | None = None) -> None:
+        super().__init__()
+        self.videos = videos
+        self.error = error
+
+    async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+        self.calls.extend((platform, query) for query in queries)
+        if self.error is not None:
+            raise self.error
+        return SearchBatch(found={query: list(self.videos) for query in queries}, failed=False)
+
+
+REPOST_URL = "https://www.tiktok.com/@tribunbanten/video/7500000000000000001"
+TT_URL = "https://www.tiktok.com/@other/video/7500000000000000002"
+
+
+async def test_a_youtube_credit_is_traced_past_a_full_queue(store: FootageStore) -> None:
+    _seed(
+        store,
+        (REPOST_URL, "tribunbanten", REPOST),
+        (TT_URL, "other", "Mutant ngamuk di depan Densu cr: @sumber1"),
+        fillers=16,
+    )
+    creator = TraceCreator([_podcast()])
+    await _trace(_builder(store, creator=creator), _saiful())
+    assert creator.calls == [("youtube", "curhatbang")]
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[REPOST_URL].status, rows[REPOST_URL].reason) == ("rejected", "repost")
+    assert rows[PODCAST].source == "trace" and rows[PODCAST].status == "pending"
+    assert rows[TT_URL].status == "pending"
+
+
+def test_the_trace_query_names_the_channel_a_person_and_the_event() -> None:
+    from thoth_control_plane.footage.service import trace_query
+
+    assert trace_query("Kompas TV", _ffi()) == "Kompas TV Irini Dewi Wanti piala citra ffi"
+    query = trace_query("Curhat Bang", _saiful())
+    assert query.startswith("Curhat Bang Mutant") and len(query) <= 80
+
+
+async def test_a_missed_channel_listing_falls_back_to_one_cached_youtube_search(
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.service import trace_query
+
+    second = "https://www.tiktok.com/@tribunjabar/video/7500000000000000003"
+    _seed(
+        store,
+        (REPOST_URL, "tribunbanten", CURHAT),
+        (second, "tribunjabar", "Saiful ngamuk part 2 | Sumber: YouTube Curhat Bang"),
+    )
+    creator = TraceCreator([])  # the channel name is no handle: the listing finds nothing
+    search = ChannelSearch([_podcast()])
+    await _trace(
+        _builder(store, creator=creator, search=search, captions_text=Captions(CAPTIONS)),
+        _saiful(),
+    )
+    query = trace_query("Curhat Bang", _saiful())
+    assert search.calls == [("youtube", query)]  # the second repost reuses the first answer
+    cached = store.cached_search("youtube", query)
+    assert cached is not None and [str(v.canonical_url) for v in cached] == [PODCAST]
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[PODCAST].source == "trace" and rows[PODCAST].story_score == 1.0
+    assert rows[REPOST_URL].reason == "repost"
+
+
+async def test_a_cached_trace_search_is_not_repeated(store: FootageStore) -> None:
+    from thoth_control_plane.footage.service import trace_query
+
+    _seed(store, (REPOST_URL, "tribunbanten", CURHAT))
+    store.save_search("youtube", trace_query("Curhat Bang", _saiful()), [_podcast()])
+    search = ChannelSearch([])
+    await _trace(_builder(store, creator=TraceCreator([]), search=search), _saiful())
+    assert search.calls == []
+    assert {c.url: c for c in store.candidates("wf_a")}[REPOST_URL].reason == "repost"
+
+
+async def test_a_failed_trace_search_degrades(
+    store: FootageStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    _seed(store, (REPOST_URL, "tribunbanten", CURHAT))
+    search = ChannelSearch([], error=RuntimeError("boom"))
+    with caplog.at_level(logging.WARNING):
+        await _trace(_builder(store, creator=TraceCreator([]), search=search), _saiful())
+    assert {c.url: c for c in store.candidates("wf_a")}[REPOST_URL].status == "pending"
+    assert "footage trace search failed" in caplog.text
+
+
+async def test_a_traced_long_original_is_cut_into_sections(store: FootageStore) -> None:
+    _seed(store, (REPOST_URL, "tribunbanten", CURHAT))
+    builder = _builder(
+        store,
+        creator=TraceCreator([]),
+        search=ChannelSearch([_podcast()]),
+        captions_text=Captions(CAPTIONS),
+    )
+    await _trace(builder, _saiful())
+    await builder._sections("wf_a", _saiful())
+    rows = store.candidates("wf_a")
+    assert any(c.source == "section" and c.url.startswith(f"{PODCAST}#t=") for c in rows)
+    assert {c.url: c for c in rows}[PODCAST].reason == "duration"
