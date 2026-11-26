@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-26 - Commentary context footage and mid-story b-roll cutaways
+
+**Before this branch:**
+- **Deploy:** PR #145 (`build/python-deps`, 840eb1c2) was deployed to stage1 from its branch image (operator "ya boleh").
+  - **Pull workaround:** `docker pull` failed six times ("connection reset by peer" from the GitHub CDN on two new ~2.1 GB layers). `D:/thoth-tmp/fixes/ghcr_fetch.py` fetched the same CI digest with resumable, sha256-checked range downloads and loaded it.
+  - **Images:** thoth `c31e2cbcf2a8`, renderer `db1b2525dbec`, web `be931a61876e`.
+  - **Checks:** no migration; the browser launch passed; web 200, 0 worker errors, 0 API 5xx.
+  - **Rollback:** `rollback-to-065d7b1e.sh`.
+- **Base:** this branch is cut from `build/python-deps` (840eb1c2), not master. The operator asked for this mid-task: stage1 runs 840eb1c2, and an image of a master-based branch would silently roll back openai 3 and scrapling 0.5. PR #145 merges first.
+
+**Why** (draft `edoc_7ec87b54…`, run `wf_18344b47`; brainstorm items 106-108; spec and plan `2026-11-26-commentary-context-footage`):
+- The main video was Ernest Prakasa's monologue on FFI 2026, Fadli Zon and Kemenbud.
+- The search returned 8+ spot-on clips, yet 1 was admitted, and it was placed at the tail.
+- Four blockers stacked up:
+  - the English card `event` and the dropped years;
+  - discussed figures were left off the card;
+  - the commentator's face check and `MAX_DISCUSSES`;
+  - the planner kept every soundbite on the talking head and never saw what a clip showed.
+
+**What changed:**
+- **Context card** (`footage/context.py`):
+  - **`main_kind`:** a defaulted `"incident" | "commentary"`. Old cards and odd values read `"incident"`.
+  - **Prompts:**
+    - `event` and `place` are in the language of the post;
+    - a commentary lists its discussed figures in `people[1:]`;
+    - it searches the discussed events without forcing `people[0]`;
+    - each `related[].event` describes a visible scene.
+  - **Event terms:**
+    - keep years (1998, 2026);
+    - drop 20 Indonesian filler words;
+    - a year never pairs with the place alone, in both `context_reason` and `same_event`.
+  - **On a commentary card, a clip is on the story** when it:
+    - names `people[0]`;
+    - says two event terms;
+    - says two terms of one related event; or
+    - names a discussed figure plus one context word (`names_discussed_with_context`).
+  - **Incident cards** behave as before.
+- **Footage gates** (`footage/service.py`):
+  - **Time window:** a discussed figure with context opens the two-year window, still capped by `MAX_OLD = 2`.
+  - **Round two** keeps round one's `main_kind`.
+  - **Face check:** on a commentary card, only a query about the commentator alone (whole words) checks his face and counts against `MAX_DISCUSSES`. Event and discussed-figure clips skip it, in library reuse too, and still pass OCR, vision, dHash, the copy check and `MAX_OLD`.
+  - **Long-video sections:** they need no line naming the commentator, and they score related-event words.
+- **Materials:** `StudioMaterial` gains optional `caption` and `description` (whitespace-normalised, at most 300 characters), read from `content-set.json`, so existing runs get them without a re-import. OpenAPI and the dashboard types gain only these two fields.
+- **Planner:**
+  - **SOURCES:** each footage line carries `topic:` (the caption, at most 160 characters) and `shows:` (the vision description, at most 140), or the clip's query when it has neither.
+  - **Cutaways:** a model-chosen footage shot on a soundbite phrase becomes the base, with the soundbite's main shots behind it as the fallback, and `soundbite` turns false. Main, none, or an unavailable model keep the soundbite.
+  - **Prompt:** rule 12 no longer blocks outside people tagged "other people", and the new rule 13 allows a context cutaway over a talking head.
+- **Narration audio** (Option A): a sounding b-roll clip over a visible main-video clip is muted (one keyframe at volume 0) in both narration passes, even without a duck curve. Other footage still ducks, and still cards keep no keyframes.
+- **Untouched:** no migration, no `EditDocumentV2` or composition change, no golden change. `narration_script.py` and `planner_assign.py` are untouched, and the constants keep their values.
+
+**Verification:**
+- `make test`: 5256 passed, 251 skipped.
+- `make lint`: clean.
+- `make dashboard-test`: 2033 pass, 0 fail.
+- `make dashboard-build`: exit 0.
+- **Replay:** the real `wf_18344b47` captions (`ffi_candidates.json`), checked against a hand-written Indonesian commentary card. 9 on-story captions pass and 6 off-story captions are rejected. The Mutant replay is unchanged.
+
+**Found, not fixed:** narrating a styled draft again reorders its `clips` list. The clip contents are identical, and this predates this branch.
+
+**Next steps (each its own operator gate):**
+1. Merge PR #145 first, then push `feat/commentary-context-footage` and open its PR.
+2. Once CI is green, deploy the branch image to stage1.
+3. Run one live commentary test (for example Ernest / FFI 2026), with the cost shown first. Check the card's `main_kind`, the admitted event clips and the mid-story cutaways.
+4. Merge after the operator accepts.
+
 ## 2026-11-26 - Python majors: openai 3, scrapling 0.5, sherpa-onnx 2
 
 **Before this branch:**
