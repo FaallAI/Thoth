@@ -10,6 +10,7 @@ from pydantic import SecretStr
 
 from tests.acquisition.png_fixtures import make_png
 from thoth_control_plane.acquisition.adapters.tikwm import (
+    SHARED_TIKWM_RATE_GATE,
     TikWmError,
     TikWmRateGate,
     TikWmResolver,
@@ -653,6 +654,116 @@ async def test_tikwm_resolver_maps_transport_errors_to_cdn_unavailable() -> None
         with pytest.raises(TikWmError) as excinfo:
             await resolver.resolve(SOURCE_URL)
     assert excinfo.value.code == "cdn_unavailable"
+
+
+def test_the_shared_gate_spaces_tikwm_calls_wider_than_the_default() -> None:
+    assert TikWmRateGate()._min_interval_seconds == 1.0
+    assert SHARED_TIKWM_RATE_GATE._min_interval_seconds == 1.2
+
+
+@pytest.mark.asyncio
+async def test_rate_gate_hold_serializes_requests_and_paces_from_their_end() -> None:
+    # 2026-11-27: three footage workers hit TikWm together, each answer took 20-30 s.
+    now = [0.0]
+    sleeps: list[float] = []
+    in_flight = [0, 0]
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(round(seconds, 6))
+        now[0] += seconds
+
+    gate = TikWmRateGate(min_interval_seconds=1.2)
+
+    async def request() -> None:
+        async with gate.hold(lambda: now[0], fake_sleep):
+            in_flight[0] += 1
+            in_flight[1] = max(in_flight)
+            await asyncio.sleep(0)
+            now[0] += 5.0
+            in_flight[0] -= 1
+
+    await asyncio.gather(request(), request(), request())
+    assert in_flight[1] == 1
+    assert sleeps == [1.2, 1.2]
+
+
+def _limited(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"code": -1, "msg": "Free Api Limit: 1 request/second."})
+
+
+@pytest.mark.asyncio
+async def test_tikwm_resolver_retries_once_after_a_rate_limit() -> None:
+    answers = [_limited, lambda request: httpx.Response(200, json=tikwm_fixture_payload())]
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: answers.pop(0)(request))
+    ) as client:
+        resolver = TikWmResolver(
+            client,
+            sleep=fake_sleep,
+            rate_gate=TikWmRateGate(min_interval_seconds=0.0),
+            rate_limit_backoff=2.5,
+        )
+        resolution = await resolver.resolve(SOURCE_URL)
+    assert resolution.post.post_id == "1234567890"
+    assert answers == []
+    assert sleeps == [2.5]
+
+
+@pytest.mark.asyncio
+async def test_tikwm_resolver_gives_up_after_a_second_rate_limit() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append("get")
+        return _limited(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        resolver = TikWmResolver(
+            client, rate_gate=TikWmRateGate(min_interval_seconds=0.0), rate_limit_backoff=0.0
+        )
+        with pytest.raises(TikWmError) as excinfo:
+            await resolver.resolve(SOURCE_URL)
+    assert excinfo.value.code == "cdn_rate_limited"
+    assert calls == ["get", "get"]
+
+
+@pytest.mark.asyncio
+async def test_tikwm_resolver_does_not_retry_an_unavailable_cdn() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append("get")
+        return httpx.Response(502, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        resolver = TikWmResolver(
+            client, rate_gate=TikWmRateGate(min_interval_seconds=0.0), rate_limit_backoff=0.0
+        )
+        with pytest.raises(TikWmError) as excinfo:
+            await resolver.resolve(SOURCE_URL)
+    assert excinfo.value.code == "cdn_unavailable"
+    assert calls == ["get"]
+
+
+@pytest.mark.asyncio
+async def test_tikwm_resolver_takes_a_shorter_timeout() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.extensions["timeout"])
+        return httpx.Response(200, json=tikwm_fixture_payload(), request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        resolver = TikWmResolver(
+            client, rate_gate=TikWmRateGate(min_interval_seconds=0.0), timeout_seconds=20.0
+        )
+        await resolver.resolve(SOURCE_URL)
+    assert seen["read"] == 20.0
 
 
 @pytest.mark.asyncio

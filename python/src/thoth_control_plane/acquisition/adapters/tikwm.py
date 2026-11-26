@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import Literal
 from urllib.parse import urljoin, urlsplit
 
@@ -25,6 +26,8 @@ from thoth_control_plane.domain.models import StrictModel
 TIKWM_ORIGIN = "https://www.tikwm.com"
 # TikWm answers slowly at busy hours (27-28 s on 2026-11-17); 15 s lost every footage clip.
 REQUEST_TIMEOUT_SECONDS = 45.0
+# One retry after TikWm's "1 request/second" answer, slept outside the gate.
+RATE_LIMIT_BACKOFF_SECONDS = 2.5
 _POST_ID_PATTERN = re.compile(r"^[0-9]{5,32}$")
 _RATE_LIMIT_CODES = frozenset({-1})
 _RATE_LIMIT_MARKERS = ("frequently", "rate limit", "too many request")
@@ -135,6 +138,7 @@ class TikWmRateGate:
         self._min_interval_seconds = min_interval_seconds
         self._lock = asyncio.Lock()
         self._last_start: float | None = None
+        self._last_end: float | None = None
 
     async def wait(
         self,
@@ -150,8 +154,26 @@ class TikWmRateGate:
                     now = clock()
             self._last_start = now
 
+    @asynccontextmanager
+    async def hold(
+        self,
+        clock: Callable[[], float],
+        sleep: Callable[[float], Awaitable[None]],
+    ) -> AsyncIterator[None]:
+        """One request in flight at a time, spaced from the end of the previous one: TikWm
+        answers in 20-30 s at busy hours, so spacing request starts let workers overlap."""
+        async with self._lock:
+            if self._last_end is not None:
+                remaining = self._min_interval_seconds - (clock() - self._last_end)
+                if remaining > 0:
+                    await sleep(remaining)
+            try:
+                yield
+            finally:
+                self._last_end = clock()
 
-SHARED_TIKWM_RATE_GATE = TikWmRateGate()
+
+SHARED_TIKWM_RATE_GATE = TikWmRateGate(min_interval_seconds=1.2)
 
 
 class TikWmResolver:
@@ -162,19 +184,35 @@ class TikWmResolver:
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         rate_gate: TikWmRateGate = SHARED_TIKWM_RATE_GATE,
+        timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
+        rate_limit_backoff: float = RATE_LIMIT_BACKOFF_SECONDS,
     ) -> None:
         self._client = client
         self._clock = clock
         self._sleep = sleep
         self._rate_gate = rate_gate
+        self._timeout = timeout_seconds
+        self._rate_limit_backoff = rate_limit_backoff
 
     async def resolve(self, source_url: str) -> TikWmResolution:
-        await self._rate_gate.wait(self._clock, self._sleep)
+        """A rate limit is retried once; an unavailable CDN is not, so a caller with a fallback
+        moves on at once."""
+        try:
+            async with self._rate_gate.hold(self._clock, self._sleep):
+                return await self._once(source_url)
+        except TikWmError as error:
+            if error.code != "cdn_rate_limited":
+                raise
+        await self._sleep(self._rate_limit_backoff)
+        async with self._rate_gate.hold(self._clock, self._sleep):
+            return await self._once(source_url)
+
+    async def _once(self, source_url: str) -> TikWmResolution:
         try:
             response = await self._client.get(
                 "https://www.tikwm.com/api/",
                 params={"url": source_url, "hd": "1"},
-                timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS),
+                timeout=httpx.Timeout(self._timeout),
             )
             response.raise_for_status()
             payload = response.json()

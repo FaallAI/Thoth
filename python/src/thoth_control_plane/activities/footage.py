@@ -49,6 +49,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+# Under the 90 s clip budget: three workers queue on one TikWm gate (2026-11-27).
+FOOTAGE_TIKWM_TIMEOUT = 20.0
 
 
 class FootageActivityInput(StrictModel):
@@ -297,8 +299,9 @@ async def _tiktok_direct_url(url: str) -> str:
 
     from thoth_control_plane.acquisition.adapters.tikwm import TikWmResolver
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        return (await TikWmResolver(client).resolve(url)).media.ephemeral_url.get_secret_value()
+    async with httpx.AsyncClient(timeout=FOOTAGE_TIKWM_TIMEOUT) as client:
+        resolver = TikWmResolver(client, timeout_seconds=FOOTAGE_TIKWM_TIMEOUT)
+        return (await resolver.resolve(url)).media.ephemeral_url.get_secret_value()
 
 
 def context_ports(settings: Settings, key: str, media: MediaStore) -> dict[str, object]:

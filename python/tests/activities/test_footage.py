@@ -366,3 +366,25 @@ async def test_the_subject_reads_a_bounded_part_of_the_main(tmp_path: Path, repo
     )
     await activity(FootageActivityInput(workflow_id="wf_a"))
     assert finder.durations == [MAIN_SECONDS] and MAIN_SECONDS <= 180
+
+
+async def test_footage_tikwm_calls_use_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A queued footage worker must not spend its 90 s clip budget on one slow TikWm answer.
+    from thoth_control_plane.acquisition.adapters import tikwm
+    from thoth_control_plane.activities import footage
+
+    seen: dict[str, object] = {}
+
+    class Resolver:
+        def __init__(self, client: object, *, timeout_seconds: float) -> None:
+            seen["client"] = client.timeout.read
+            seen["resolver"] = timeout_seconds
+
+        async def resolve(self, url: str) -> object:
+            raise tikwm.TikWmError("cdn_unavailable")
+
+    monkeypatch.setattr(tikwm, "TikWmResolver", Resolver)
+    with pytest.raises(tikwm.TikWmError):
+        await footage._tiktok_direct_url("https://www.tiktok.com/@a/video/1234567890")
+    assert footage.FOOTAGE_TIKWM_TIMEOUT == 20.0
+    assert seen == {"client": 20.0, "resolver": 20.0}
