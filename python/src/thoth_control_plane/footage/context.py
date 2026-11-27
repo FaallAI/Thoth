@@ -57,13 +57,15 @@ with the event or the other person; no hashtags, no generic objects. related: up
 these people are known for or that followed (their shows, a clarification, an apology, a reply, a
 meeting), each with one short search as Indonesian viewers would type it that names people[0];
 never this incident itself.
-On a "commentary" post: people[1:] lists every outside public figure the post or transcript
-discusses (not only the account replied to); queries and related search the specific outside
-events, moments, gestures and statements discussed, as Indonesian viewers search them, without
-forcing people[0]'s name into them ("FFI 2026 3 jari", "Fadli Zon menyangkal 1998"); each
-related event describes the visible scene a clip of it shows ("Sineas mengacungkan tiga jari di
-panggung FFI 2026"), not an abstract claim. Use the material and your general knowledge of
-Indonesian public figures; put "?" after anything you are unsure of.
+On a "commentary" post: read the entire transcript from start to finish, not only its opening.
+people[1:] lists every outside public figure named anywhere in the transcript or caption (not
+only the account replied to: also each minister or figure cited in the argument), and queries
+and related include each controversy, protest or gesture it cites. queries and related search
+the specific outside events, moments, gestures and statements discussed, as Indonesian viewers
+search them, without forcing people[0]'s name into them ("FFI 2026 3 jari", "Fadli Zon
+menyangkal 1998"); each related event describes the visible scene a clip of it shows ("Sineas
+mengacungkan tiga jari di panggung FFI 2026"), not an abstract claim. Use the material and your
+general knowledge of Indonesian public figures; put "?" after anything you are unsure of.
 Queries are in the language of the post."""
 
 REFINE_PROMPT = """You keep a context card used to find footage of one story. You get the card
@@ -74,6 +76,8 @@ people, event or place where the titles show the card is wrong (event and place 
 language of the post), keep "main_kind", and set "queries" to at most 3
 NEW short searches (not already in the card) that pair a person's name or alias with the event.
 You may add related events the titles show (same shape as the card's "related").
+Add to people and related the key figures, award winners, films and protest gestures that the
+titles repeat and the card misses ("Siera Tamihardja", "Para Perasuk", "salam 3 jari").
 Ignore titles about other stories. Put "?" after anything you are unsure of."""
 
 
@@ -366,11 +370,23 @@ def names_subject(text: str, card: ContextCard) -> bool:
     return any(mentions(text, name) for name in subject_names(card))
 
 
+def _is_commentator_only(query: str, card: ContextCard) -> bool:
+    """A commentary query about people[0] alone: no discussed figure, no event word."""
+    said = norm(query)
+    return (
+        names_subject(said, card)
+        and not any(mentions(said, name) for name in discussed_names(card))
+        and not has_event_term(said, card)
+    )
+
+
 def context_objects(
     card: ContextCard, queries: Sequence[str], related: Sequence[RelatedEvent] = ()
 ) -> list[FootageObject]:
     """One search per query; a query naming a person checks that a person is on screen. The
-    visual never names anyone (spec 10.12)."""
+    visual never names anyone (spec 10.12). On a commentary card a query about a discussed
+    figure or the event checks the event's scene, not any person (spec 2026-11-27 ocr video
+    credit, 3.4)."""
     objects: list[FootageObject] = []
     asked = [(query, None) for query in queries] + [(r.query, r) for r in related]
     for query, event in asked:
@@ -379,7 +395,7 @@ def context_objects(
         person = _person(card, query) is not None
         if event is not None:
             visual = strip_names(event.event, card) or DEFAULT_VISUAL
-        elif person:
+        elif person and (card.main_kind != "commentary" or _is_commentator_only(query, card)):
             visual = PERSON_VISUAL
         else:
             visual = strip_names(card.event, card) or DEFAULT_VISUAL
@@ -425,22 +441,51 @@ def context_reason(text: str, card: ContextCard) -> Literal["story"] | None:
     """None when the text names the subject, or two event terms, as whole words. A clip naming
     only another card person is off the story (spec 10.12, revision 1). A commentary card also
     takes two terms of one related event, or a discussed figure with a context word (spec
-    2026-11-26, 3.3)."""
+    2026-11-26, 3.3). On a commentary card an event match naming nobody also needs a topic word
+    or three terms, so a generic event vlog is off the story (spec 2026-11-27 ocr video credit,
+    3.4)."""
     said = norm(text)
     if names_subject(said, card):
         return None
+    commentary = card.main_kind == "commentary"
+    if commentary and names_discussed_with_context(said, card):
+        return None
+    signals = _topic_signals(card) if commentary else set()
     named = _named_words(card)
     matched = {term for term in event_terms(card) if term not in named and _says(said, term)}
-    if _event_match(matched, _terms(card.event) - named):
+    if _event_match(matched, _terms(card.event) - named) and _commentary_event_ok(
+        said, matched, signals
+    ):
         return None
-    if card.main_kind == "commentary":
+    if commentary:
         for related in card.related:
             hits = {term for term in _terms(related.event) - named if _says(said, term)}
-            if len(hits) >= 2 and any(not _YEAR.fullmatch(term) for term in hits):
+            if (
+                len(hits) >= 2
+                and any(not _YEAR.fullmatch(term) for term in hits)
+                and _commentary_event_ok(said, hits, signals)
+            ):
                 return None
-        if names_discussed_with_context(said, card):
-            return None
     return "story"
+
+
+def _topic_signals(card: ContextCard) -> set[str]:
+    """The words of the controversy a commentary card is about: its spoken words and its
+    queries' words that are no name and no event term ("kritik", "protes", "jari")."""
+    named = _named_words(card)
+    terms = set(event_terms(card))
+    texts = (*card.queries, *(r.query for r in card.related))
+    words = {word for text in texts for word in content_words(text)}
+    return set(card.spoken) | (words - named - terms - {"indonesia", "indonesian"})
+
+
+def _commentary_event_ok(said: str, matched: set[str], signals: set[str]) -> bool:
+    """A personless event match on a commentary card: a topic word, or three matched terms with
+    two that are no year ("Piala Citra FFI 2026")."""
+    if not signals:
+        return True
+    words = {term for term in matched if not _YEAR.fullmatch(term)}
+    return (len(matched) >= 3 and len(words) >= 2) or any(_says(said, w) for w in signals)
 
 
 def same_event(card: ContextCard, event: str, names: Sequence[str]) -> bool:

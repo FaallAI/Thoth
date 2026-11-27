@@ -91,3 +91,14 @@ def test_production_wiring_builds_the_context_ports(tmp_path: Path) -> None:
     ]
     assert isinstance(ports["captions_text"], YtDlpCaptionFetcher)
     assert callable(ports["library_media"])
+
+
+def test_generic_ffi_vlogs_are_off_the_commentary_story() -> None:  # live wf_aea765e4
+    card = ContextCard.model_validate_json((CONTEXT / "ffi_card.json").read_text("utf-8"))
+    for vlog in (
+        "Semalam menghadiri Festival Film Indonesia 2026. Sebuah ajang yang selalu punya tempat "
+        "istimewa bagi kita semua, insan perfilman Indonesia. Komite FFI wulanguritno81",
+        "Peraih penghargaan pemeran utama perempuan terbaik Festival Film Indonesia 2026 #ffi "
+        "#ffi2026 theidnpageant",
+    ):
+        assert context_reason(vlog, card) == "story", vlog
