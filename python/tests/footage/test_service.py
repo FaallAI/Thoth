@@ -3089,3 +3089,284 @@ async def test_a_transcript_cut_keeps_the_person_visual(store: FootageStore) -> 
     await _builder(store, captions_text=Captions(CAPTIONS))._sections("wf_a", _saiful())
     cuts = [c for c in store.candidates("wf_a") if c.source == "section"]
     assert cuts and all(c.visual == PERSON_VISUAL and c.said for c in cuts)
+
+
+# OCR video credits (spec 2026-11-27 ocr video credit, 3.3 and 3.5): a subtitled news repost's
+# burned-in credit leads to the clean original in the same run.
+
+OCR_FRAMES = [["Breaking News"], ["Sumber:", "YouTube Festival Film Indonesia"]]
+CEREMONY_TITLE = "Malam Anugerah Piala Citra FFI 2026"
+
+
+def _ceremony_video(url: str = CEREMONY_URL, duration: float = 10800.0) -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id=url.rsplit("=", 1)[-1],
+        owner_handle="festivalfilmindonesia",
+        canonical_url=url,
+        caption=CEREMONY_TITLE,
+        duration_seconds=duration,
+    )
+
+
+def _chapter_hints() -> Any:
+    from thoth_control_plane.footage.moments import Chapter, LongVideoHints
+
+    return LongVideoHints(None, [Chapter(5400.0, 5700.0, CEREMONY_TITLE)], [])
+
+
+def _ocr_credits(monkeypatch: pytest.MonkeyPatch, frames: dict[str, list[list[str]]]) -> None:
+    """Clips whose bytes carry a marker are subtitled and show `frames`; the rest are read."""
+    from thoth_control_plane.assembly.models import MainOcr
+    from thoth_control_plane.footage import service
+
+    real = service.analyze_main_ocr
+
+    async def fake(path: Path, duration: Any, **kwargs: Any) -> Any:
+        data = path.read_bytes()
+        for marker, shown in frames.items():
+            if marker.encode() in data:
+                collected = kwargs.get("collected_frames")
+                if collected is not None:
+                    collected.extend(shown)
+                return MainOcr(
+                    analyzed_at=NOW,
+                    requested_frames=4,
+                    valid_frames=4,
+                    outcome="subtitle",
+                    trim_start=0.0,
+                    mute_audio=True,
+                    subtitle_blur=[{"x": 0.1, "y": 0.8, "w": 0.8, "h": 0.1}],
+                )
+        return await real(path, duration, **kwargs)
+
+    monkeypatch.setattr(service, "analyze_main_ocr", fake)
+
+
+def _steps(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int | None, int | None]]:
+    from thoth_control_plane.footage import service
+
+    seen: list[tuple[int | None, int | None]] = []
+
+    async def step(code: str, **kwargs: Any) -> None:
+        if code == "footage.screen_clips":
+            seen.append((kwargs.get("n"), kwargs.get("total")))
+
+    monkeypatch.setattr(service.progress, "step", step)
+    return seen
+
+
+def _ffi_reposts(card: Any, *originals: DiscoveredVideo) -> Search:
+    from thoth_control_plane.footage.service import trace_query
+
+    return Search(
+        {
+            ("tiktok", "FFI 2026 3 jari"): [
+                _video(1, caption=STAGE, owner="suaradotcom"),
+                _video(2, caption=f"{STAGE} lagi", owner="whatpop"),
+                _video(3, caption=f"{STAGE} juga", owner="besokaja"),
+            ],
+            ("youtube", trace_query("Festival Film Indonesia", card)): list(originals),
+        }
+    )
+
+
+def _view(**fields: Any) -> Any:
+    from thoth_control_plane.footage.models import CandidateView
+
+    base: dict[str, Any] = dict.fromkeys(
+        ("published_at", "source_duration", "reason", "story_score", "kind", "shows_object"),
+    )
+    base |= dict.fromkeys(
+        ("description", "media_location", "media_checksum", "media_bytes", "clip_duration"),
+    )
+    base |= {"clip_start": None, "ocr": None, "position": None, "engagement": {}}
+    base |= {"url": "u", "platform": "tiktok", "source": "search", "query": "q", "visual": "v"}
+    base |= {"owner_handle": "o", "caption": "", "status": "pending"}
+    return CandidateView(**(base | fields))
+
+
+def test_ocr_traced_clips_and_their_sections_have_their_own_queue() -> None:
+    from thoth_control_plane.footage.service import OCR_TRACED, SECTIONS, quota_key
+
+    assert quota_key(_view(source="ocr_trace", query=OCR_TRACED)) == OCR_TRACED
+    assert quota_key(_view(source="section", query=OCR_TRACED)) == OCR_TRACED
+    assert quota_key(_view(source="section", query="FFI 2026 3 jari")) == SECTIONS
+    assert quota_key(_view(source="search", query="FFI 2026 3 jari")) == "FFI 2026 3 jari"
+
+
+async def test_a_subtitled_repost_credit_brings_its_clean_original_in_the_same_run(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.footage.service import OCR_TRACED
+
+    card = _ffi()
+    _ocr_credits(monkeypatch, {"@suaradotcom": OCR_FRAMES})
+    steps = _steps(monkeypatch)
+    creator = TraceCreator([])
+    captions = HintsCaptions(_chapter_hints())
+    await _builder(
+        store,
+        search=_ffi_reposts(card, _ceremony_video()),
+        card=Cards(card),
+        creator=creator,
+        photos=Photos(),
+        captions_text=captions,
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert (rows[_url(1, "suaradotcom")].status, rows[_url(1, "suaradotcom")].reason) == (
+        "rejected",
+        "subtitle",
+    )
+    assert ("youtube", "festivalfilmindonesia") in creator.calls
+    assert rows[CEREMONY_URL].source == "ocr_trace" and rows[CEREMONY_URL].reason == "duration"
+    cuts = [c for c in rows.values() if c.url.startswith(f"{CEREMONY_URL}#t=")]
+    assert cuts and all(c.source == "section" and c.query == OCR_TRACED for c in cuts)
+    assert any(c.status == "admitted" for c in cuts)
+    # The repost's query was full (two admitted) and the cut still had its own turn.
+    full = [c for c in rows.values() if c.query == "FFI 2026 3 jari" and c.status == "admitted"]
+    assert len(full) == 2
+    assert steps and all(n is not None and total is not None and n <= total for n, total in steps)
+    assert steps[-1][1] == 4
+
+
+async def test_a_bare_uploader_watermark_traces_nothing(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    card = _ffi()
+    _ocr_credits(monkeypatch, {"@suaradotcom": [["@jawaposofficial", "Pidato FFI 2026"]]})
+    creator = TraceCreator([])
+    search = _ffi_reposts(card, _ceremony_video())
+    await _builder(
+        store,
+        search=search,
+        card=Cards(card),
+        creator=creator,
+        photos=Photos(),
+        captions_text=HintsCaptions(_chapter_hints()),
+        context_enabled=True,
+    ).build(_inputs(tmp_path))
+    assert not any(platform == "youtube" for platform, _ in creator.calls)
+    assert CEREMONY_URL not in {c.url for c in store.candidates("wf_a")}
+
+
+def _ocr_state(card: Any, *credits: tuple[str, str]) -> Any:
+    """A check state holding OCR credits: (repost owner, credited channel) pairs."""
+    from thoth_control_plane.footage.reposts import CreditRef
+    from thoth_control_plane.footage.service import _Build
+
+    state = _Build(card=card)
+    for n, (owner, channel) in enumerate(credits, start=1):
+        repost = _view(url=_url(n, owner), owner_handle=owner, query="FFI 2026 3 jari")
+        state.ocr_credits.append((repost, CreditRef(channel, channel, "youtube")))
+    return state
+
+
+async def _trace_ocr(builder: Any, state: Any) -> int:
+    from thoth_control_plane.footage.gates import MainIdentity
+
+    main = _report()
+    url = str(main.source.canonical_url)
+    identity = MainIdentity.of(url, [url], main.post.text)
+    return await builder._trace_ocr_credits("wf_a", main, identity, state, {}, set())
+
+
+async def test_ocr_tracing_lists_at_most_three_accounts_per_run(store: FootageStore) -> None:
+    store.start_run("wf_a", [])
+    creator = TraceCreator([])
+    builder = _builder(store, creator=creator, search=ChannelSearch([]))
+    state = _ocr_state(_ffi(), *[(f"news{n}", f"channel{n}") for n in range(5)])
+    await _trace_ocr(builder, state)
+    assert [handle for _, handle in creator.calls] == ["channel0", "channel1", "channel2"]
+    state.ocr_credits.append(_ocr_state(_ffi(), ("news9", "channel9")).ocr_credits[0])
+    await _trace_ocr(builder, state)
+    assert len(creator.calls) == 3 and state.ocr_credits == []
+
+
+async def test_an_account_traced_from_a_caption_is_not_traced_again_from_ocr(
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.gates import MainIdentity
+    from thoth_control_plane.footage.service import _Build
+
+    _seed(store, (REPOST_URL, "tribunbanten", CURHAT))
+    creator = TraceCreator([])
+    builder = _builder(store, creator=creator, search=ChannelSearch([]))
+    state = _Build(card=_saiful())
+    main = _report()
+    url = str(main.source.canonical_url)
+    identity = MainIdentity.of(url, [url], main.post.text)
+    await builder._trace("wf_a", main, identity, _saiful(), state)
+    assert ("youtube", "curhatbang") in state.traced_keys
+    calls = len(creator.calls)
+    state.ocr_credits.append(_ocr_state(_saiful(), ("news1", "curhatbang")).ocr_credits[0])
+    await _trace_ocr(builder, state)
+    assert len(creator.calls) == calls
+
+
+# Medium YouTube videos (3 to 15 minutes) are cut too (spec 2026-11-27 ocr video credit, 3.5).
+
+
+def _long_rows(store: FootageStore, *videos: tuple[str, float]) -> None:
+    from thoth_control_plane.footage.models import NewCandidate
+
+    store.start_run("wf_a", [])
+    store.add_candidates(
+        "wf_a",
+        [
+            NewCandidate(
+                url=url,
+                platform="youtube",
+                source="search",
+                query="Mutant USS Denny Sumargo",
+                visual="v",
+                owner_handle="channel",
+                caption="Mutant ngamuk di depan Denny Sumargo",
+                source_duration=duration,
+            )
+            for url, duration in videos
+        ],
+    )
+    for url, _ in videos:
+        store.score("wf_a", url, 0.8)
+
+
+MEDIUM = "https://www.youtube.com/watch?v=MEDIUM00001"
+
+
+async def test_a_medium_youtube_video_is_cut_and_rejected_duration(store: FootageStore) -> None:
+    _long_rows(store, (MEDIUM, 260.0))
+    await _builder(store, captions_text=Captions(CAPTIONS))._sections("wf_a", _saiful())
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert any(url.startswith(f"{MEDIUM}#t=") for url in rows)
+    assert rows[MEDIUM].reason == "duration"
+
+
+async def test_a_medium_video_without_a_moment_stays_pending_and_is_read_once(
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.moments import LongVideoHints
+
+    _long_rows(store, (MEDIUM, 260.0))
+    captions = HintsCaptions(LongVideoHints())
+    builder = _builder(store, captions_text=captions)
+    sectioned: set[str] = set()
+    await builder._sections("wf_a", _saiful(), sectioned)
+    assert {c.url: c for c in store.candidates("wf_a")}[MEDIUM].status == "pending"
+    await builder._sections("wf_a", _saiful(), sectioned)
+    assert captions.calls == [MEDIUM]
+
+
+async def test_a_ceremony_is_read_before_medium_videos_and_rejected_without_a_moment(
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.moments import LongVideoHints
+
+    medium = [(f"https://www.youtube.com/watch?v=MEDIUM0000{n}", 260.0) for n in range(6)]
+    _long_rows(store, *medium, (CEREMONY_URL, 10800.0))
+    captions = HintsCaptions(LongVideoHints())
+    await _builder(store, captions_text=captions)._sections("wf_a", _saiful())
+    assert captions.calls[0] == CEREMONY_URL and len(captions.calls) == 6
+    rows = {c.url: c for c in store.candidates("wf_a")}
+    assert rows[CEREMONY_URL].reason == "duration"
+    assert all(rows[url].status == "pending" for url, _ in medium)
