@@ -546,3 +546,77 @@ def test_without_a_band_reader_the_edges_are_read_whole() -> None:
 
     assert windows(ocr) == SHARP
     assert (2.25, 720) in frames.calls
+
+
+# Footage OCR credit tracing (spec 2026-11-27 ocr video credit, 3.1): the text already read on
+# each sampled frame, kept per frame, with no extra read.
+
+
+class CornerText(Text):
+    """The caption plus a two-box corner credit, padded, and an empty box; counts reads."""
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    async def read(self, frame: Frame) -> list[TextBox]:
+        self.reads += 1
+        boxes = await super().read(frame)
+        return [
+            *boxes,
+            TextBox("  Sumber: ", 0.02, 0.04, 0.02, 0.2),
+            TextBox("YouTube Festival Film Indonesia ", 0.02, 0.04, 0.2, 0.5),
+            TextBox("   ", 0.5, 0.52, 0.5, 0.6),
+        ]
+
+
+def _corner(collected: list[list[str]] | None):  # type: ignore[no-untyped-def]
+    text = CornerText()
+    kwargs = {} if collected is None else {"collected_frames": collected}
+    ocr = asyncio.run(
+        analyze_main_ocr(
+            VIDEO,
+            30.0,
+            frames=Frames(),
+            probe=Probe(30.0),
+            text=text,
+            max_frames=12,
+            now=NOW,
+            **kwargs,
+        )
+    )
+    return ocr, text.reads
+
+
+def test_collected_frames_keep_each_frames_text_in_box_order_without_extra_reads() -> None:
+    collected: list[list[str]] = []
+    ocr, reads = _corner(collected)
+    plain, plain_reads = _corner(None)
+
+    assert len(collected) == ocr.requested_frames == 12
+    assert collected[0] == ["BANJIR BESAR JAKARTA", "Sumber:", "YouTube Festival Film Indonesia"]
+    assert all(frame[-2:] == ["Sumber:", "YouTube Festival Film Indonesia"] for frame in collected)
+    assert reads == plain_reads
+    assert ocr == plain
+
+
+def test_a_frame_with_no_text_is_not_collected() -> None:
+    class Blank(Text):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            second = float(frame.jpeg.decode())
+            return [] if second > 5 else await super().read(frame)
+
+    collected: list[list[str]] = []
+    asyncio.run(
+        analyze_main_ocr(
+            VIDEO,
+            30.0,
+            frames=Frames(),
+            probe=Probe(30.0),
+            text=Blank(),
+            max_frames=12,
+            now=NOW,
+            collected_frames=collected,
+        )
+    )
+    assert collected and all(frame for frame in collected)
+    assert len(collected) < 12

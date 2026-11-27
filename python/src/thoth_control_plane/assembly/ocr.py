@@ -148,8 +148,11 @@ async def analyze_main_ocr(
     follow: bool = True,
     decoder: FrameDecoder | None = None,
     bands: BandReader | None = None,
+    collected_frames: list[list[str]] | None = None,
 ) -> MainOcr:
-    """`follow`: False for a caller that only needs the verdict, not the windows to blur."""
+    """`follow`: False for a caller that only needs the verdict, not the windows to blur.
+    `collected_frames` receives each sampled frame's text lines, in box order, from the reads
+    already made (footage credit tracing, spec 2026-11-27 ocr video credit, 3.1)."""
     if not duration or duration <= 0:
         try:
             duration = await probe.duration(video)
@@ -171,6 +174,12 @@ async def analyze_main_ocr(
     if valid != len(requested):
         logger.warning("main OCR incomplete: %d of %d frames", valid, len(requested))
         raise AssemblyError("incomplete_frame_coverage")
+
+    if collected_frames is not None:
+        for row in read:
+            lines = [line for box in row.boxes if (line := box.text.strip())]
+            if lines:
+                collected_frames.append(lines)
 
     verdict = classify_ocr_frames(read, duration)
     refined = False
