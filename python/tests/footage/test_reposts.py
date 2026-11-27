@@ -10,6 +10,7 @@ from thoth_control_plane.footage.reposts import (
     credit_label,
     credited_account,
     credited_source,
+    frame_credited_source,
     is_own_account,
 )
 
@@ -103,3 +104,85 @@ def test_a_bare_handle_takes_youtube_from_the_caption() -> None:
 def test_urls_prose_and_placeholders_are_not_credits(caption: str) -> None:
     assert credited_source(caption) is None
     assert credited_account(caption) is None
+
+
+# Burned-in credits read by OCR on a repost's frames (spec 2026-11-27 ocr video credit, 3.2).
+
+FFI = CreditRef("festivalfilmindonesia", "Festival Film Indonesia", "youtube")
+
+
+@pytest.mark.parametrize(
+    ("caption", "expected"),
+    [
+        ("Dok: YouTube/Festival Film Indonesia", FFI),
+        ("Dok. YouTube Festival Film Indonesia", FFI),
+        ("Dok.: KompasTV", CreditRef("kompastv", "KompasTV", None)),
+        ("Dok. @festivalfilm_id", CreditRef("festivalfilm_id", "festivalfilm_id", None)),
+    ],
+)
+def test_dok_credits_name_their_source(caption: str, expected: CreditRef) -> None:
+    assert credited_source(caption) == expected
+    assert frame_credited_source([[caption]]) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Dokter memeriksa pasien",
+        "Dokumen resmi negara",
+        "Film dokumenter FFI",
+        "Dok. Pribadi",
+        "Dok. Istimewa",
+    ],
+)
+def test_dok_words_and_personal_labels_are_not_credits(text: str) -> None:
+    assert credited_source(text) is None
+    assert frame_credited_source([[text]]) is None
+
+
+@pytest.mark.parametrize(
+    "frames",
+    [
+        [["Breaking News", "Sumber: YouTube / Festival Film Indonesia"]],
+        [["Sumber:", "YouTube Festival Film Indonesia"]],
+        [["Sumber", "YouTube Festival Film Indonesia"]],
+        [["YouTube", "Festival Film Indonesia"]],
+        [["Pidato pemenang", "Dok.", "YouTube Festival Film Indonesia"]],
+    ],
+)
+def test_a_frame_credit_is_read_from_one_box_or_a_prefix_and_its_neighbour(
+    frames: list[list[str]],
+) -> None:
+    assert frame_credited_source(frames) == FFI
+
+
+def test_a_youtube_frame_credit_beats_an_earlier_other_credit() -> None:
+    frames = [["Cr: @newsacct"], ["Sumber: YT/KompasTV"]]
+    assert frame_credited_source(frames) == CreditRef("kompastv", "KompasTV", "youtube")
+    assert frame_credited_source([["Cr: @newsacct"]]) == CreditRef("newsacct", "newsacct", None)
+
+
+def test_a_bare_uploader_watermark_is_no_frame_credit() -> None:
+    assert frame_credited_source([["@jawaposofficial", "Pidato FFI 2026"]]) is None
+    assert frame_credited_source([]) is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Sumber: Istimewa",
+        "Dok: Pribadi",
+        "Sumber: Dokumentasi",
+        "Sumber: Arsip",
+        "Sumber: Internet",
+        "Sumber: https://example.com",
+    ],
+)
+def test_non_account_frame_labels_are_refused(line: str) -> None:
+    assert frame_credited_source([[line]]) is None
+
+
+def test_a_split_credit_stays_inside_its_own_frame() -> None:
+    frames = [["Sumber:", "blur"], ["Sumber:", "YouTube/FFI"]]
+    assert frame_credited_source(frames) == CreditRef("ffi", "FFI", "youtube")
+    assert frame_credited_source([["Sumber:"], ["YouTube Festival Film Indonesia"]]) is None

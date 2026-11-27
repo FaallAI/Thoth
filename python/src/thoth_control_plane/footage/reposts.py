@@ -4,7 +4,9 @@ credits, whether an account belongs to a card person, and the credit a clip carr
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 
 from thoth_control_plane.attribution.credit import (
     AT_HANDLE,
@@ -27,12 +29,13 @@ _PLATFORMS = {
 }
 _PLATFORM = "|".join(_PLATFORMS)
 # "Sumber YT : Ernest Prakasa", "sc: KompasTV", "cr: @denny.sumargo", "yt: DPR RI",
-# "YouTube/curhatbang", "via YouTube/CURHAT BANG", "via @kompastv". A bare "via" is prose
-# ("Merbabu via Tekhelan", "via WA"), so it counts only before "@" or a platform word.
+# "YouTube/curhatbang", "via YouTube/CURHAT BANG", "via @kompastv", "Dok. YouTube/FFI". A bare
+# "via" is prose ("Merbabu via Tekhelan", "via WA") and a bare "Dok." can be personal ("Dok.
+# Pribadi"), so each counts only before "@" or a platform word.
 NAMED_CREDIT = re.compile(
-    rf"(?:\b(?:sumber|source|kredit|credit|cr|sc)\s*(?:(?P<plat>{_PLATFORM})\s*)?:"
+    rf"(?:\b(?:sumber|source|kredit|credit|cr|sc|dok\.?)\s*(?:(?P<plat>{_PLATFORM})\s*)?:"
     rf"|\b(?P<yt>youtube|yt)\s*[/:]"
-    rf"|\bvia\s*:|\bvia\s+(?=@|(?:{_PLATFORM})\b))"
+    rf"|\bvia\s*:|\b(?:via|dok\.)\s+(?=@|(?:{_PLATFORM})\b))"
     r"\s*(?P<label>[^|\n#]{2,60})",
     re.IGNORECASE,
 )
@@ -40,6 +43,27 @@ PLATFORM_WORD = re.compile(rf"^({_PLATFORM})\b\s*/?\s*", re.IGNORECASE)
 URL_START = ("http://", "https://", "www.")
 YOUTUBE_WORD = re.compile(r"youtube|\byt\b", re.IGNORECASE)
 MIN_ACCOUNT_NAME = 6
+# A box holding only a credit prefix ("Sumber", "Dok.", "YouTube/"): OCR often reads the label
+# it introduces as the next box.
+CREDIT_PREFIX = re.compile(
+    rf"^(?:(?:sumber|source|kredit|credit|cr|sc|dok\.?|via)(?:\s*(?:{_PLATFORM}))?"
+    r"|youtube|yt)\s*[:/]?$",
+    re.IGNORECASE,
+)
+# Corner labels on news frames that name no account ("Dok. Istimewa", "Sumber: Internet").
+FRAME_PLACEHOLDERS = PLACEHOLDERS | frozenset(
+    {
+        "istimewa",
+        "pribadi",
+        "dokumentasi",
+        "arsip",
+        "net",
+        "internet",
+        "repro",
+        "dokpribadi",
+        "dokistimewa",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +80,18 @@ class CreditRef:
 def credited_source(text: str) -> CreditRef | None:
     """The source a caption credits (spec 2026-11-27, 4.1): a caption convention, then a named
     credit, then the first usable @handle."""
+    ref = _explicit_credit(text)
+    if ref is not None:
+        return ref
+    handles = text_handles(text)
+    if not handles:
+        return None
+    handle = handles[0].lstrip("@").rstrip(".")
+    return CreditRef(handle, handle, "youtube" if YOUTUBE_WORD.search(text) else None)
+
+
+def _explicit_credit(text: str) -> CreditRef | None:
+    """A caption convention or a named credit; never a bare @handle."""
     rule = text_rule_credit(text)
     if rule is not None:
         handle = rule[0].lstrip("@").rstrip(".")
@@ -64,11 +100,29 @@ def credited_source(text: str) -> CreditRef | None:
         ref = _named(match)
         if ref is not None:
             return ref
-    handles = text_handles(text)
-    if not handles:
-        return None
-    handle = handles[0].lstrip("@").rstrip(".")
-    return CreditRef(handle, handle, "youtube" if YOUTUBE_WORD.search(text) else None)
+    return None
+
+
+def frame_credited_source(frames: Sequence[Sequence[str]]) -> CreditRef | None:
+    """The source burned into a repost's frames (spec 2026-11-27 ocr video credit, 3.2): each
+    frame's lines, and a prefix box joined to its neighbour in the same frame; the first YouTube
+    credit across frames, else the first credit. A bare @handle is the uploader's watermark."""
+    first: CreditRef | None = None
+    for lines in frames:
+        texts = [line.strip() for line in lines]
+        candidates = list(texts)
+        for prefix, label in pairwise(texts):
+            if CREDIT_PREFIX.match(prefix):
+                joint = " " if prefix.endswith((":", "/")) else ": "
+                candidates.append(f"{prefix}{joint}{label}")
+        for text in candidates:
+            ref = _explicit_credit(text)
+            if ref is None or normalize(ref.account) in FRAME_PLACEHOLDERS:
+                continue
+            if ref.platform == "youtube":
+                return ref
+            first = first or ref
+    return first
 
 
 def _named(match: re.Match[str]) -> CreditRef | None:
