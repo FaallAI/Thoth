@@ -15,6 +15,7 @@ from thoth_control_plane.attribution.credit import (
     text_handles,
     text_rule_credit,
 )
+from thoth_control_plane.domain.planner import STOP_WORDS
 from thoth_control_plane.footage.context import ContextCard, card_names
 
 _PLATFORMS = {
@@ -44,12 +45,16 @@ URL_START = ("http://", "https://", "www.")
 YOUTUBE_WORD = re.compile(r"youtube|\byt\b", re.IGNORECASE)
 MIN_ACCOUNT_NAME = 6
 # A box holding only a credit prefix ("Sumber", "Dok.", "YouTube/"): OCR often reads the label
-# it introduces as the next box.
+# it introduces as the next box. A lone "via" is a subtitle word, never a prefix.
 CREDIT_PREFIX = re.compile(
-    rf"^(?:(?:sumber|source|kredit|credit|cr|sc|dok\.?|via)(?:\s*(?:{_PLATFORM}))?"
+    rf"^(?:(?:sumber|source|kredit|credit|cr|sc|dok\.?)(?:\s*(?:{_PLATFORM}))?"
     r"|youtube|yt)\s*[:/]?$",
     re.IGNORECASE,
 )
+# A frame credit's label is a short name; a longer one, or one with a function word ("di",
+# "ada", "dia"), is a spoken subtitle line.
+MAX_FRAME_LABEL_WORDS = 5
+WORD = re.compile(r"[a-z0-9]+")
 # Corner labels on news frames that name no account ("Dok. Istimewa", "Sumber: Internet").
 FRAME_PLACEHOLDERS = PLACEHOLDERS | frozenset(
     {
@@ -90,17 +95,44 @@ def credited_source(text: str) -> CreditRef | None:
     return CreditRef(handle, handle, "youtube" if YOUTUBE_WORD.search(text) else None)
 
 
+def _rule_credit(text: str) -> CreditRef | None:
+    rule = text_rule_credit(text)
+    if rule is None:
+        return None
+    handle = rule[0].lstrip("@").rstrip(".")
+    return CreditRef(handle, handle, rule[1])
+
+
 def _explicit_credit(text: str) -> CreditRef | None:
     """A caption convention or a named credit; never a bare @handle."""
-    rule = text_rule_credit(text)
+    rule = _rule_credit(text)
     if rule is not None:
-        handle = rule[0].lstrip("@").rstrip(".")
-        return CreditRef(handle, handle, rule[1])
+        return rule
     for match in NAMED_CREDIT.finditer(text):
         ref = _named(match)
         if ref is not None:
             return ref
     return None
+
+
+def _frame_credit(text: str) -> CreditRef | None:
+    """A credit box: it starts with the credit, "via" only before an @handle, and its label is
+    a short name, not a subtitle line ("kata dia via YouTube kemarin")."""
+    rule = _rule_credit(text)
+    if rule is not None:
+        return rule
+    match = NAMED_CREDIT.match(text)
+    if match is None:
+        return None
+    if text[:3].lower() == "via" and not match.group("label").lstrip().startswith("@"):
+        return None
+    ref = _named(match)
+    if ref is None:
+        return None
+    words = WORD.findall(ref.display.lower())
+    if len(words) > MAX_FRAME_LABEL_WORDS or any(word in STOP_WORDS for word in words):
+        return None
+    return ref
 
 
 def frame_credited_source(frames: Sequence[Sequence[str]]) -> CreditRef | None:
@@ -116,7 +148,7 @@ def frame_credited_source(frames: Sequence[Sequence[str]]) -> CreditRef | None:
                 joint = " " if prefix.endswith((":", "/")) else ": "
                 candidates.append(f"{prefix}{joint}{label}")
         for text in candidates:
-            ref = _explicit_credit(text)
+            ref = _frame_credit(text)
             if ref is None or normalize(ref.account) in FRAME_PLACEHOLDERS:
                 continue
             if ref.platform == "youtube":

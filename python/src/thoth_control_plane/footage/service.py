@@ -965,13 +965,17 @@ class FootageBuilder:
         return videos
 
     async def _sections(
-        self, workflow: str, card: ContextCard, sectioned: set[str] | None = None
+        self,
+        workflow: str,
+        card: ContextCard,
+        sectioned: set[str] | None = None,
+        only: set[str] | None = None,
     ) -> None:
         """A YouTube video past 3 minutes is cut at the caption lines naming a card person, and
         is then rejected `duration`. One past MAX_SECONDS is rejected even with no moment, so
         nothing is downloaded; a shorter one with no moment stays pending for a plain clip.
-        `sectioned` holds the videos already read, so a second call reads only new ones (spec
-        2026-11-27 ocr video credit, 3.5)."""
+        `sectioned` holds the videos already read, so a second call reads only new ones; `only`
+        limits a call to the given videos (spec 2026-11-27 ocr video credit, 3.5)."""
         already = sectioned if sectioned is not None else set()
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         known = {c.url for c in candidates}
@@ -984,6 +988,7 @@ class FootageBuilder:
             and (c.source_duration or 0.0) > LONG_SECTION_SECONDS
             and SECTION_MARK not in c.url
             and c.url not in already
+            and (only is None or c.url in only)
         ]
         # Own accounts and traced originals first, then a video past MAX_SECONDS before a medium
         # one (it has no plain clip): the caption fetches are capped.
@@ -1071,7 +1076,7 @@ class FootageBuilder:
             return 0
         known = {c.url for c in await asyncio.to_thread(self._store.candidates, workflow)}
         traced = 0
-        long_original = False
+        long_originals: set[str] = set()
         for repost, ref in credits:
             if state.ocr_traced_count >= MAX_OCR_TRACES:
                 break
@@ -1121,10 +1126,11 @@ class FootageBuilder:
                 if row.status != "pending":
                     continue
                 await asyncio.to_thread(self._store.score, workflow, row.url, OWN_SCORE)
-                long = (row.source_duration or 0.0) > LONG_SECTION_SECONDS
-                long_original = long_original or (platform == "youtube" and long)
-        if long_original:
-            await self._sections(workflow, card, state.sectioned)
+                if platform == "youtube" and (row.source_duration or 0.0) > LONG_SECTION_SECONDS:
+                    long_originals.add(row.url)
+        if long_originals:
+            # Only these originals: the long videos the first call left unread stay as they are.
+            await self._sections(workflow, card, state.sectioned, long_originals)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         # A medium video cut just now is no longer pending: it leaves its queue.
         open_now = {c.url for c in candidates if c.status == "pending"}

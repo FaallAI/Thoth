@@ -186,3 +186,22 @@ def test_a_split_credit_stays_inside_its_own_frame() -> None:
     frames = [["Sumber:", "blur"], ["Sumber:", "YouTube/FFI"]]
     assert frame_credited_source(frames) == CreditRef("ffi", "FFI", "youtube")
     assert frame_credited_source([["Sumber:"], ["YouTube Festival Film Indonesia"]]) is None
+
+
+@pytest.mark.parametrize(
+    "frames",
+    [
+        [["kata dia via YouTube kemarin"]],
+        [["via YouTube kemarin malam"]],
+        [["via", "YouTube Festival Film Indonesia"]],
+        [["Sumber", "masalahnya ada di pemerintah"]],
+        [["Sumber: kemarin dia bilang begitu"]],
+        [["Sumber: Festival Film Indonesia penuh kritik pedas soal kebijakan"]],
+    ],
+)
+def test_a_subtitle_line_is_no_frame_credit(frames: list[list[str]]) -> None:  # final minors
+    assert frame_credited_source(frames) is None
+
+
+def test_a_frame_via_credit_still_reads_a_handle() -> None:
+    assert frame_credited_source([["via @kompastv"]]) == CreditRef("kompastv", "kompastv", None)

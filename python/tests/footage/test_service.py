@@ -3370,3 +3370,20 @@ async def test_a_ceremony_is_read_before_medium_videos_and_rejected_without_a_mo
     rows = {c.url: c for c in store.candidates("wf_a")}
     assert rows[CEREMONY_URL].reason == "duration"
     assert all(rows[url].status == "pending" for url, _ in medium)
+
+
+async def test_the_mid_run_cut_reads_only_the_frame_traced_originals(  # final minors
+    store: FootageStore,
+) -> None:
+    from thoth_control_plane.footage.service import trace_query
+
+    _long_rows(store, (MEDIUM, 260.0))  # left unread by the first call
+    card = _ffi()
+    captions = HintsCaptions(_chapter_hints())
+    query = trace_query("Festival Film Indonesia", card)
+    search = Search({("youtube", query): [_ceremony_video()]})
+    builder = _builder(store, creator=TraceCreator([]), search=search, captions_text=captions)
+    state = _ocr_state(card, ("suaradotcom", "Festival Film Indonesia"))
+    await _trace_ocr(builder, state)
+    assert captions.calls == [CEREMONY_URL]
+    assert {c.url: c for c in store.candidates("wf_a")}[MEDIUM].status == "pending"
