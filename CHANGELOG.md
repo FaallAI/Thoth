@@ -54,15 +54,21 @@ The guard works as specified on the plan's card and the `ffi_card` fixture, but 
 - The mid-run `_sections()` call reads only the frame-traced originals; long videos the first call skipped stay as they were.
 - Cost: a corner credit whose name holds a function word or runs past 5 words is missed.
 
+**Delivery (2026-11-27, operator "lanjut nextstep di izinkan"):**
+- Pushed to PR #147 (`4aad9cc9..e0d3b6c4`) without a Codex review; CI green (offline quality gates, non-live stack smoke, publish image, CodeQL, dependency review).
+- Deployed to stage1 from the branch image `e0d3b6c4`.
+  - **Images:** thoth `bec1eace81ae`, renderer `cea61adadc2f`, web `20b7f6a06953`; pulled digests match the CI publish log.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-4aad9cc9.env`.
+- The vlog-guard finding above shipped as is.
+
 **Next steps (each its own operator gate):**
-1. Codex review of `4aad9cc9..HEAD`, including the finding above.
-2. Push to PR #147 and wait for CI.
-3. Deploy the branch image to stage1.
-4. A live FFI re-run on the Ernest post, with the cost shown first:
+1. A live FFI re-run on the Ernest post, with the cost shown first:
    - OCR credit tracing (`footage ocr trace`);
    - the Siera / 3-jari stage clips;
-   - no generic FFI vlogs.
-5. Merge PR #147.
+   - no generic FFI vlogs, and whether `@MediaCakra` / `@besokajanonton` are lost.
+2. Codex review of `4aad9cc9..HEAD`, if wanted before merge.
+3. Merge PR #147.
 
 ## 2026-11-27 - Footage sourcing v2: TikTok fallback, credit tracing, multi-hour YouTube cuts
 
