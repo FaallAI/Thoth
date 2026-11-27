@@ -35,7 +35,7 @@ No migrations; no `MainOcr`, API, OpenAPI, `EditDocumentV2`, dashboard, Remotion
 
 **Verification:**
 - `make lint`: exit 0.
-- `make test`: exit 0, 5365 passed, 251 skipped.
+- `make test`: exit 0, 5373 passed, 251 skipped (after the minor fixes).
 - `make dashboard-test`: exit 0, 2033 pass, 0 fail.
 - `make dashboard-build`: exit 0.
 - `graphify update .`: done.
@@ -48,10 +48,11 @@ No migrations; no `MainOcr`, API, OpenAPI, `EditDocumentV2`, dashboard, Remotion
 
 The guard works as specified on the plan's card and the `ffi_card` fixture, but a card that misses the discussed figures turns it against the story. Decide before the next deploy.
 
-**Deferred minors:**
-- A subtitle line such as "via YouTube kemarin" can read as a credit and spend one of the 3 frame traces.
-- A lone "via" or "Sumber" box joined to the next subtitle box can read as a credit.
-- The mid-run `_sections()` call has a fresh caption budget, so long videos the first call skipped can be read then too.
+**Review minors, fixed** (`03bdb21f`, each test-first):
+- A frame credit must start its box; "via" counts only before an `@handle`; a label longer than 5 words or holding a function word ("di", "ada", "dia") is a subtitle line. "kata dia via YouTube kemarin" and "Sumber" + "masalahnya ada di pemerintah" are no longer credits.
+- A lone "via" box is never joined to the next box.
+- The mid-run `_sections()` call reads only the frame-traced originals; long videos the first call skipped stay as they were.
+- Cost: a corner credit whose name holds a function word or runs past 5 words is missed.
 
 **Next steps (each its own operator gate):**
 1. Codex review of `4aad9cc9..HEAD`, including the finding above.
