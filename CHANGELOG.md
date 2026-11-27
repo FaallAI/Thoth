@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-27 - Footage: OCR video credit tracing and commentary precision (PR #147)
+
+**Why** (live run `wf_aea765e4` on PR #147; brainstorm items 118-121; spec and plan `2026-11-27-ocr-video-credit-and-ffi-precision`):
+- About 20 TikTok news clips of the FFI 2026 stage moment were rejected `subtitle`, and the OCR text already read on them was thrown away. A burned-in "Sumber: YouTube ..." credit leads to the clean original.
+- Two generic FFI vlogs (`@wulanguritno81`, `@theidnpageant`) passed the story gate on "FFI" and "2026" alone. They passed Vision on "a person on camera" and filled their query's two slots.
+- The context card dropped Fadli Zon, Siera Tamihardja and "3 jari" between runs.
+- YouTube videos of 3 to 15 minutes skipped `_sections()`.
+
+**Changes:**
+- **OCR:** `analyze_main_ocr(collected_frames=...)` returns each sampled frame's text lines, in box order, from the reads it already makes.
+- **Frame credits** (`frame_credited_source`):
+  - Reads one box, or a credit prefix box joined to the next box in the same frame.
+  - New markers: `Dok:`, `Dok.:`, and `Dok.` before `@` or a platform word. "Dokter" and "Dok. Pribadi" are not credits.
+  - Refuses labels that name no account (`istimewa`, `pribadi`, `dokumentasi`, `arsip`, `internet`, ...), URLs, and a bare uploader `@handle`.
+  - Prefers a YouTube credit across frames.
+- **Live tracing:**
+  - A subtitled or overlaid repost's frame credit is queued inside its check and traced between batches, at most 3 accounts per run.
+  - An account already traced from a caption is not traced again.
+  - Traced originals (`source="ocr_trace"`) and their sections are screened in their own `ocr_trace` queue, so a full query or a full `sections` queue cannot starve them.
+  - The screening progress total grows with them.
+- **Sections:**
+  - YouTube videos past 180 s are cut. A video past 900 s is read before a medium one.
+  - A 180-900 s video with no moment stays pending for a plain clip.
+  - A video already read is never read again.
+- **Commentary cards:**
+  - The card prompt reads the whole transcript for every figure and gesture, and the refine prompt adds the figures, films and gestures the titles repeat.
+  - A query about a discussed figure or the event checks the event's scene, not "a person on camera".
+  - An event match naming nobody needs a topic word (spoken or query word) or three terms.
+
+No migrations; no `MainOcr`, API, OpenAPI, `EditDocumentV2`, dashboard, Remotion or golden changes; `context_model.py` untouched.
+
+**Verification:**
+- `make lint`: exit 0.
+- `make test`: exit 0, 5365 passed, 251 skipped.
+- `make dashboard-test`: exit 0, 2033 pass, 0 fail.
+- `make dashboard-build`: exit 0.
+- `graphify update .`: done.
+- The final review was a self-review.
+
+**Finding for review (offline replay of the live `wf_aea765e4` card, read-only, 78 candidates):** the vlog guard moves story passes from 48 to 45.
+- `@theidnpageant` is rejected, as intended.
+- `@MediaCakra` ("Sentilan Keras Siera Tamihardja untuk Fadli Zon di Panggung FFI 2026") and `@besokajanonton` are also rejected, though both are on the story.
+- `@wulanguritno81` still passes, because the live card's spoken word "perjuangan" is in its caption.
+
+The guard works as specified on the plan's card and the `ffi_card` fixture, but a card that misses the discussed figures turns it against the story. Decide before the next deploy.
+
+**Deferred minors:**
+- A subtitle line such as "via YouTube kemarin" can read as a credit and spend one of the 3 frame traces.
+- A lone "via" or "Sumber" box joined to the next subtitle box can read as a credit.
+- The mid-run `_sections()` call has a fresh caption budget, so long videos the first call skipped can be read then too.
+
+**Next steps (each its own operator gate):**
+1. Codex review of `4aad9cc9..HEAD`, including the finding above.
+2. Push to PR #147 and wait for CI.
+3. Deploy the branch image to stage1.
+4. A live FFI re-run on the Ernest post, with the cost shown first:
+   - OCR credit tracing (`footage ocr trace`);
+   - the Siera / 3-jari stage clips;
+   - no generic FFI vlogs.
+5. Merge PR #147.
+
 ## 2026-11-27 - Footage sourcing v2: TikTok fallback, credit tracing, multi-hour YouTube cuts
 
 **Why** (live run `wf_af610964`; brainstorm items 111-114; spec and plan `2026-11-27-footage-sourcing-v2`):
