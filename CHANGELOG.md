@@ -31,12 +31,17 @@ All notable changes to this project will be documented in this changelog.
 - `make test`: exit 0, 5377 passed, 251 skipped (also after the Jev 1.14 move).
 - Tests went RED first: the model constants (an import error; 1.13 against 1.14), the Jev recording, the stored file and the tolerated failure. The no-request case passed before the change and stays as a guard.
 
+**Delivery (2026-11-28, operator "ya di izinkan"):**
+- Pushed to PR #147 (`58a0ed8d..e8820193`); CI green.
+- Deployed to stage1 from the branch image `e8820193`. The first try stopped on its guard: a workflow was running. A detached script waited for it to finish (about 17 min), then deployed.
+  - **Images:** thoth `c544e593832c`, renderer `ddada3f92624`, web `9eded7988d8a`; pulled digests match the CI publish log.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-e0d3b6c4.env`.
+
 **Next steps (each its own operator gate):**
-1. Push to PR #147 and wait for CI.
-2. Deploy the branch image to stage1.
-3. Live FFI re-run (cost first): check the kept comments, and that `decisions.json` lands.
-4. Once about 20 reposts are stored, rerun the attribution eval on the real states and choose the model and the repost threshold.
-5. Merge PR #147.
+1. Live FFI re-run (cost first): check the kept comments, and that `decisions.json` lands.
+2. Once about 20 reposts are stored, rerun the attribution eval on the real states and retune the repost threshold for Jev 1.14 (or choose another model).
+3. Merge PR #147.
 
 ## 2026-11-27 - Footage: OCR video credit tracing and commentary precision (PR #147)
 
