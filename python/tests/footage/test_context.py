@@ -10,10 +10,12 @@ from tests.assembly.support import report as support_report
 from thoth_control_plane.acquisition.models import ReportComment
 from thoth_control_plane.footage.context import (
     CARD_PROMPT,
+    PERSON_VISUAL,
     PERSON_WINDOW,
     REFINE_PROMPT,
     CardPerson,
     ContextCard,
+    RelatedEvent,
     card_material,
     card_names,
     card_objects,
@@ -26,6 +28,7 @@ from thoth_control_plane.footage.context import (
     names_discussed_with_context,
     names_subject,
     same_event,
+    strip_names,
     subject_names,
 )
 
@@ -335,3 +338,82 @@ def test_an_incident_card_still_needs_the_subject_or_two_event_terms() -> None:
     mutant = card("mutant_card")
     assert context_reason("Podcast Denny Sumargo soal pedang", mutant) == "story"
     assert not names_discussed_with_context(norm_text("Denny Sumargo podcast"), mutant)
+
+
+# Commentary precision (spec 2026-11-27 ocr video credit, 3.4): live run wf_aea765e4.
+
+WULAN = (
+    "Semalam menghadiri Festival Film Indonesia 2026. Sebuah ajang yang selalu punya tempat "
+    "istimewa bagi kita semua, insan perfilman Indonesia. Tahun ini terasa lebih spesial, karena "
+    "menjadi tahun terakhir kepemimpinan Ario Bayu bersama seluruh Komite FFI. wulanguritno81"
+)
+IDN = (
+    "Damai di hati damai di bumi Peraih penghargaan pemeran utama perempuan terbaik Festival "
+    "Film Indonesia 2026 #festivalfilmindonesia #ffi #ffi2026 #festivalfilm theidnpageant"
+)
+TRIBUN = (
+    "Sejumlah Sineas Gunakan Panggung FFI 2026 untuk Suarakan Protes, Ini Tanggapan Kemenbud "
+    "tribunnews"
+)
+STAGE = "Sineas acungkan 3 jari di panggung FFI 2026"
+
+
+def _aea(**overrides: object) -> ContextCard:
+    base = ContextCard(
+        main_kind="commentary",
+        people=[CardPerson(name="Ernest Prakasa"), CardPerson(name="Irini Dewi Wanti")],
+        event="Kritik terhadap pernyataan Irini Dewi Wanti terkait penggunaan panggung FFI 2026 "
+        "untuk kritik pemerintah",
+        place="Indonesia",
+        queries=["Irini Dewi Wanti FFI 2026", "Ernest Prakasa kritik Kemenbud FFI"],
+        related=[
+            RelatedEvent(
+                event="Polemik penggunaan panggung FFI 2026 untuk kritik pemerintah",
+                query="FFI 2026 kritik pemerintah",
+            )
+        ],
+        spoken=["kritik", "protes", "panggung"],
+    )
+    return base.model_copy(update=overrides)
+
+
+def test_the_card_prompts_read_the_whole_transcript_and_absorb_new_figures() -> None:
+    assert "entire transcript" in CARD_PROMPT
+    assert "gesture" in CARD_PROMPT
+    assert "titles repeat" in REFINE_PROMPT
+    assert "award winners" in REFINE_PROMPT and "gestures" in REFINE_PROMPT
+
+
+def test_a_commentary_figure_query_checks_the_event_scene_not_any_person() -> None:
+    aea, ffi = _aea(), card("ffi_card")
+    (irini,) = context_objects(aea, ["Irini Dewi Wanti FFI 2026"])
+    assert irini.person and irini.visual == " ".join(strip_names(aea.event, aea).split())
+    assert irini.visual != PERSON_VISUAL
+    (fadli,) = context_objects(ffi, ["Pernyataan Fadli Zon FFI 2026"])
+    assert fadli.person and fadli.visual == " ".join(strip_names(ffi.event, ffi).split())
+
+
+def test_a_commentator_only_or_incident_person_query_still_wants_a_person() -> None:
+    (ernest,) = context_objects(_aea(), ["Ernest Prakasa standup"])
+    assert ernest.person and ernest.visual == PERSON_VISUAL
+    (saiful,) = context_objects(card("mutant_card"), ["Mutant USS Denny Sumargo"])
+    assert saiful.person and saiful.visual == PERSON_VISUAL
+
+
+def test_a_commentary_event_match_needs_a_topic_word_or_three_terms() -> None:
+    aea = _aea()
+    assert context_reason(WULAN, aea) == "story"
+    assert context_reason(IDN, aea) == "story"
+    assert context_reason(TRIBUN, aea) is None
+    jari = _aea(
+        spoken=[],
+        related=[RelatedEvent(event="Polemik panggung FFI 2026", query="FFI 2026 3 jari")],
+    )
+    assert context_reason(STAGE, jari) is None
+    assert context_reason(WULAN, jari) == "story"
+
+
+def test_the_vlog_guard_leaves_incident_and_signal_free_cards_alone() -> None:
+    assert context_reason(WULAN, _aea(main_kind="incident")) is None
+    bare = _aea(spoken=[], queries=[], related=[])
+    assert context_reason(WULAN, bare) is None

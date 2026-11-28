@@ -2,6 +2,175 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-28 - Decisions: Mammoth-1 comment judge, stored decision requests (PR #147)
+
+**Why** (operator: Jev is weak in Indonesian; brainstorm items 125-127): OpenRouter's Decisions API now serves about 45 models on the same contract. Five Thoth thresholds were tuned on Jev's numbers (repost 0.35, handle 0.5, reaction contribution 0.5, reaction discussion 0.5, comment keep 0.5), so a swap needs measurement first.
+
+**Offline eval** (operator approved the paid run; USD 0.059, 770 calls, 0 errors):
+- **Setup:** 7 models x 2 runs, on stage1's stored data, inside the stage1 worker.
+- **Comments:** 14 posts, 256 comments hand-labelled (208 keep, 48 noise), after the production noise check.
+  - Jev 1.13: accuracy 0.836, drops 31% of the noise.
+  - `baseten/mammoth-1`: accuracy 0.891, drops 65%; its best threshold is still 0.5.
+  - The others: Gemini Decision 1 0.871, Perplexity Decider v1.3 (free) 0.863, Jev 1.14 0.836, GPT-6 Luna Decisions 0.832, Microsoft Decision 1.1 0.809.
+  - Every non-Jev model answered identically across the two runs.
+- **Attribution:** 41 states from 13 hand-labelled posts (9 original, 4 repost).
+  - The other models score reposts far lower than Jev: Mammoth-1 separates best at about 0.12, Perplexity free at 0.07.
+  - Too thin to pick a threshold: only 4 reposts, and the states lack the OCR text, which was never stored.
+  - Reaction assessment was not testable: transcripts are not stored.
+
+**Changes:**
+- **Comment judge:** the content set's comment judge asks `baseten/mammoth-1` (`COMMENT_JUDGE_MODEL`); the threshold stays 0.5.
+- **Attribution:** Jev moves to `typesafe/jev-1.14` (operator). Its thresholds stay as tuned on 1.13 (repost 0.35, handle 0.5, reaction 0.5).
+  - In the eval it raised no false repost at 0.35 and named `@MEGAMEDIADRIVE`, which 1.13 missed.
+  - It also scores reposts lower: jnrksn 0.29, bandungfootballcom 0.30, InFebriyan128 0.12; its best threshold there was 0.30. More reposts may now read as original until the threshold is retuned on the stored states.
+- **Decision records:** each attribution run stores every decision request (model, state, questions) and its raw answers in the media store as `reports/<workflow>/decisions.json`. The file is written only when the run asked something, and a failed write only loses the record.
+  - No report kind, migration or `SourceAttribution` schema change, so an older image still reads the attribution.
+
+**Verification:**
+- `make lint`: exit 0.
+- `make test`: exit 0, 5377 passed, 251 skipped (also after the Jev 1.14 move).
+- Tests went RED first: the model constants (an import error; 1.13 against 1.14), the Jev recording, the stored file and the tolerated failure. The no-request case passed before the change and stays as a guard.
+
+**Delivery (2026-11-28, operator "ya di izinkan"):**
+- Pushed to PR #147 (`58a0ed8d..e8820193`); CI green.
+- Deployed to stage1 from the branch image `e8820193`. The first try stopped on its guard: a workflow was running. A detached script waited for it to finish (about 17 min), then deployed.
+  - **Images:** thoth `c544e593832c`, renderer `ddada3f92624`, web `9eded7988d8a`; pulled digests match the CI publish log.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-e0d3b6c4.env`.
+
+**Next steps (each its own operator gate):**
+1. Live FFI re-run (cost first): check the kept comments, and that `decisions.json` lands.
+2. Once about 20 reposts are stored, rerun the attribution eval on the real states and retune the repost threshold for Jev 1.14 (or choose another model).
+3. Merge PR #147.
+
+## 2026-11-27 - Footage: OCR video credit tracing and commentary precision (PR #147)
+
+**Why** (live run `wf_aea765e4` on PR #147; brainstorm items 118-121; spec and plan `2026-11-27-ocr-video-credit-and-ffi-precision`):
+- About 20 TikTok news clips of the FFI 2026 stage moment were rejected `subtitle`, and the OCR text already read on them was thrown away. A burned-in "Sumber: YouTube ..." credit leads to the clean original.
+- Two generic FFI vlogs (`@wulanguritno81`, `@theidnpageant`) passed the story gate on "FFI" and "2026" alone. They passed Vision on "a person on camera" and filled their query's two slots.
+- The context card dropped Fadli Zon, Siera Tamihardja and "3 jari" between runs.
+- YouTube videos of 3 to 15 minutes skipped `_sections()`.
+
+**Changes:**
+- **OCR:** `analyze_main_ocr(collected_frames=...)` returns each sampled frame's text lines, in box order, from the reads it already makes.
+- **Frame credits** (`frame_credited_source`):
+  - Reads one box, or a credit prefix box joined to the next box in the same frame.
+  - New markers: `Dok:`, `Dok.:`, and `Dok.` before `@` or a platform word. "Dokter" and "Dok. Pribadi" are not credits.
+  - Refuses labels that name no account (`istimewa`, `pribadi`, `dokumentasi`, `arsip`, `internet`, ...), URLs, and a bare uploader `@handle`.
+  - Prefers a YouTube credit across frames.
+- **Live tracing:**
+  - A subtitled or overlaid repost's frame credit is queued inside its check and traced between batches, at most 3 accounts per run.
+  - An account already traced from a caption is not traced again.
+  - Traced originals (`source="ocr_trace"`) and their sections are screened in their own `ocr_trace` queue, so a full query or a full `sections` queue cannot starve them.
+  - The screening progress total grows with them.
+- **Sections:**
+  - YouTube videos past 180 s are cut. A video past 900 s is read before a medium one.
+  - A 180-900 s video with no moment stays pending for a plain clip.
+  - A video already read is never read again.
+- **Commentary cards:**
+  - The card prompt reads the whole transcript for every figure and gesture, and the refine prompt adds the figures, films and gestures the titles repeat.
+  - A query about a discussed figure or the event checks the event's scene, not "a person on camera".
+  - An event match naming nobody needs a topic word (spoken or query word) or three terms.
+
+No migrations; no `MainOcr`, API, OpenAPI, `EditDocumentV2`, dashboard, Remotion or golden changes; `context_model.py` untouched.
+
+**Verification:**
+- `make lint`: exit 0.
+- `make test`: exit 0, 5373 passed, 251 skipped (after the minor fixes).
+- `make dashboard-test`: exit 0, 2033 pass, 0 fail.
+- `make dashboard-build`: exit 0.
+- `graphify update .`: done.
+- The final review was a self-review.
+
+**Finding for review (offline replay of the live `wf_aea765e4` card, read-only, 78 candidates):** the vlog guard moves story passes from 48 to 45.
+- `@theidnpageant` is rejected, as intended.
+- `@MediaCakra` ("Sentilan Keras Siera Tamihardja untuk Fadli Zon di Panggung FFI 2026") and `@besokajanonton` are also rejected, though both are on the story.
+- `@wulanguritno81` still passes, because the live card's spoken word "perjuangan" is in its caption.
+
+The guard works as specified on the plan's card and the `ffi_card` fixture, but a card that misses the discussed figures turns it against the story. Decide before the next deploy.
+
+**Review minors, fixed** (`03bdb21f`, each test-first):
+- A frame credit must start its box; "via" counts only before an `@handle`; a label longer than 5 words or holding a function word ("di", "ada", "dia") is a subtitle line. "kata dia via YouTube kemarin" and "Sumber" + "masalahnya ada di pemerintah" are no longer credits.
+- A lone "via" box is never joined to the next box.
+- The mid-run `_sections()` call reads only the frame-traced originals; long videos the first call skipped stay as they were.
+- Cost: a corner credit whose name holds a function word or runs past 5 words is missed.
+
+**Delivery (2026-11-27, operator "lanjut nextstep di izinkan"):**
+- Pushed to PR #147 (`4aad9cc9..e0d3b6c4`) without a Codex review; CI green (offline quality gates, non-live stack smoke, publish image, CodeQL, dependency review).
+- Deployed to stage1 from the branch image `e0d3b6c4`.
+  - **Images:** thoth `bec1eace81ae`, renderer `cea61adadc2f`, web `20b7f6a06953`; pulled digests match the CI publish log.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-4aad9cc9.env`.
+- The vlog-guard finding above shipped as is.
+
+**Next steps (each its own operator gate):**
+1. A live FFI re-run on the Ernest post, with the cost shown first:
+   - OCR credit tracing (`footage ocr trace`);
+   - the Siera / 3-jari stage clips;
+   - no generic FFI vlogs, and whether `@MediaCakra` / `@besokajanonton` are lost.
+2. Codex review of `4aad9cc9..HEAD`, if wanted before merge.
+3. Merge PR #147.
+
+## 2026-11-27 - Footage sourcing v2: TikTok fallback, credit tracing, multi-hour YouTube cuts
+
+**Why** (live run `wf_af610964`; brainstorm items 111-114; spec and plan `2026-11-27-footage-sourcing-v2`):
+- Only 2 clips were admitted, against a cap of 8.
+- 14 TikTok candidates failed with `TikWmError`, among them both operator references. Three workers hit TikWm at once, a busy answer took 20-30 s, and nothing fell back.
+- Credit tracing stopped as soon as 16 candidates were pending (52 were). It missed Indonesian credit markers, and it looked a channel up only by its handle.
+- Long YouTube cuts used only the exact `id` caption track. Chapters and the Most Replayed heatmap, already in the same metadata, went unused.
+
+**Changes:**
+- **TikWm:**
+  - One request in flight at a time, spaced 1.2 s from the end of the previous one.
+  - One retry after a rate limit; an unavailable CDN is not retried.
+  - The footage call times out after 20 s. Stage 3 acquisition keeps 45 s.
+- **Clip downloader:**
+  - `js_runtimes: {"bun": {}}`, with `yt-dlp-ejs>=0.8.0,<1` added next to `yt-dlp==2026.11.23`.
+  - TikWm failures keep their code (`tikwm_cdn_rate_limited`, `tikwm_cdn_unavailable`).
+  - After a failed TikTok download, or a YouTube `bot_check`/`http_403`/`http_429`, one retry runs through a leased account and proxy:
+    - It is profile-free and honors an `anonymous` policy.
+    - It runs in its own scratch directory, within the clip's 75 s budget. The direct attempt is capped at 40 s, and the retry needs at least 10 s left.
+    - Normal downloads stay direct (`proxy=""`).
+    - The outcome is reported to the account store: `success`, `rate_limited`, `blocked`, or none for a timeout or a missing file.
+    - The retry is logged as `footage download fallback platform=... cause=...`, with no URL.
+- **Credits** (`credited_source`):
+  - Recognized markers: `Sumber YT :`, `Source YT:`, `sc:`, `cr:`, `credit:`, `kredit:`, `yt:`, `yt/`, `YouTube/`, and `via` before `@` or a platform word.
+  - A URL and prose `via` are refused. Handle dots are kept.
+  - A named credit beats an earlier bare `@handle`.
+- **Tracing:**
+  - YouTube credits are still traced on a full queue (at most 3 accounts per run).
+  - When a channel listing gives no new on-story video, one cached YouTube search runs for the channel name, a card person and up to three event words.
+- **Long videos:**
+  - The caption track is chosen by language first: `id`, then `id-*`, `en` and `en-*`, auto captions before uploaded subtitles.
+  - The same metadata call gives the chapters and the heatmap.
+  - A chapter on the story adds 2 to the caption windows it holds, and a replay peak (0.7 or more) places the cut inside a window.
+  - With no window, chapters on the story are cut at their strongest replay peak, or 5 s in. The 8 s section always stays inside the chapter and past the intro.
+  - A chapter cut keeps the long video's visual.
+
+No migrations; no API, OpenAPI, `EditDocumentV2`, Remotion or golden changes.
+
+**Verification:**
+- `make lint` exit 0.
+- `make test` exit 0: 5326 passed, 251 skipped.
+- `make dashboard-test` exit 0: 2033 pass, 0 fail.
+- `make dashboard-build` exit 0.
+- `python/uv.lock`: only `yt-dlp-ejs` 0.8.0 added; `yt-dlp` stays 2026.11.23.
+- The final review was a self-review. It added the fallback log (`e6e5d6bc`).
+
+**Deferred minors:**
+- The leased cookie file sits in a scratch directory under `reports/<workflow>/footage/` (mode 0600, removed with the scratch).
+- A named credit label runs up to 60 characters, so "Sumber: Kompas TV @kompastv" reads as one name.
+- The chapter fallback also runs when captions exist but match no window.
+- A second repost crediting an already-traced channel stays in the queue.
+
+**Next steps (each its own operator gate):**
+1. Push `feat/footage-sourcing-v2` and open its PR.
+2. Once CI is green, deploy the branch image to stage1.
+3. Run a live acceptance test, with the cost shown first:
+   - The official FFI YouTube channel's multi-hour FFI 2026 ceremony video: find the seconds where the award winner's speech mentions Fadli Zon, and cut only that ~8 s window.
+   - A TikTok fallback check: the `footage download fallback` log, and the recovered clips.
+4. Merge after the operator accepts.
+
 ## 2026-11-26 - Commentary context footage and mid-story b-roll cutaways
 
 **Before this branch:**
@@ -61,11 +230,21 @@ All notable changes to this project will be documented in this changelog.
 
 **Found, not fixed:** narrating a styled draft again reorders its `clips` list. The clip contents are identical, and this predates this branch.
 
+**Delivery (2026-11-27):**
+- PR #145 merged (`9c462f49`); this branch pushed as PR #146 (operator "next step di izinkan").
+- CI green; deployed to stage1 from the branch image (operator "lanjutkan ci sudah hijau").
+  - **Images:** thoth `e02605a92726`, renderer `75d491400ef3`, web `fea36de9c1a5`; pulled digests match the CI publish log.
+  - **First `make deploy` failed:** temporal was unhealthy from the known stale DNS search domain (by IP it answered SERVING, by name it hung), so api, worker and web stayed down for a few minutes. Recreating temporal and rerunning `make deploy` fixed it.
+  - **Checks:** no migration (editor 0036); web 200, 0 worker errors, 0 API 5xx, pins match the running images.
+  - **Rollback:** pins backup `pins-840eb1c2.env`.
+- **Live acceptance (2026-11-27, operator "iya" + "langsug saja"):**
+  - Workflow `wf_af610964fe3742b70823ebbc` (`https://www.instagram.com/p/DgFu-6szNpk/`, `@ernestprakasa`): succeeded, `footage_status=ok`. Context card detected `main_kind="commentary"` (preserved across round 2 `refined=true`), Indonesian `event` (`Polemik kritik panggung Piala Citra FFI 2026...`), people `[Ernest Prakasa, Fadli Zon, Irini Dewi Wanti, Siera Tamihardja]`, 69 on-story candidates, 0 `subject_absent`, 2 clean external clips admitted (`youtube/@tribunkaltimofficial` Fadli Zon, `tiktok/@ant9493` DPR 1998 hearing via 2-year window).
+  - Studio draft `edoc_47261fababaf4cd785a87c2e1b7d0a72` (`style_a`, `eleven_v4` 1031 chars, planner `qwen/qwen3.7-flash`, rev 16): `StudioMaterial` carried `caption` and `description`; planner placed 4 mid-story B-roll cutaways during beat `main` (11.67–23.77 s, overriding 3 soundbite phrases on Fadli Zon / 1998 / FFI); all 4 overlapping `b_roll` clips muted (`[{"frame": 0, "volume": 0.0}]`), still cards kept `[]`, standalone `footage` beat kept ducking (`0.12`).
+- **Merged:** PR #146 merged into `master` as `1f77dae9` (operator "ya diizinkan").
+
 **Next steps (each its own operator gate):**
-1. Merge PR #145 first, then push `feat/commentary-context-footage` and open its PR.
-2. Once CI is green, deploy the branch image to stage1.
-3. Run one live commentary test (for example Ernest / FFI 2026), with the cost shown first. Check the card's `main_kind`, the admitted event clips and the mid-story cutaways.
-4. Merge after the operator accepts.
+1. Follow-up brainstorming & spec on `feat/footage-sourcing-v2` (operator research request 2026-11-27): resilient TikTok downloader (`TikWmError` pacing/retry + proxy/headless fallback), Credit-to-YouTube tracing fixes (lift `kept >= 16` stop for YouTube credits, broader credit markers + YouTube search fallback), and multi-hour YouTube surgical cutting (`js_runtimes: {"bun": {}}` in `downloader.py`, `id*` caption fallback, `chapters` + `heatmap` scoring in `moments.py`).
+2. Clean up parked local branch `feat/commentary-context-footage` once no longer needed; keep docs-only commits riding on `feat/footage-sourcing-v2`.
 
 ## 2026-11-26 - Python majors: openai 3, scrapling 0.5, sherpa-onnx 2
 

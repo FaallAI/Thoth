@@ -547,6 +547,86 @@ async def test_a_failed_original_push_stores_no_original_report(
     assert report_store.get(f"reports/{WORKFLOW}-c1/source-report.json") is None
 
 
+class Asking(FakeAttributor):
+    """Records one decision request the way the Jev adapter does during a run."""
+
+    async def identify(self, workflow_id, report, video):
+        from thoth_control_plane.attribution.adapters.jev import RECORDED
+
+        recorded = RECORDED.get()
+        assert recorded is not None
+        recorded.append({"request": {"state": {"caption": "x"}}, "answers": {"a": 1}})
+        return await super().identify(workflow_id, report, video)
+
+
+@pytest.mark.asyncio
+async def test_the_decision_requests_are_stored_next_to_the_attribution(
+    tmp_path: Path, report_store
+) -> None:
+    store_root, store = _media_store(tmp_path)
+    _persist(store_root, report_store, _report())
+
+    result = await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        Asking(_replaced(_report(f"{WORKFLOW}-c1"))),
+        report_store,
+        media=store,
+    )
+
+    assert result.verdict == "replaced"
+    stored = json.loads((store_root / "reports" / WORKFLOW / "decisions.json").read_text("utf-8"))
+    assert stored == [{"request": {"state": {"caption": "x"}}, "answers": {"a": 1}}]
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_asks_nothing_stores_no_decisions(tmp_path: Path, report_store) -> None:
+    store_root, store = _media_store(tmp_path)
+    _persist(store_root, report_store, _report())
+
+    await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        FakeAttributor(_replaced(_report(f"{WORKFLOW}-c1"))),
+        report_store,
+        media=store,
+    )
+
+    assert not (store_root / "reports" / WORKFLOW / "decisions.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_decisions_push_leaves_the_attribution_standing(
+    tmp_path: Path, report_store, caplog: pytest.LogCaptureFixture
+) -> None:
+    from thoth_control_plane.infrastructure.media_store import (
+        LocalMediaStore,
+        MediaStoreUnavailable,
+    )
+
+    class DecisionsDown(LocalMediaStore):
+        def put_file(self, location: str, path: Path) -> None:
+            if location.endswith("/decisions.json"):
+                raise MediaStoreUnavailable("media_store_unavailable")
+            super().put_file(location, path)
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    _persist(store_root, report_store, _report())
+
+    result = await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        Asking(_replaced(_report(f"{WORKFLOW}-c1"))),
+        report_store,
+        media=DecisionsDown(store_root),
+    )
+
+    assert result.verdict == "replaced" and result.attribution is not None
+    assert report_store.get(f"reports/{WORKFLOW}-c1/source-report.json") is not None
+    assert "decision requests not stored" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_without_a_running_attribution_the_acquirer_has_no_root(tmp_path: Path) -> None:
     async def runner(*_: Any) -> AcquisitionResult:

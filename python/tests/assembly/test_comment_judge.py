@@ -11,7 +11,11 @@ import pytest
 
 from tests.assembly.support import comment, report
 from tests.assembly.test_service import build
-from thoth_control_plane.assembly.adapters.comment_judge import CRITERIA, JevCommentJudge
+from thoth_control_plane.assembly.adapters.comment_judge import (
+    COMMENT_JUDGE_MODEL,
+    CRITERIA,
+    JevCommentJudge,
+)
 from thoth_control_plane.assembly.comment_judge import (
     KEEP_THRESHOLD,
     MAX_CANDIDATES,
@@ -19,7 +23,7 @@ from thoth_control_plane.assembly.comment_judge import (
     judged,
 )
 from thoth_control_plane.assembly.comments import merge_comments
-from thoth_control_plane.attribution.adapters.jev import JEV_MODEL, JEV_URL
+from thoth_control_plane.attribution.adapters.jev import JEV_URL
 
 RELEVANT = "Udara di Palangkaraya makin parah karena kebakaran lahan"
 OFF_TOPIC = "Promo pulsa murah hubungi nomor ini sekarang juga"
@@ -116,7 +120,10 @@ async def test_jev_gets_one_noul_question_per_comment_over_one_state() -> None:
     assert await judge.keep_probabilities("post", "headline", ["one", "two"]) == [0.8, 0.1]
 
     body = sent[0]
-    assert body["model"] == JEV_MODEL
+    assert body["model"] == COMMENT_JUDGE_MODEL
+    # Operator, 2026-11-28: Mammoth-1 kept 65% of the noise out of 256 Indonesian comments
+    # (Jev 1.13: 31%) with the best threshold still at 0.5.
+    assert COMMENT_JUDGE_MODEL == "baseten/mammoth-1"
     assert body["state"]["comments"] == {"c0": "one", "c1": "two"}
     assert set(body["questions"]) == {"c0", "c1"}
     assert all(

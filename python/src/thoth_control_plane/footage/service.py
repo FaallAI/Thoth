@@ -102,6 +102,7 @@ from thoth_control_plane.footage.moments import (
     SECTION_SECONDS,
     CaptionPort,
     Discussion,
+    LongVideoHints,
     parse_json3,
     pick_discussions,
     section,
@@ -125,7 +126,12 @@ from thoth_control_plane.footage.recording import (
     text_share,
     triggered,
 )
-from thoth_control_plane.footage.reposts import credited_account, is_own_account
+from thoth_control_plane.footage.reposts import (
+    CreditRef,
+    credited_source,
+    frame_credited_source,
+    is_own_account,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +171,17 @@ LIBRARY = "library"  # the query library clips are counted under
 # Long-video sections have a quota of their own: under their parent's query, the search clips
 # that query found filled it first and the discussion was never screened (live wf_a91d3f0f).
 SECTIONS = "sections"
+# A YouTube video past 3 minutes is cut at its moments; one past MAX_SECONDS has no plain clip
+# (spec 2026-11-27 ocr video credit, 3.5).
+LONG_SECTION_SECONDS = 180.0
+# Credits burned into rejected subtitled reposts (spec 2026-11-27 ocr video credit, 3.3): a few
+# accounts per run, whose originals and sections get a queue and a quota of their own.
+MAX_OCR_TRACES = 3
+OCR_TRACED = "ocr_trace"
+MAX_TRACE_QUERY = 80
 MAX_TRACE_LISTINGS = 3  # creator listings are browser work; a run traces few accounts
 COPY_SHARES = (0.2, 0.5, 0.8)  # the frames a copy is first tried on, and read for text
-ORIGINAL_SOURCES = ("creator", "trace")
+ORIGINAL_SOURCES = ("creator", "trace", OCR_TRACED)
 
 T = TypeVar("T")
 
@@ -213,6 +227,13 @@ class _Build:
     recordings: dict[str, _Recording] = field(default_factory=dict)
     displaced: list[str] = field(default_factory=list)
     copy_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Spec 2026-11-27 ocr video credit, 3.3 and 3.5: the accounts traced (from captions or
+    # frames), the frame credits waiting for the next batch, how many accounts frames traced,
+    # and the long videos whose captions were read.
+    traced_keys: set[tuple[str, str]] = field(default_factory=set)
+    ocr_credits: list[tuple[CandidateView, CreditRef]] = field(default_factory=list)
+    ocr_traced_count: int = 0
+    sectioned: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -335,8 +356,13 @@ def relation_of(answer: FootageAnswer, asked: bool) -> Relation:
 
 
 def quota_key(candidate: CandidateView) -> str:
-    """The queue a candidate is screened and counted under."""
-    return SECTIONS if candidate.source == "section" else candidate.query
+    """The queue a candidate is screened and counted under: a section and a frame-traced clip
+    each have their own, and a section of a frame-traced video stays with it."""
+    if candidate.source == "section":
+        return OCR_TRACED if candidate.query == OCR_TRACED else SECTIONS
+    if candidate.source == OCR_TRACED:
+        return OCR_TRACED
+    return candidate.query
 
 
 def select_batch(
@@ -378,6 +404,25 @@ def _when(value: str | None) -> datetime | None:
 def _sha256(path: Path) -> str:
     with path.open("rb") as handle:
         return "sha256:" + hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def trace_query(display: str, card: ContextCard) -> str:
+    """A YouTube search for a credited channel (spec 2026-11-27, 4.2): its name, the card person
+    the video is about, and up to three event words in the event's order, at most 80 characters."""
+    people = card.people[1:] if card.main_kind == "commentary" else card.people[:1]
+    named = {word for name in card_names(card) for word in name.split()}
+    terms = set(event_terms(card)) - named
+    words = dict.fromkeys(
+        word
+        for word in (token.strip(".,;:!?()\"'").lower() for token in card.event.split())
+        if word in terms
+    )
+    parts = [display.strip(), *(person.name for person in people[:1]), *list(words)[:3]]
+    query = ""
+    for part in parts:
+        if part and len(f"{query} {part}".strip()) <= MAX_TRACE_QUERY:
+            query = f"{query} {part}".strip()
+    return query
 
 
 class FootageBuilder:
@@ -552,8 +597,8 @@ class FootageBuilder:
             if current is not None and current.context:
                 card = ContextCard.model_validate(current.context)
                 state.card = card
-            await self._trace(workflow, main, identity, card)
-            await self._sections(workflow, card)
+            await self._trace(workflow, main, identity, card, state)
+            await self._sections(workflow, card, state.sectioned)
             objects = current.objects if current is not None else objects
         if state.over:  # likewise an embedder
             raise asyncio.CancelledError
@@ -561,7 +606,7 @@ class FootageBuilder:
         queries = [obj.query for obj in objects]
         if creators:
             queries.append(creator_query(main.post.owner_handle))
-        return await self._check_all(inputs, main, started, state, queries, {}, people)
+        return await self._check_all(inputs, main, started, state, queries, {}, people, identity)
 
     async def _creator(
         self,
@@ -784,71 +829,56 @@ class FootageBuilder:
         logger.info("footage context round two queries=%d", len(objects))
 
     async def _trace(
-        self, workflow: str, main: SourceReport, identity: MainIdentity, card: ContextCard
+        self,
+        workflow: str,
+        main: SourceReport,
+        identity: MainIdentity,
+        card: ContextCard,
+        state: _Build | None = None,
     ) -> None:
         """A repost that credits another account is replaced by that account's original, when
-        its listing holds one on the story (spec 2026-11-15, 4.5)."""
+        its listing holds one on the story (spec 2026-11-15, 4.5). The accounts listed join
+        `state.traced_keys`, so a frame credit never lists them again."""
         if self._ports.creator is None:
             return
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         known = {c.url for c in candidates}
         kept = sum(1 for c in candidates if c.status in ("admitted", "pending"))
-        if kept >= MAX_FOOTAGE * 2:  # plenty to screen already
-            return
+        # Plenty to screen already: only a YouTube original still earns a trace, since a long
+        # video is cut at its moments and a repost is often subtitled (spec 2026-11-27, 4.2).
+        full = kept >= MAX_FOOTAGE * 2
         listings: dict[tuple[str, str], list[DiscoveredVideo]] = {}
+        searched: set[tuple[str, str]] = set()
         for c in candidates:
             if c.status != "pending" or c.source != "search" or c.media_kind != "video":
                 continue
-            if is_own_account(c.owner_handle, card):  # an own clip tagging someone is the original
+            ref = credited_source(c.caption)
+            if ref is None or normalize(ref.account) == normalize(c.owner_handle):
                 continue
-            credited = credited_account(c.caption)
-            if not credited or normalize(credited) == normalize(c.owner_handle):
+            # An own clip tagging someone is the original, unless it names the source platform.
+            if ref.platform is None and is_own_account(c.owner_handle, card):
                 continue
-            platform = "youtube" if "youtube" in c.caption.lower() else c.platform
-            if platform not in CREATOR_PLATFORMS:
+            platform = ref.platform or ("youtube" if "youtube" in c.caption.lower() else c.platform)
+            if platform not in CREATOR_PLATFORMS or (full and platform != "youtube"):
                 continue
-            key = (platform, normalize(credited))
+            key = (platform, normalize(ref.account))
             if key not in listings and len(listings) >= MAX_TRACE_LISTINGS:
                 continue
             if key not in listings:
-                try:
-                    listing = await self._ports.creator.listing_of(
-                        platform, credited, CREATOR_LISTING
-                    )
-                except ToolMissing:
-                    raise
-                except Exception as error:
-                    logger.warning("footage trace listing failed error=%s", type(error).__name__)
-                    listing = None
-                listings[key] = list(listing.videos) if listing else []
-            rows: list[NewCandidate] = []
-            for video in listings[key]:
-                url = str(video.canonical_url)
-                if url in known:
-                    continue
-                reason = text_gate(
-                    url, video, identity, self._aggregators, long_ok=platform == "youtube"
-                )
-                text = f"{video.caption} {video.owner_handle}"
-                if reason is None and self._off_story(text, video.published_at, main, card):
-                    continue
-                known.add(url)
-                rows.append(
-                    NewCandidate(
-                        url=url,
-                        platform=platform,
-                        source="trace",
-                        query=c.query,
-                        visual=c.visual,
-                        owner_handle=video.owner_handle,
-                        caption=video.caption[:2000],
-                        published_at=video.published_at,
-                        engagement=dict(video.engagement),
-                        source_duration=video.duration_seconds,
-                        status="rejected" if reason else "pending",
-                        reason=reason,
-                    )
-                )
+                listings[key] = await self._trace_listing(platform, ref.account)
+                if state is not None:
+                    state.traced_keys.add(key)
+            rows = self._trace_rows(c, platform, listings[key], known, identity, main, card)
+            if (
+                platform == "youtube"
+                and key not in searched
+                and not any(row.status == "pending" for row in rows)
+            ):
+                # A channel name is rarely its handle: one targeted search instead.
+                searched.add(key)
+                found = await self._trace_search(trace_query(ref.display, card))
+                listings[key] = [*listings[key], *found]
+                rows += self._trace_rows(c, platform, found, known, identity, main, card)
             if not rows:
                 continue
             await asyncio.to_thread(self._store.add_candidates, workflow, rows)
@@ -859,24 +889,125 @@ class FootageBuilder:
                 await asyncio.to_thread(self._store.reject, workflow, c.url, "repost")
         logger.info("footage trace credited_accounts=%d", len(listings))
 
-    async def _sections(self, workflow: str, card: ContextCard) -> None:
-        """A long video is cut at the caption lines naming a card person; the video itself is
-        rejected `duration`, and nothing is downloaded when no line names one."""
+    def _trace_rows(
+        self,
+        repost: CandidateView,
+        platform: str,
+        videos: Sequence[DiscoveredVideo],
+        known: set[str],
+        identity: MainIdentity,
+        main: SourceReport,
+        card: ContextCard,
+        *,
+        source: str = "trace",
+        query: str | None = None,
+    ) -> list[NewCandidate]:
+        """The new candidates a credited account offers: gate rejections kept, off-story
+        videos dropped; `known` grows with each. They take the repost's query unless given
+        one."""
+        rows: list[NewCandidate] = []
+        for video in videos:
+            url = str(video.canonical_url)
+            if url in known:
+                continue
+            reason = text_gate(
+                url, video, identity, self._aggregators, long_ok=platform == "youtube"
+            )
+            text = f"{video.caption} {video.owner_handle}"
+            if reason is None and self._off_story(text, video.published_at, main, card):
+                continue
+            known.add(url)
+            rows.append(
+                NewCandidate(
+                    url=url,
+                    platform=platform,
+                    source=source,
+                    query=query or repost.query,
+                    visual=repost.visual,
+                    owner_handle=video.owner_handle,
+                    caption=video.caption[:2000],
+                    published_at=video.published_at,
+                    engagement=dict(video.engagement),
+                    source_duration=video.duration_seconds,
+                    status="rejected" if reason else "pending",
+                    reason=reason,
+                )
+            )
+        return rows
+
+    async def _trace_listing(self, platform: str, account: str) -> list[DiscoveredVideo]:
+        assert self._ports.creator is not None
+        try:
+            listing = await self._ports.creator.listing_of(platform, account, CREATOR_LISTING)
+        except ToolMissing:
+            raise
+        except Exception as error:
+            logger.warning("footage trace listing failed error=%s", type(error).__name__)
+            return []
+        return list(listing.videos) if listing else []
+
+    async def _trace_search(self, query: str) -> list[DiscoveredVideo]:
+        """One YouTube search for a credited channel, cached like every footage search."""
+        cached = await asyncio.to_thread(self._store.cached_search, "youtube", query)
+        if cached is not None:
+            return list(cached)
+        try:
+            batch = await self._ports.search.search("youtube", [query], RESULTS_PER_QUERY)
+        except ToolMissing:
+            raise
+        except Exception as error:
+            logger.warning("footage trace search failed error=%s", type(error).__name__)
+            return []
+        if query not in batch.found:
+            return []
+        videos = list(batch.found[query])
+        await asyncio.to_thread(self._store.save_search, "youtube", query, videos)
+        return videos
+
+    async def _sections(
+        self,
+        workflow: str,
+        card: ContextCard,
+        sectioned: set[str] | None = None,
+        only: set[str] | None = None,
+    ) -> None:
+        """A YouTube video past 3 minutes is cut at the caption lines naming a card person, and
+        is then rejected `duration`. One past MAX_SECONDS is rejected even with no moment, so
+        nothing is downloaded; a shorter one with no moment stays pending for a plain clip.
+        `sectioned` holds the videos already read, so a second call reads only new ones; `only`
+        limits a call to the given videos (spec 2026-11-27 ocr video credit, 3.5)."""
+        already = sectioned if sectioned is not None else set()
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         known = {c.url for c in candidates}
         handled = 0
-        # Own accounts and traced originals first: the caption fetches are capped.
-        for c in sorted(candidates, key=lambda c: -(c.story_score or 0.0)):
-            long = (c.source_duration or 0.0) > MAX_SECONDS and SECTION_MARK not in c.url
-            if c.status != "pending" or c.platform != "youtube" or not long:
-                continue
+        eligible = [
+            c
+            for c in candidates
+            if c.status == "pending"
+            and c.platform == "youtube"
+            and (c.source_duration or 0.0) > LONG_SECTION_SECONDS
+            and SECTION_MARK not in c.url
+            and c.url not in already
+            and (only is None or c.url in only)
+        ]
+        # Own accounts and traced originals first, then a video past MAX_SECONDS before a medium
+        # one (it has no plain clip): the caption fetches are capped.
+        for c in sorted(
+            eligible,
+            key=lambda c: (-(c.story_score or 0.0), (c.source_duration or 0.0) <= MAX_SECONDS),
+        ):
             found: list[Discussion] = []
             if self._ports.captions_text is not None and handled < MAX_LONG_VIDEOS:
                 if handled:
                     await asyncio.sleep(self._caption_spacing)
                 handled += 1
-                data = await self._ports.captions_text.captions(c.url, CAPTION_LANGUAGE)
-                if data:
+                already.add(c.url)
+                port = self._ports.captions_text
+                if hasattr(port, "hints"):  # chapters and heatmap from the same metadata call
+                    hints = await port.hints(c.url, CAPTION_LANGUAGE)
+                else:
+                    hints = LongVideoHints(await port.captions(c.url, CAPTION_LANGUAGE))
+                if hints.captions or hints.chapters:
                     subject = subject_names(card)
                     others = [name for name in card_names(card) if name not in subject]
                     # A name is never a discussion word: "Denny" from the event is a person.
@@ -887,14 +1018,24 @@ class FootageBuilder:
                         subject, others = [], card_names(card)
                         terms |= related_terms(card)
                     words = [*card.spoken, *sorted(t for t in terms if t not in named)]
-                    found = pick_discussions(parse_json3(data), subject, others, words)
+                    lines = parse_json3(hints.captions) if hints.captions else []
+                    found = pick_discussions(
+                        lines,
+                        subject,
+                        others,
+                        words,
+                        chapters=hints.chapters,
+                        heatmap=hints.heatmap,
+                    )
             rows = [
                 NewCandidate(
                     url=f"{c.url}{SECTION_MARK}{discussion.moment:.1f}",
                     platform=c.platform,
                     source="section",
                     query=c.query,
-                    visual=PERSON_VISUAL,  # a person talking, named nowhere (spec 10.12)
+                    # A person talking, named nowhere (spec 10.12); a chapter cut has no words
+                    # said, so it shows what the long video was searched for.
+                    visual=PERSON_VISUAL if discussion.said else (c.visual or PERSON_VISUAL),
                     owner_handle=c.owner_handle,
                     caption=c.caption,
                     published_at=c.published_at,
@@ -911,8 +1052,100 @@ class FootageBuilder:
                     await asyncio.to_thread(
                         self._store.score, workflow, row.url, c.story_score or PASS_SCORE
                     )
-            await asyncio.to_thread(self._store.reject, workflow, c.url, "duration")
+            if rows or (c.source_duration or 0.0) > MAX_SECONDS:
+                await asyncio.to_thread(self._store.reject, workflow, c.url, "duration")
             logger.info("footage long video sections=%d", len(rows))
+
+    async def _trace_ocr_credits(
+        self,
+        workflow: str,
+        main: SourceReport,
+        identity: MainIdentity,
+        state: _Build,
+        queues: dict[str, list[CandidateView]],
+        queued: set[str],
+    ) -> int:
+        """The credits burned into rejected subtitled reposts (spec 2026-11-27 ocr video
+        credit, 3.3): up to MAX_OCR_TRACES accounts per run are traced like a caption credit,
+        a long original is cut, and the new pending clips join the screening at the head of
+        their queue. Returns how many joined."""
+        credits = sorted(state.ocr_credits, key=lambda item: item[1].platform != "youtube")
+        state.ocr_credits.clear()
+        card = state.card
+        if card is None or self._ports.creator is None:
+            return 0
+        known = {c.url for c in await asyncio.to_thread(self._store.candidates, workflow)}
+        traced = 0
+        long_originals: set[str] = set()
+        for repost, ref in credits:
+            if state.ocr_traced_count >= MAX_OCR_TRACES:
+                break
+            account = normalize(ref.account)
+            platform = ref.platform or (
+                "youtube" if "youtube" in ref.display.lower() else repost.platform
+            )
+            key = (platform, account)
+            if (
+                platform not in CREATOR_PLATFORMS
+                or account == normalize(repost.owner_handle)
+                or key in state.traced_keys
+            ):
+                continue
+            state.traced_keys.add(key)
+            state.ocr_traced_count += 1
+            traced += 1
+            listing = await self._trace_listing(platform, ref.account)
+            rows = self._trace_rows(
+                repost,
+                platform,
+                listing,
+                known,
+                identity,
+                main,
+                card,
+                source=OCR_TRACED,
+                query=OCR_TRACED,
+            )
+            if platform == "youtube" and not any(row.status == "pending" for row in rows):
+                found = await self._trace_search(trace_query(ref.display, card))
+                rows += self._trace_rows(
+                    repost,
+                    platform,
+                    found,
+                    known,
+                    identity,
+                    main,
+                    card,
+                    source=OCR_TRACED,
+                    query=OCR_TRACED,
+                )
+            if not rows:
+                continue
+            await asyncio.to_thread(self._store.add_candidates, workflow, rows)
+            for row in rows:
+                if row.status != "pending":
+                    continue
+                await asyncio.to_thread(self._store.score, workflow, row.url, OWN_SCORE)
+                if platform == "youtube" and (row.source_duration or 0.0) > LONG_SECTION_SECONDS:
+                    long_originals.add(row.url)
+        if long_originals:
+            # Only these originals: the long videos the first call left unread stay as they are.
+            await self._sections(workflow, card, state.sectioned, long_originals)
+        candidates = await asyncio.to_thread(self._store.candidates, workflow)
+        # A medium video cut just now is no longer pending: it leaves its queue.
+        open_now = {c.url for c in candidates if c.status == "pending"}
+        for queue in queues.values():
+            queue[:] = [c for c in queue if c.url in open_now]
+        joined = [
+            c
+            for c in candidates
+            if c.status == "pending" and c.media_kind == "video" and c.url not in queued
+        ]
+        for c in sorted(joined, key=lambda c: c.story_score or 0.0):
+            queues.setdefault(quota_key(c), []).insert(0, c)
+        queued.update(c.url for c in joined)
+        logger.info("footage ocr trace credits=%d added=%d", traced, len(joined))
+        return len(joined)
 
     async def _scores(self, main: SourceReport, texts: list[str]) -> list[float]:
         if not texts:
@@ -1132,6 +1365,7 @@ class FootageBuilder:
         queries: list[str],
         carousel: dict[str, PurePosixPath],
         people: frozenset[str] = frozenset(),
+        identity: MainIdentity | None = None,
     ) -> FootageResult:
         state.phase = "checks"
         workflow, root = inputs.workflow_id, inputs.artifact_root
@@ -1152,8 +1386,10 @@ class FootageBuilder:
                 (c for c in pending if quota_key(c) == query),
                 key=lambda c: -(c.story_score or 0.0),
             )
-            for query in [*queries, SECTIONS]
+            for query in [*queries, SECTIONS, OCR_TRACED]
         }
+        queued = {c.url for c in pending}
+        total_pending = len(pending)  # grows when frame credits bring originals mid-run
         per_query = MAX_FOOTAGE if carousel else PER_QUERY
         total = sum(admitted.values())
         screened = 0
@@ -1180,11 +1416,20 @@ class FootageBuilder:
                     admitted[quota_key(candidate)] += 1
                     total += 1
                 screened += 1
-                await progress.step("footage.screen_clips", n=screened, total=len(pending))
+                await progress.step("footage.screen_clips", n=screened, total=total_pending)
             for query in state.displaced:  # a cleaner copy took its place (spec 9.4)
                 admitted[query] -= 1
                 total -= 1
             state.displaced.clear()
+            if (
+                state.ocr_credits
+                and identity is not None
+                and total < MAX_FOOTAGE
+                and time.monotonic() - started < self._deadline
+            ):
+                total_pending += await self._trace_ocr_credits(
+                    workflow, main, identity, state, queues, queued
+                )
         photos = await asyncio.to_thread(self._store.admitted, workflow, "image")
         status: FootageStatus = "ok" if total or photos else "none"
         if inputs.publish is not None:
@@ -1272,6 +1517,11 @@ class FootageBuilder:
                 )
         try:
             steps[candidate.url] = "ocr"
+            # The text already read on each frame, for a burned-in credit (spec 2026-11-27 ocr
+            # video credit, 3.3); a carousel slide is the main's own.
+            ocr_frames: list[list[str]] | None = (
+                [] if state.card is not None and candidate.source != "carousel" else None
+            )
             ocr = await analyze_main_ocr(
                 path,
                 None,
@@ -1284,9 +1534,14 @@ class FootageBuilder:
                 tracker=self._ports.tracker,
                 judge=self._ports.captions,
                 follow=False,  # a captioned candidate is rejected; it needs no windows
+                collected_frames=ocr_frames,
             )
             # An overlay band is rejected too: the renderer blurs bands on the main only.
             if ocr.outcome in ("subtitle", "overlay"):
+                # Its credit is traced between batches: no network inside the check's budget.
+                ref = frame_credited_source(ocr_frames) if ocr_frames else None
+                if ref is not None and normalize(ref.account) != normalize(candidate.owner_handle):
+                    state.ocr_credits.append((candidate, ref))
                 return await self._reject(
                     workflow, root, candidate, location, owned, "subtitle", state
                 )

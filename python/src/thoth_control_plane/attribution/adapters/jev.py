@@ -8,6 +8,7 @@ handles the evidence contains, so the answer cannot invent an account.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import logging
 from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Any, TypeVar, get_args
@@ -22,7 +23,9 @@ logger = logging.getLogger(__name__)
 # OpenRouter only for now (operator, 2026-10-08); the request and answer shapes are
 # the same as TypeSafe's own API.
 JEV_URL = "https://openrouter.ai/api/alpha/decisions"
-JEV_MODEL = "typesafe/jev-1.13"
+# Operator, 2026-11-28: 1.14 (offline eval: repost AUC 0.93 against 1.13's 0.79, no false
+# repost at 0.35, and it named the credited handle 1.13 missed).
+JEV_MODEL = "typesafe/jev-1.14"
 TIMEOUT_SECONDS = 10.0
 ATTEMPTS = 2
 NONE_OPTION = "none"
@@ -65,6 +68,11 @@ DISCUSSES_CREATOR = (
 )
 PLATFORMS: frozenset[str] = frozenset(get_args(Platform))
 T = TypeVar("T")
+# Each answered request and its raw answers while an attribution run records them (operator,
+# 2026-11-28): the stored states let another decision model be compared and its thresholds tuned.
+RECORDED: contextvars.ContextVar[list[dict[str, Any]] | None] = contextvars.ContextVar(
+    "jev_recorded", default=None
+)
 
 
 class JevDecisionModel:
@@ -124,7 +132,12 @@ class JevDecisionModel:
                         timeout=TIMEOUT_SECONDS,
                     )
                 response.raise_for_status()
-                return parse(response.json()["answers"])
+                answers = response.json()["answers"]
+                parsed = parse(answers)
+                recorded = RECORDED.get()
+                if recorded is not None:
+                    recorded.append({"request": body, "answers": answers})
+                return parsed
             except (httpx.HTTPError, ValueError, KeyError, TypeError):
                 if attempt + 1 == ATTEMPTS:
                     logger.warning("jev decision unavailable after retry; attribution stops")
