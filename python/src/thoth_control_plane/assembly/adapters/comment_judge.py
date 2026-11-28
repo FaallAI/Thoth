@@ -1,4 +1,5 @@
-"""The comment judge on TypeSafe Jev through OpenRouter's Decisions API (spec 2026-10-24, D2).
+"""The comment judge on OpenRouter's Decisions API (spec 2026-10-24, D2), on Mammoth-1 since
+2026-11-28.
 
 One call per content set: the post and the comments are the state, and every comment gets its
 own `noul` question, answered in parallel. Unlike attribution, a missing answer is not an error
@@ -14,10 +15,14 @@ from typing import Any
 import httpx
 
 from thoth_control_plane import metering
-from thoth_control_plane.attribution.adapters.jev import ATTEMPTS, JEV_MODEL, JEV_URL
+from thoth_control_plane.attribution.adapters.jev import ATTEMPTS, JEV_URL
 
 logger = logging.getLogger(__name__)
 
+# Operator, 2026-11-28 (offline eval of 7 decision models on 256 hand-labelled Indonesian
+# comments): Jev 1.13 let 69% of the noise through; Mammoth-1 dropped 65% of it, and its best
+# threshold was still KEEP_THRESHOLD (0.5).
+COMMENT_JUDGE_MODEL = "baseten/mammoth-1"
 TIMEOUT_SECONDS = 15.0
 QUESTION = (
     "Is comment {key} in the state relevant to the post's topic, and does it say something: "
@@ -42,7 +47,7 @@ class JevCommentJudge:
     ) -> list[float] | None:
         keys = [f"c{index}" for index in range(len(comments))]
         body = {
-            "model": JEV_MODEL,
+            "model": COMMENT_JUDGE_MODEL,
             "state": {
                 "post": post[:1_500],
                 "headline": headline[:300],
@@ -66,7 +71,7 @@ class JevCommentJudge:
                 continue
             usage = payload.get("usage") or {}
             await metering.record_call(
-                JEV_MODEL,
+                COMMENT_JUDGE_MODEL,
                 tokens_in=usage.get("input_tokens"),
                 tokens_out=usage.get("output_tokens"),
             )
