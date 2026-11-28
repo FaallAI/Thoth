@@ -19,14 +19,17 @@ All notable changes to this project will be documented in this changelog.
   - Reaction assessment was not testable: transcripts are not stored.
 
 **Changes:**
-- **Comment judge:** the content set's comment judge asks `baseten/mammoth-1` (`COMMENT_JUDGE_MODEL`); the threshold stays 0.5. Attribution keeps Jev 1.13.
+- **Comment judge:** the content set's comment judge asks `baseten/mammoth-1` (`COMMENT_JUDGE_MODEL`); the threshold stays 0.5.
+- **Attribution:** Jev moves to `typesafe/jev-1.14` (operator). Its thresholds stay as tuned on 1.13 (repost 0.35, handle 0.5, reaction 0.5).
+  - In the eval it raised no false repost at 0.35 and named `@MEGAMEDIADRIVE`, which 1.13 missed.
+  - It also scores reposts lower: jnrksn 0.29, bandungfootballcom 0.30, InFebriyan128 0.12; its best threshold there was 0.30. More reposts may now read as original until the threshold is retuned on the stored states.
 - **Decision records:** each attribution run stores every decision request (model, state, questions) and its raw answers in the media store as `reports/<workflow>/decisions.json`. The file is written only when the run asked something, and a failed write only loses the record.
   - No report kind, migration or `SourceAttribution` schema change, so an older image still reads the attribution.
 
 **Verification:**
 - `make lint`: exit 0.
-- `make test`: exit 0, 5377 passed, 251 skipped.
-- Tests went RED first: the model constant (an import error), the Jev recording, the stored file and the tolerated failure. The no-request case passed before the change and stays as a guard.
+- `make test`: exit 0, 5377 passed, 251 skipped (also after the Jev 1.14 move).
+- Tests went RED first: the model constants (an import error; 1.13 against 1.14), the Jev recording, the stored file and the tolerated failure. The no-request case passed before the change and stays as a guard.
 
 **Next steps (each its own operator gate):**
 1. Push to PR #147 and wait for CI.
