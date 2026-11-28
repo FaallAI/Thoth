@@ -8,6 +8,7 @@ handles the evidence contains, so the answer cannot invent an account.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import logging
 from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Any, TypeVar, get_args
@@ -65,6 +66,11 @@ DISCUSSES_CREATOR = (
 )
 PLATFORMS: frozenset[str] = frozenset(get_args(Platform))
 T = TypeVar("T")
+# Each answered request and its raw answers while an attribution run records them (operator,
+# 2026-11-28): the stored states let another decision model be compared and its thresholds tuned.
+RECORDED: contextvars.ContextVar[list[dict[str, Any]] | None] = contextvars.ContextVar(
+    "jev_recorded", default=None
+)
 
 
 class JevDecisionModel:
@@ -124,7 +130,12 @@ class JevDecisionModel:
                         timeout=TIMEOUT_SECONDS,
                     )
                 response.raise_for_status()
-                return parse(response.json()["answers"])
+                answers = response.json()["answers"]
+                parsed = parse(answers)
+                recorded = RECORDED.get()
+                if recorded is not None:
+                    recorded.append({"request": body, "answers": answers})
+                return parsed
             except (httpx.HTTPError, ValueError, KeyError, TypeError):
                 if attempt + 1 == ATTEMPTS:
                     logger.warning("jev decision unavailable after retry; attribution stops")

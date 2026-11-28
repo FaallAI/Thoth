@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import json
 import logging
 import re
 import shutil
@@ -19,7 +20,7 @@ import time
 from collections.abc import Awaitable, Callable
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import Field
 from temporalio import activity
@@ -41,7 +42,7 @@ from thoth_control_plane.attribution.adapters.frames import (
     FfmpegFrameSource,
     FfmpegSceneDetector,
 )
-from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
+from thoth_control_plane.attribution.adapters.jev import RECORDED, JevDecisionModel
 from thoth_control_plane.attribution.adapters.motion import PillowMotion
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
 from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, WhisperTranscriber
@@ -73,6 +74,9 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 30.0
 ATTRIBUTION_FILE = "source-attribution.json"
 REPORT_FILE = "source-report.json"
+# Every decision request of the run, beside the report, in the media store: no report kind or
+# schema change, so an older image still reads the attribution (operator, 2026-11-28).
+DECISIONS_FILE = "decisions.json"
 Verdict = Literal["original", "replaced", "unresolved"]
 #: The running attribution's scratch root: candidates are acquired below it (spec 2026-10-17).
 ACQUISITION_ROOT: contextvars.ContextVar[Path] = contextvars.ContextVar("attribution_root")
@@ -191,6 +195,22 @@ def _event(
     )
 
 
+async def _store_decisions(
+    scratch: MediaScratch, folder: PurePosixPath, asked: list[dict[str, Any]]
+) -> None:
+    """The run's decision requests and answers; a failure only loses the record."""
+    if not asked:
+        return
+    location = (folder / DECISIONS_FILE).as_posix()
+    path = scratch.root / location
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(asked, ensure_ascii=False), encoding="utf-8")
+        await scratch.push([location])
+    except Exception:
+        logger.warning("decision requests not stored; the attribution stands")
+
+
 async def _heartbeat() -> None:
     while True:
         if activity.in_activity():
@@ -226,6 +246,8 @@ async def _run(
         # The repost's first video: what `_video` hands the attributor.
         await scratch.pull([str(m.location) for m in report.media if m.kind == "video"][:1])
         token = ACQUISITION_ROOT.set(scratch.root)
+        asked: list[dict[str, Any]] = []
+        recording = RECORDED.set(asked)
         try:
             outcome = await attributor.identify(
                 input_.workflow_id, report, _video(report, scratch.root)
@@ -244,12 +266,14 @@ async def _run(
             logger.warning("source attribution failed; the repost report stands")
             return failed()
         finally:
+            RECORDED.reset(recording)
             ACQUISITION_ROOT.reset(token)
 
         content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
         location = folder / ATTRIBUTION_FILE
         await asyncio.to_thread(reports.put, location.as_posix(), "source_attribution", content)
         attribution = _artifact("source_attribution", "Source attribution", location, content)
+        await _store_decisions(scratch, folder, asked)
         original = None
         if outcome.original is not None:
             # The original's media goes up before its report row, as acquisition does.

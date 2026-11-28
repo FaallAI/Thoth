@@ -172,6 +172,28 @@ async def test_a_malformed_score_is_decision_unavailable_after_a_retry() -> None
     assert route.call_count == 2
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_a_recording_run_keeps_each_request_and_its_answers() -> None:
+    from thoth_control_plane.attribution.adapters.jev import RECORDED
+
+    respx.post(JEV_URL).mock(return_value=_answers(is_repost=IS_REPOST, credited_platform=PLATFORM))
+    model = JevDecisionModel("synthetic-jev-key")
+    await model.decide({"caption": "unrecorded"}, [])
+    asked: list[dict[str, Any]] = []
+    token = RECORDED.set(asked)
+    try:
+        await model.decide({"caption": "x"}, [])
+    finally:
+        RECORDED.reset(token)
+
+    assert len(asked) == 1
+    assert asked[0]["request"]["model"] == JEV_MODEL
+    assert asked[0]["request"]["state"] == {"caption": "x"}
+    assert set(asked[0]["request"]["questions"]) == {"is_repost", "credited_platform"}
+    assert asked[0]["answers"] == {"is_repost": IS_REPOST, "credited_platform": PLATFORM}
+
+
 def _tiny_jpeg() -> bytes:
     from PIL import Image
 
