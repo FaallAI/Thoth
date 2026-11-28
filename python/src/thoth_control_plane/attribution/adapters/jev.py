@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 # OpenRouter only for now (operator, 2026-10-08); the request and answer shapes are
 # the same as TypeSafe's own API.
 JEV_URL = "https://openrouter.ai/api/alpha/decisions"
-JEV_MODEL = "typesafe/jev-1.13"
+# Operator, 2026-11-28: 1.14 (offline eval: repost AUC 0.93 against 1.13's 0.79, no false
+# repost at 0.35, and it named the credited handle 1.13 missed).
+JEV_MODEL = "typesafe/jev-1.14"
 TIMEOUT_SECONDS = 10.0
 ATTEMPTS = 2
 NONE_OPTION = "none"

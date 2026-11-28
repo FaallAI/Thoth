@@ -83,7 +83,7 @@ async def test_jev_asks_typed_questions_and_reads_the_answers() -> None:
     body = json.loads(request.content)
     assert (body["model"], body["state"]) == (JEV_MODEL, {"caption": "x"})
     assert JEV_URL == "https://openrouter.ai/api/alpha/decisions"
-    assert JEV_MODEL == "typesafe/jev-1.13"
+    assert JEV_MODEL == "typesafe/jev-1.14"
     assert set(body["questions"]["credited_handle"]["criteria"]) == {SOURCE, "none"}
     assert request.headers["authorization"] == "Bearer synthetic-jev-key"
 
