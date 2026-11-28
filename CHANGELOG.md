@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-28 - Decisions: Mammoth-1 comment judge, stored decision requests (PR #147)
+
+**Why** (operator: Jev is weak in Indonesian; brainstorm items 125-127): OpenRouter's Decisions API now serves about 45 models on the same contract. Five Thoth thresholds were tuned on Jev's numbers (repost 0.35, handle 0.5, reaction contribution 0.5, reaction discussion 0.5, comment keep 0.5), so a swap needs measurement first.
+
+**Offline eval** (operator approved the paid run; USD 0.059, 770 calls, 0 errors):
+- **Setup:** 7 models x 2 runs, on stage1's stored data, inside the stage1 worker.
+- **Comments:** 14 posts, 256 comments hand-labelled (208 keep, 48 noise), after the production noise check.
+  - Jev 1.13: accuracy 0.836, drops 31% of the noise.
+  - `baseten/mammoth-1`: accuracy 0.891, drops 65%; its best threshold is still 0.5.
+  - The others: Gemini Decision 1 0.871, Perplexity Decider v1.3 (free) 0.863, Jev 1.14 0.836, GPT-6 Luna Decisions 0.832, Microsoft Decision 1.1 0.809.
+  - Every non-Jev model answered identically across the two runs.
+- **Attribution:** 41 states from 13 hand-labelled posts (9 original, 4 repost).
+  - The other models score reposts far lower than Jev: Mammoth-1 separates best at about 0.12, Perplexity free at 0.07.
+  - Too thin to pick a threshold: only 4 reposts, and the states lack the OCR text, which was never stored.
+  - Reaction assessment was not testable: transcripts are not stored.
+
+**Changes:**
+- **Comment judge:** the content set's comment judge asks `baseten/mammoth-1` (`COMMENT_JUDGE_MODEL`); the threshold stays 0.5. Attribution keeps Jev 1.13.
+- **Decision records:** each attribution run stores every decision request (model, state, questions) and its raw answers in the media store as `reports/<workflow>/decisions.json`. The file is written only when the run asked something, and a failed write only loses the record.
+  - No report kind, migration or `SourceAttribution` schema change, so an older image still reads the attribution.
+
+**Verification:**
+- `make lint`: exit 0.
+- `make test`: exit 0, 5377 passed, 251 skipped.
+- Tests went RED first: the model constant (an import error), the Jev recording, the stored file and the tolerated failure. The no-request case passed before the change and stays as a guard.
+
+**Next steps (each its own operator gate):**
+1. Push to PR #147 and wait for CI.
+2. Deploy the branch image to stage1.
+3. Live FFI re-run (cost first): check the kept comments, and that `decisions.json` lands.
+4. Once about 20 reposts are stored, rerun the attribution eval on the real states and choose the model and the repost threshold.
+5. Merge PR #147.
+
 ## 2026-11-27 - Footage: OCR video credit tracing and commentary precision (PR #147)
 
 **Why** (live run `wf_aea765e4` on PR #147; brainstorm items 118-121; spec and plan `2026-11-27-ocr-video-credit-and-ffi-precision`):
